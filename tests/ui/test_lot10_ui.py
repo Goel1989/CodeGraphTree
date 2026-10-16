@@ -88,3 +88,22 @@ def test_s1_open_folder_runs_inventory_and_scan(qtbot, tmp_path: Path) -> None: 
     win.cancel_scan()
     qtbot.waitUntil(lambda: not win.process.running(), timeout=10000)
     assert win.btn_scan.isEnabled()
+
+
+def test_s3_s4_treegraphs(window, qtbot) -> None:  # type: ignore[no-untyped-def]
+    window.select_symbol("py:app.run.run_case")
+    graph = window.graph_functions
+    qtbot.waitUntil(lambda: "cpp:hybrid::solve(int)" in graph.items, timeout=5000)
+    start_positions = {u: (i.pos().x(), i.pos().y()) for u, i in graph.items.items()}
+    graph.activate(graph.items["cpp:hybrid::solve(int)"])
+    qtbot.waitUntil(lambda: "c:c_solve" in graph.items, timeout=5000)
+    graph.activate(graph.items["c:c_solve"])
+    qtbot.waitUntil(lambda: "f:kernel" in graph.items, timeout=5000)
+    for uid, pos in start_positions.items():  # nodes already placed never move
+        assert (graph.items[uid].pos().x(), graph.items[uid].pos().y()) == pos
+    files = window.graph_files
+    qtbot.waitUntil(lambda: len(files.items) >= 1, timeout=5000)
+    assert "file:app/run.py" in files.items
+    window.show_link_sites("c:c_solve", "f:kernel")
+    qtbot.waitUntil(lambda: window.results.count() == 1, timeout=5000)
+    assert "csrc/solver.c:7:5" in window.results.item(0).text()

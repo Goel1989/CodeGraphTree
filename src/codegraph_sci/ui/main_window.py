@@ -45,6 +45,7 @@ from codegraph_sci.core.versions import APP_VERSION
 from codegraph_sci.query.types import CallerReport, Direction, NodeSummary, ScanHealth, SourceExcerpt
 from codegraph_sci.ui.highlighter import CodeHighlighter
 from codegraph_sci.ui.models import CallTreeModel, FileTreeModel
+from codegraph_sci.ui.treegraph import TreeGraphView
 from codegraph_sci.ui.workers import CgsProcess, QueryRunner
 
 ABOUT_TEXT = (
@@ -157,6 +158,7 @@ class MainWindow(QMainWindow):
         self.pending_scan = False
         self.current: NodeSummary | None = None
         self.tree_model: CallTreeModel | None = None
+        self._from_graph = False
         self._build_ui()
         last = self.settings.value("last_project")
         if isinstance(last, str) and Path(last).is_dir():
@@ -255,6 +257,13 @@ class MainWindow(QMainWindow):
         self.tree_view.doubleClicked.connect(self._tree_activated)
         tl.addWidget(self.tree_view)
         self.tabs.addTab(tree_box, "Liste arborescente")
+        self.graph_functions = TreeGraphView(self.runner, file_level=False)
+        self.graph_functions.node_selected.connect(self._graph_node_selected)
+        self.graph_functions.sites_requested.connect(self.show_link_sites)
+        self.tabs.addTab(self.graph_functions, "TreeGraph fonctions")
+        self.graph_files = TreeGraphView(self.runner, file_level=True)
+        self.graph_files.sites_requested.connect(self.show_link_sites)
+        self.tabs.addTab(self.graph_files, "TreeGraph fichiers")
         self.health_view = QPlainTextEdit()
         self.health_view.setReadOnly(True)
         self.tabs.addTab(self.health_view, "Santé de l'analyse")
@@ -475,7 +484,10 @@ class MainWindow(QMainWindow):
 
     def _result_activated(self, item: QListWidgetItem) -> None:
         uid = item.data(UID_ROLE)
-        if uid:
+        if isinstance(uid, str) and uid.startswith("site:"):
+            path, line = uid[5:].rsplit(":", 1)
+            self.show_file(path, int(line))
+        elif uid:
             self.select_symbol(str(uid))
 
     # -------------------------------------------------------- selection
@@ -546,6 +558,12 @@ class MainWindow(QMainWindow):
         if node.file:
             self.show_file(node.file, node.line, node.lang)
         self._rebuild_tree()
+        if self.db is not None and not self._from_graph:
+            self.graph_functions.hide_noise = self.hide_noise.isChecked()
+            self.graph_functions.set_root(self.db, node.uid, node.display_name, node.lang)
+            if node.file:
+                self.graph_files.set_root(self.db, f"file:{node.file}", node.file, node.lang)
+        self._from_graph = False
 
     def show_file(self, path: str, line: int | None, lang: str | None = None) -> None:
         db = self.db
@@ -594,6 +612,29 @@ class MainWindow(QMainWindow):
         path = index.siblingAtColumn(0).data(FileTreeModel.PATH_ROLE)
         if isinstance(path, str) and not path.startswith("dir:"):
             self.show_file(path, None)
+
+    def _graph_node_selected(self, uid: str) -> None:
+        self._from_graph = True  # keep the drawn tree: only the panels follow the selection
+        self.select_symbol(uid)
+
+    def show_link_sites(self, src: str, dst: str) -> None:
+        """Detailed calls behind a drawn link (double-click on an edge)."""
+        db = self.db
+        if db is None or src.startswith("dir:") or dst.startswith("dir:"):
+            return
+        if self.graph_files.isVisible() and self.graph_files.dir is Direction.CALLERS:
+            src, dst = dst, src
+        elif self.graph_functions.isVisible() and self.graph_functions.dir is Direction.CALLERS:
+            src, dst = dst, src
+        self.runner.submit(db, "link-sites", lambda q: q.call_sites(src, dst), self._show_link_sites, self._error)
+
+    def _show_link_sites(self, sites: list[Any]) -> None:
+        self.results.clear()
+        for s in sites:
+            item = QListWidgetItem(f"{s.file}:{s.line}:{s.col}   {s.target_text}   [{s.confidence}, {s.origin}]")
+            item.setData(UID_ROLE, f"site:{s.file}:{s.line}")
+            self.results.addItem(item)
+        self.status_label.setText(f"{len(sites)} appel(s) derrière ce lien — voir « Résultats de recherche »")
 
     def _error(self, message: str) -> None:
         self.status_label.setText(message.splitlines()[0])
