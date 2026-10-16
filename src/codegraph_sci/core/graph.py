@@ -23,6 +23,7 @@ class FileRecord:
     adapter_version: str | None = None
     error: str | None = None
     mtime_ns: int = 0
+    cache_key: str | None = None
 
 
 @dataclass(slots=True)

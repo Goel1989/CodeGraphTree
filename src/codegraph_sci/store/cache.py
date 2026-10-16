@@ -29,6 +29,18 @@ def load_cache(db_path: Path | str) -> dict[str, bytes]:
         con.close()
 
 
+def previous_files(db_path: Path | str) -> dict[str, tuple[str | None, str | None]]:
+    """path -> (sha256, cache key) recorded by the previous analysis."""
+    try:
+        con = open_db(db_path)
+    except (FileNotFoundError, sqlite3.DatabaseError, RuntimeError):
+        return {}
+    try:
+        return {p: (s, k) for p, s, k in con.execute("SELECT path, sha256, cache_key FROM files")}
+    finally:
+        con.close()
+
+
 def get_facts(cache: dict[str, bytes], key: str) -> FileFacts | None:
     blob = cache.get(key)
     if blob is None:

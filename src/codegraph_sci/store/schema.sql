@@ -4,7 +4,7 @@ CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
 -- Analysed content
 CREATE TABLE files(id INTEGER PRIMARY KEY, path TEXT UNIQUE NOT NULL, lang TEXT, variant TEXT,
                    sha256 TEXT, size INTEGER, mtime_ns INTEGER, encoding TEXT, parse_status TEXT,
-                   adapter TEXT, adapter_version TEXT, error TEXT);
+                   adapter TEXT, adapter_version TEXT, error TEXT, cache_key TEXT);
 CREATE TABLE inventory(file_id INTEGER NOT NULL, lang TEXT, variant TEXT, confidence REAL, decided_by TEXT);
 CREATE TABLE nodes(id INTEGER PRIMARY KEY, uid TEXT UNIQUE NOT NULL, display_name TEXT, kind TEXT,
                    subtype TEXT, lang TEXT, file_id INTEGER, line_start INTEGER, line_end INTEGER,

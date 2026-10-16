@@ -61,6 +61,39 @@ def _cmd_inventory(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_scan(args: argparse.Namespace) -> int:
+    import json
+
+    from codegraph_sci.core.project import open_project
+    from codegraph_sci.scan import ScanOptions, scan
+
+    root = Path(args.root)
+    if not root.is_dir():
+        print(f"error: {root} is not a directory", file=sys.stderr)
+        return 2
+    project = open_project(root, args.project)
+
+    def progress(event: dict[str, object]) -> None:
+        if args.progress == "json":
+            print(json.dumps(event, ensure_ascii=False), flush=True)
+        elif event["event"] in ("extract", "done"):
+            print(" ".join(f"{k}={v}" for k, v in event.items()), file=sys.stderr, flush=True)
+
+    options = ScanOptions(full=args.full, timeout_s=args.timeout)
+    if args.jobs:
+        options.jobs = args.jobs
+    result = scan(project, options, progress)
+    if args.progress != "json":
+        s = result.stats
+        print(f"Database: {result.db_path}")
+        print(f"Files: {s['files_source']} source ({s['files_extracted']} extracted, {s['files_cached']} from cache, "
+              f"{s['files_failed']} failed, {s['files_fallback']} fallback)")
+        print(f"Nodes: {s['nodes']}  call sites: {s['call_sites']} (resolved {s['resolved']}, ambiguous "
+              f"{s['ambiguous']}, external {s['external']}, out of scope {s['out_of_scope']}, unresolved "
+              f"{s['unresolved']})  edges: {s['edges']}  time: {s['seconds']} s")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cgs", description="CodeGraph-Sci command line.")
     parser.add_argument("--version", action="version", version=f"CodeGraph-Sci {APP_VERSION}")
@@ -75,6 +108,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--json", action="store_true", help="JSON output")
     p.add_argument("--no-write", action="store_true", help="do not write the analysis profile")
     p.set_defaults(func=_cmd_inventory)
+
+    p = sub.add_parser("scan", help="analyse a repository (deterministic, reads only the analysis profile)")
+    p.add_argument("root", help="repository folder")
+    p.add_argument("--project", help="project folder (default: in the user data folder)")
+    p.add_argument("--jobs", type=int, default=0, help="worker processes (default: cores - 1)")
+    p.add_argument("--timeout", type=float, default=60.0, help="time limit per file, in seconds")
+    p.add_argument("--full", action="store_true", help="ignore the facts cache")
+    p.add_argument("--progress", choices=["text", "json"], default="text", help="progress format")
+    p.set_defaults(func=_cmd_scan)
 
     p = sub.add_parser("export", help="canonical export of a project database")
     p.add_argument("format", choices=["json"])

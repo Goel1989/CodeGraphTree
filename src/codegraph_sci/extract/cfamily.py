@@ -259,6 +259,9 @@ class CFamilyExtractor:
         for m in re.finditer(r'(?m)^\s*#\s*include\s*"([^"]+)"', text):
             inc = self.ctx.resolve_include(m.group(1), path)
             if inc is not None:
+                if inc.path not in seen:
+                    # Nested include: no site, but part of the facts cache key (§3.6).
+                    self.includes.append(IncludeRef(m.group(1), inc.path, inc.sha256, 0))
                 self._macros_from(inc.path, inc.text, seen, depth + 1)
 
     # ------------------------------------------------------------ walking

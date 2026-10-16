@@ -38,3 +38,10 @@
 - `extract/cfamily.py` (C et C++, tree-sitter) : définitions avec identités du §3.5 (signatures C++ normalisées, `static` qualifiées par fichier, méthodes hors classe), héritage, expansion partielle des macros (fichier et en-têtes inclus), conditions du préprocesseur, types des arguments pour le choix des surcharges, blocs de macros (`PYBIND11_MODULE`) ; extracteur à motifs de repli.
 - `extract/preproc.py` : conditions du préprocesseur partagées.
 - Les fixtures Python, C, C++ et mini_hybrid donnent exactement les faits attendus ; fuzzing des adaptateurs.
+
+## Lot 6 — Link, Index et commande `cgs scan`
+- `algo/` : Tarjan itératif, condensation, taille d'impact par ensembles de bits, parcours en largeur bornés, k plus courts chemins simples ; étape Index (arêtes agrégées, `node_stats`, `file_edges`, `dir_edges`).
+- `link/` : tables de symboles par langage (Fortran insensible à la casse, portées hôte/module/USE transitif, interfaces génériques, procédures liées à un type, variantes ; Python avec MRO ; C avec `static` par fichier ; C++ avec héritage, appels virtuels, choix des surcharges par arité et types), externes connus (intrinsèques, libc, MPI, BLAS/LAPACK, HDF5), état `out_of_scope`.
+- `scan.py` et `cgs scan` : lecture du profil, inventaire, extraction parallèle avec délai par fichier, fichiers trop volumineux signalés, cache des faits (clé incluant les fichiers inclus), progression JSON, écriture atomique ou incrémentale.
+- Les 15 fixtures donnent exactement leur graphe attendu ; deux analyses donnent un export identique.
+- Mesures (Windows, 8 cœurs) : dépôt synthétique 15 000 routines / 3 000 fichiers / 121 387 sites analysé en 50 s ; ré-analyse après 50 modifications en 16,5 s ; taille d'impact de 15 000 nœuds en 0,06 s.

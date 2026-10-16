@@ -65,9 +65,9 @@ def _fill(con: sqlite3.Connection, bundle: GraphBundle,
     con.executemany("INSERT INTO meta(key, value) VALUES (?, ?)",
                     [("app_version", APP_VERSION), ("schema_version", str(DB_SCHEMA_VERSION))])
     say("files")
-    _insert(con, "INSERT INTO files VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    _insert(con, "INSERT INTO files VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             ((file_ids[f.path], f.path, f.lang, f.variant, f.sha256, f.size, f.mtime_ns, f.encoding,
-              f.parse_status, f.adapter, f.adapter_version, f.error) for f in bundle.files))
+              f.parse_status, f.adapter, f.adapter_version, f.error, f.cache_key) for f in bundle.files))
     _insert(con, "INSERT INTO inventory VALUES (?,?,?,?,?)",
             ((file_ids[i.path], i.lang, i.variant, i.confidence, i.decided_by) for i in bundle.inventory))
     say("nodes")
