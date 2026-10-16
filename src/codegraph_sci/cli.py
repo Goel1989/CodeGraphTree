@@ -164,6 +164,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=_cmd_export)
 
     from codegraph_sci.audit.commands import register as register_audit
+    from codegraph_sci.cli_query import register as register_query
+
+    register_query(sub)
 
     register_audit(sub, _cmd_audit_corpus)
     return parser

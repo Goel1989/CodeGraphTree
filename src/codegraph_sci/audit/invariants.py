@@ -2,24 +2,14 @@
 
 from __future__ import annotations
 
-import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 from codegraph_sci.audit.common import connect, rows
+from codegraph_sci.query.api import site_pattern
 
 CALL_KINDS = ("call", "maybe_call", "dynamic_call")
-
-
-def site_pattern(target: str) -> str:
-    """Pattern of an unresolved target: a prefix such as ``FCALL_`` or ``mpi_`` when present."""
-    m = re.match(r"^([A-Za-z]+_)", target)
-    if m and len(m.group(1)) <= 12:
-        return m.group(1) + "*"
-    if "%" in target or "." in target or "::" in target or "->" in target:
-        return re.sub(r"\w+$", "*", target.replace("->", "."))
-    return target.lower()
 
 
 def unresolved_groups(db: Path, include_ambiguous: bool = False, limit: int = 50) -> list[dict[str, Any]]:

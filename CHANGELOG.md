@@ -56,3 +56,9 @@
 - `link/bridges/` : ponts natifs `pybind11`, `python_extension`, `c_cpp`, `fortran_c` (souligné final, majuscules, double souligné g77, `BIND(C)`) ; règles `prefix_calls` (préfixes du plus long au plus court, `name_transform` explicite) et `declaration_patterns` (nœuds `binding`, jamais de site d'appel) ; règles approuvées du profil (`rules/r-<n>.yaml`).
 - Arêtes `binds` / `bridges`, nœuds externes devenus inutiles supprimés ; groupe « ponts » dans l'échantillon de précision.
 - Fixtures `bridge_pybind11`, `bridge_fortran_c`, `bridge_prefix_negative` et `mini_hybrid` avec ponts : graphes exacts, chaîne Python → C++ → C → Fortran retrouvée, plus aucun site non résolu.
+
+## Lot 9 — API de requêtes et ligne de commande
+- `query/` : `GraphQuery` (§3.10) — `inventory`, `find` (recherche floue FTS5 + noms), `resolve`, `node`, `callers` / `callees` (nombre d'appelants distincts, fichiers, sites ligne par ligne, masquage du bruit), `children` (routine, fichier, répertoire ; paginé), `file_links`, `call_sites`, `paths` (k chemins simples bornés, étapes d'aiguillage « possibles »), `impact` (appelants transitifs bornés, points d'entrée), `data_accesses`, `unresolved` (groupes par motif), `scan_health`, `source` (contrôle de fraîcheur : taille/date puis SHA-256).
+- Commandes `cgs callers`, `callees`, `find`, `file-links`, `path`, `impact`, `data`, `unresolved`, `health` (tableau ou `--json`).
+- Index ajoutés : `call_site_candidates(dst_node)`, `nodes(display_name)`.
+- Mesures sur le dépôt synthétique (15 000 routines) : appelants d'un hub 11 ms, dépliage 2 ms, recherche 7 ms, impact à profondeur 3 en 197 ms.

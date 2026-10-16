@@ -4,6 +4,8 @@ CREATE INDEX IF NOT EXISTS ix_sites_dst ON call_sites(dst_node);
 CREATE INDEX IF NOT EXISTS ix_sites_file_line ON call_sites(file_id, line);
 CREATE INDEX IF NOT EXISTS ix_sites_resolution ON call_sites(resolution, target_text);
 CREATE INDEX IF NOT EXISTS ix_candidates_site ON call_site_candidates(site_id);
+CREATE INDEX IF NOT EXISTS ix_candidates_dst ON call_site_candidates(dst_node);
+CREATE INDEX IF NOT EXISTS ix_nodes_name ON nodes(display_name COLLATE NOCASE);
 CREATE INDEX IF NOT EXISTS ix_data_src ON data_accesses(src_node);
 CREATE INDEX IF NOT EXISTS ix_data_node ON data_accesses(data_node);
 CREATE INDEX IF NOT EXISTS ix_edges_src ON edges(src, kind);
