@@ -35,7 +35,7 @@ def unresolved_groups(db: Path, include_ambiguous: bool = False, limit: int = 50
     groups: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for r in data:
         groups[(r["lang"] or "?", r["resolution"], site_pattern(r["target"]))].append(r)
-    out = []
+    out: list[dict[str, Any]] = []
     for (lang, resolution, pattern), items in groups.items():
         out.append({"lang": lang, "resolution": resolution, "pattern": pattern, "count": len(items),
                     "files": len({i["file"] for i in items}),
