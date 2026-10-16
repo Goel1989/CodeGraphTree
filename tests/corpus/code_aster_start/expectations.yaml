@@ -1,0 +1,20 @@
+# tests/corpus/code_aster_start/expectations.yaml — à compléter par l'auteur
+inventory:
+  languages: { fortran: { min_files: 100 }, python: { min_files: 10 }, cpp: { min_files: 10 }, c: { min_files: 1 } }
+  max_unknown_rate: 0.01
+expect:
+  - node: "f:mmalgo"
+  - node: "f:nmstat"                              # à valider : présent dans le périmètre ?
+  - hidden: "f:utmess"
+  - hidden: "f:jemarq"
+  - no_call_to: ["f:zr", "f:zi", "f:zc", "f:zl", "f:zk8", "f:zk16", "f:zk24", "f:zk32", "f:zk80"]
+  - writes: { routine: "<routine choisie dans le périmètre>", data: "data:mem:*.VALE", key_kind: family }
+  - edge: { src: "<fonction C++ choisie>", dst: "f:<routine Fortran appelée par CALLO_>", kind: bridges }
+  - out_of_scope_allowed: ["f:op*", "f:te*", "f:lc*"]   # définis hors du périmètre de démarrage
+metrics:
+  min_recall_definitions: 0.99
+  min_recall_call_sites: 0.97
+  min_precision_resolved: 0.98                    # par langage
+  min_precision_lower_bound: 0.95
+  max_unresolved_rate: 0.02
+  max_parse_failure_rate: 0.02

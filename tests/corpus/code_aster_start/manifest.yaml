@@ -1,0 +1,7 @@
+# tests/corpus/code_aster_start/manifest.yaml
+corpus: code_aster_start
+source: { path: "<emplacement local des sources>", revision: "<tag exact de la version de référence>" }
+license: GPL-3.0
+packs: [code_aster]
+scope: ["code_aster/", "bibcxx/", "bibc/", "bibfor/nonlinear/", "bibfor/contact/"]
+# le reste du dépôt est indexé (définitions seulement) : les appels vers l'extérieur sont out_of_scope

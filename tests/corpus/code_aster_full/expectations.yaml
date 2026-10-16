@@ -1,0 +1,10 @@
+# tests/corpus/code_aster_full/expectations.yaml — à compléter par l'auteur
+expect:
+  - path: { from: "entry:STAT_NON_LINE", to: "f:op0070", max_len: 4, edge_kinds: call_path }   # à valider
+  - dispatches: { src: "f:te0000", min_targets: 100 }                                          # ordre de grandeur à valider
+  - dispatches: { src: "f:lc0000", min_targets: 10 }                                           # à valider
+  - catalog_links: { min: 100 }                   # (option, élément) → te0xxx, via enrich.py
+  - tests_for: { routine: "f:mmalgo", min_cases: 1 }
+metrics:
+  min_precision_bridges: 0.95
+  min_precision_bridges_lower_bound: 0.90

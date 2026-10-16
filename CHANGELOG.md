@@ -45,3 +45,8 @@
 - `scan.py` et `cgs scan` : lecture du profil, inventaire, extraction parallèle avec délai par fichier, fichiers trop volumineux signalés, cache des faits (clé incluant les fichiers inclus), progression JSON, écriture atomique ou incrémentale.
 - Les 15 fixtures donnent exactement leur graphe attendu ; deux analyses donnent un export identique.
 - Mesures (Windows, 8 cœurs) : dépôt synthétique 15 000 routines / 3 000 fichiers / 121 387 sites analysé en 50 s ; ré-analyse après 50 modifications en 16,5 s ; taille d'impact de 15 000 nœuds en 0,06 s.
+
+## Lot 7 — Outils de validation sur un code réel (point d'arrêt)
+- `audit/` et `cgs audit` : `inventory` (cohérence), `baseline` (référence textuelle indépendante), `diff` (double extraction par langage), `invariants` (doublons, sites non résolus regroupés par motif, routines jamais appelées, échecs), `sample` / `recall-sample` (échantillons stratifiés à graine fixe), `review` (une touche par entrée), `report` (métriques du §2.1 avec bornes de Wilson), `accept` + `replay` (`reference_sample.yaml` rejoué automatiquement), `corpus` (manifeste + attentes).
+- Gabarits `tests/corpus/code_aster_start` et `code_aster_full` (à compléter : emplacement et révision des sources).
+- **Validation réelle non faite** : elle exige les sources du cas de test n°1 et la vérification manuelle des échantillons.
