@@ -1,0 +1,120 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codegraph-sci"
+version = "0.1.0"
+description = "Offline desktop call-graph explorer for multi-language scientific code (Fortran, Python, C, C++)."
+requires-python = ">=3.12"
+license = { text = "PolyForm-Noncommercial-1.0.0" }
+authors = [{ name = "Marian Bogdan Neagoe" }]
+dependencies = [
+    "PySide6>=6.5",
+    "PyYAML>=6.0",
+    "jsonschema>=4.20",
+    "tree-sitter>=0.23",
+    "tree-sitter-fortran>=0.5",
+    "tree-sitter-python>=0.23",
+    "tree-sitter-c>=0.23",
+    "tree-sitter-cpp>=0.23",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest", "pytest-qt", "pytest-socket", "hypothesis",
+    "ruff", "mypy", "import-linter", "types-PyYAML", "types-jsonschema",
+]
+
+[project.scripts]
+cgs = "codegraph_sci.cli:main"
+
+[project.gui-scripts]
+codegraph-sci = "codegraph_sci.ui.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+codegraph_sci = ["**/*.yaml", "**/*.json", "**/*.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--disable-socket --allow-unix-socket -p no:cacheprovider"
+markers = [
+    "slow: long-running performance tests",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+src = ["src", "tests"]
+extend-exclude = ["tests/fixtures"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S102", "S301", "S506"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+packages = ["codegraph_sci"]
+exclude = ["codegraph_sci/ui/"]
+
+[[tool.mypy.overrides]]
+module = ["tree_sitter_fortran", "tree_sitter_python", "tree_sitter_c", "tree_sitter_cpp"]
+ignore_missing_imports = true
+
+[tool.importlinter]
+root_packages = ["codegraph_sci"]
+include_external_packages = false
+
+[[tool.importlinter.contracts]]
+name = "core imports nothing internal"
+type = "forbidden"
+source_modules = ["codegraph_sci.core"]
+forbidden_modules = [
+    "codegraph_sci.algo", "codegraph_sci.inventory", "codegraph_sci.extract", "codegraph_sci.link",
+    "codegraph_sci.enrich", "codegraph_sci.store", "codegraph_sci.query", "codegraph_sci.layout",
+    "codegraph_sci.audit", "codegraph_sci.scan", "codegraph_sci.cli", "codegraph_sci.ui",
+]
+
+[[tool.importlinter.contracts]]
+name = "leaf packages only use core"
+type = "forbidden"
+source_modules = [
+    "codegraph_sci.algo", "codegraph_sci.inventory", "codegraph_sci.extract", "codegraph_sci.link",
+    "codegraph_sci.enrich", "codegraph_sci.store", "codegraph_sci.layout",
+]
+forbidden_modules = [
+    "codegraph_sci.query", "codegraph_sci.audit", "codegraph_sci.scan", "codegraph_sci.cli",
+    "codegraph_sci.ui",
+]
+
+[[tool.importlinter.contracts]]
+name = "leaf packages are independent"
+type = "independence"
+modules = [
+    "codegraph_sci.algo", "codegraph_sci.inventory", "codegraph_sci.extract", "codegraph_sci.link",
+    "codegraph_sci.enrich", "codegraph_sci.store", "codegraph_sci.layout",
+]
+
+[[tool.importlinter.contracts]]
+name = "query only uses core, store, algo"
+type = "forbidden"
+source_modules = ["codegraph_sci.query"]
+forbidden_modules = [
+    "codegraph_sci.inventory", "codegraph_sci.extract", "codegraph_sci.link", "codegraph_sci.enrich",
+    "codegraph_sci.layout", "codegraph_sci.audit", "codegraph_sci.scan", "codegraph_sci.cli",
+    "codegraph_sci.ui",
+]
+
+[[tool.importlinter.contracts]]
+name = "ui only uses core, query, layout"
+type = "forbidden"
+source_modules = ["codegraph_sci.ui"]
+forbidden_modules = [
+    "codegraph_sci.extract", "codegraph_sci.link", "codegraph_sci.enrich", "codegraph_sci.store",
+    "codegraph_sci.algo", "codegraph_sci.audit", "codegraph_sci.scan", "codegraph_sci.inventory",
+]

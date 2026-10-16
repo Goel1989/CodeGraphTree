@@ -1,0 +1,19 @@
+CodeGraph-Sci - version portable
+================================
+
+Application 100 % hors ligne : aucun accès réseau, aucun port ouvert.
+
+Lancement
+- Application de bureau : CodeGraph-Sci (CodeGraph-Sci.exe sous Windows)
+- Ligne de commande     : cgs (cgs.exe sous Windows)
+- Vérification          : cgs selftest
+
+Données
+- Par défaut sur le disque local (~/.codegraph-sci/ ou %LOCALAPPDATA%\CodeGraph-Sci\),
+  car une base SQLite est lente sur clé USB.
+- Mode portable : créer le fichier data/portable.flag ; les projets et réglages sont
+  alors écrits dans data/, à côté de l'application.
+
+Linux : Qt 6.5+ a besoin de libxcb-cursor0 (sudo apt install libxcb-cursor0 sous Ubuntu 22.04).
+
+Licences : voir le dossier licenses/.
