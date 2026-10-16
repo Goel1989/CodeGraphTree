@@ -13,6 +13,7 @@ import os
 import re
 import sqlite3
 from collections import defaultdict, deque
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -873,23 +874,65 @@ class GraphQuery:
             if not frontier:
                 break
         if mode == "both":
-            routine_files = sorted({(n.file, n.id) for n in nodes.values() if n.file and n.kind != "file"})
-            for path, uid in routine_files:
-                fid = f"file:{path}"
-                if add_node(fid):
-                    links[(fid, uid, "defines")] = Graph3DLink(fid, uid, "defines", 1, "exact")
-            paths = {n.file for n in nodes.values() if n.kind == "file" and n.file}
-            if paths:
-                mark = ",".join("?" * len(paths))
-                for a, b, kind, count in self.con.execute(
-                        f"SELECT fa.path, fb.path, e.kind, e.count FROM file_edges e JOIN files fa ON fa.id = e.src_file "
-                        f"JOIN files fb ON fb.id = e.dst_file WHERE fa.path IN ({mark}) AND fb.path IN ({mark})",
-                        (*sorted(paths), *sorted(paths))):
-                    links[(f"file:{a}", f"file:{b}", kind)] = Graph3DLink(f"file:{a}", f"file:{b}", kind, count,
-                                                                       "exact")
+            self._files_layer(nodes, links, add_node)
         return Graph3D(root=start, mode=mode, nodes=sorted(nodes.values(), key=lambda n: n.id),
                        links=sorted(links.values(), key=lambda lk: (lk.source, lk.target, lk.kind)),
                        truncated=truncated, hidden_noise=hidden)
+
+    def _files_layer(self, nodes: dict[str, Graph3DNode], links: dict[tuple[str, str, str], Graph3DLink],
+                     add_node: Callable[[str], bool]) -> None:
+        """Mode ``both``: the files defining the shown routines, and the links between those files."""
+        routine_files = sorted({(n.file, n.id) for n in nodes.values() if n.file and n.kind != "file"})
+        for path, uid in routine_files:
+            fid = f"file:{path}"
+            if add_node(fid):
+                links[(fid, uid, "defines")] = Graph3DLink(fid, uid, "defines", 1, "exact")
+        paths = {n.file for n in nodes.values() if n.kind == "file" and n.file}
+        if paths:
+            mark = ",".join("?" * len(paths))
+            for a, b, kind, count in self.con.execute(
+                    f"SELECT fa.path, fb.path, e.kind, e.count FROM file_edges e JOIN files fa ON fa.id = e.src_file "
+                    f"JOIN files fb ON fb.id = e.dst_file WHERE fa.path IN ({mark}) AND fb.path IN ({mark})",
+                    (*sorted(paths), *sorted(paths))):
+                links[(f"file:{a}", f"file:{b}", kind)] = Graph3DLink(f"file:{a}", f"file:{b}", kind, count,
+                                                                   "exact")
+
+    def graph3d_main_paths(self, target_uid: str, *, mode: str = "functions", max_paths: int = 3,
+                           max_len: int = 15) -> tuple[Graph3D, MainPathReport]:
+        """The paths from ``main`` to ``target_uid`` as a 3D graph (shortest path only when there are many)."""
+        if mode not in ("functions", "files", "both"):
+            raise QueryError(f"unknown 3D mode: {mode}")
+        level = Level.FILE if mode == "files" else Level.ROUTINE
+        if level is Level.FILE and not target_uid.startswith("file:"):
+            detail = self.node(target_uid)
+            if not detail.file:
+                raise QueryError(f"{target_uid} has no file")
+            target_uid = f"file:{detail.file}"
+        report = self.paths_from_main(target_uid, level=level, max_paths=max_paths, max_len=max_len)
+        root = report.paths[0].steps[0].uid if report.paths else report.target_uid
+        nodes: dict[str, Graph3DNode] = {}
+        links: dict[tuple[str, str, str], Graph3DLink] = {}
+
+        def add_node(uid: str) -> bool:
+            if uid not in nodes:
+                nodes[uid] = self._node3d(uid, uid == root)
+            return True
+
+        add_node(report.target_uid)
+        for path in report.paths:
+            for prev, step in zip(path.steps, path.steps[1:], strict=False):
+                add_node(prev.uid)
+                add_node(step.uid)
+                kind = step.edge_kind or "calls"
+                links[(prev.uid, step.uid, kind)] = Graph3DLink(prev.uid, step.uid, kind, 1,
+                                                                step.confidence or "exact")
+            add_node(path.steps[0].uid)
+        if mode == "both":
+            self._files_layer(nodes, links, add_node)
+        graph = Graph3D(root=root, mode=mode, nodes=sorted(nodes.values(), key=lambda n: n.id),
+                        links=sorted(links.values(), key=lambda lk: (lk.source, lk.target, lk.kind)),
+                        truncated=report.truncated)
+        return graph, report
 
     def _node3d(self, uid: str, is_root: bool) -> Graph3DNode:
         if uid.startswith("file:"):

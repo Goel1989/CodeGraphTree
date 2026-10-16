@@ -107,3 +107,10 @@
 - `cgs view3d <routine> [--mode] [--depth] [--max-nodes] [--export page.html]`: PyWebView window in its own process, no HTTP server, no port, CSP forbidding network access; vendored 3d-force-graph 1.80.1 (three.js r186). Click = select in the main window; right-click = expand on demand; search, legend, arrows, flow particles on cross-language bridges.
 - Desktop app: "3D view" button and mode selector; selection comes back through stdout events.
 - Decision D20 (Streamlit rejected: web server and port, contrary to C1/C2); optional extra `view3d` (`pywebview`).
+
+## 3D graphs in the main window (decision D21)
+- The "Functions TreeGraph" and "Files TreeGraph" tabs are replaced by **Functions 3D** and **Files 3D**: the 3d-force-graph page embedded in a `QWebEngineView` (`ui/graph3d_view.py`). Start at `main`, follow the selection, right-click to expand a node, "Paths to main", depth and node ceiling (300 by default), optional defining files; click on a link lists its call sites.
+- `GraphQuery.graph3d_main_paths(target, mode)`; the 3D page now serves two hosts (Qt bridge through console messages, or PyWebView `js_api`), survives a missing WebGL, fits the camera once the layout settles, and colours files by language in files mode.
+- Offline: CSP, Qt's off-the-record profile, request interceptor allowing only `file`, `data`, `blob`; no server, no port.
+- The 2D `ui/treegraph.py` and the "3D view" toolbar button (separate PyWebView process) are removed; `cgs view3d` stays available.
+- Portable build: Qt WebEngine is no longer excluded.

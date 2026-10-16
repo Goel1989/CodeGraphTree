@@ -14,8 +14,9 @@ hidden = ["tree_sitter", "tree_sitter_fortran", "tree_sitter_python", "tree_sitt
           "webview", "codegraph_sci.ui.view3d.app"]
 for mod in hidden[1:]:
     binaries += collect_dynamic_libs(mod)
-excludes = ["tkinter", "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.Qt3DCore",
-            "PySide6.QtQuick", "PySide6.QtQml", "PySide6.QtMultimedia", "PySide6.QtNetwork"]
+# QtWebEngine (Chromium) is kept: it draws the 3D graphs of the main window (decision D21); it needs QtNetwork,
+# QtQuick, QtQml and QtWebChannel, so those are not excluded either.
+excludes = ["tkinter", "PySide6.Qt3DCore", "PySide6.QtMultimedia"]
 
 cli_a = Analysis([str(ROOT / "packaging/entry/cgs_entry.py")], pathex=[str(SRC)], datas=datas,
                  binaries=binaries, hiddenimports=hidden, excludes=excludes)

@@ -90,73 +90,55 @@ def test_s1_open_folder_runs_inventory_and_scan(qtbot, tmp_path: Path) -> None: 
     assert win.btn_scan.isEnabled()
 
 
-def test_s3_s4_treegraphs(window, qtbot) -> None:  # type: ignore[no-untyped-def]
-    window.select_symbol("py:app.run.run_case")
+def test_s3_s4_graphs_3d(window, qtbot) -> None:  # type: ignore[no-untyped-def]
     graph = window.graph_functions
-    qtbot.waitUntil(lambda: "cpp:hybrid::solve(int)" in graph.items, timeout=5000)
-    start_positions = {u: (i.pos().x(), i.pos().y()) for u, i in graph.items.items()}
-    graph.activate(graph.items["cpp:hybrid::solve(int)"])
-    qtbot.waitUntil(lambda: "c:c_solve" in graph.items, timeout=5000)
-    graph.activate(graph.items["c:c_solve"])
-    qtbot.waitUntil(lambda: "f:kernel" in graph.items, timeout=5000)
-    for uid, pos in start_positions.items():  # nodes already placed never move
-        assert (graph.items[uid].pos().x(), graph.items[uid].pos().y()) == pos
     files = window.graph_files
-    qtbot.waitUntil(lambda: len(files.items) >= 1, timeout=5000)
-    assert "file:app/run.py" in files.items
+    # The embedded page answers through the JS bridge even without WebGL (offscreen tests).
+    qtbot.waitUntil(lambda: graph.page_ready and files.page_ready, timeout=20000)
+    window.select_symbol("py:app.run.run_case")
+    qtbot.waitUntil(lambda: graph.root_uid == "py:app.run.run_case"
+                    and "cpp:hybrid::solve(int)" in graph.node_ids, timeout=5000)
+    qtbot.waitUntil(lambda: graph.js_nodes == len(graph.node_ids), timeout=5000)  # data reached the page
+    qtbot.waitUntil(lambda: "file:app/run.py" in files.node_ids, timeout=5000)
+    assert all(uid.startswith("file:") for uid in files.node_ids)
     window.show_link_sites("c:c_solve", "f:kernel")
     qtbot.waitUntil(lambda: window.results.count() == 1, timeout=5000)
     assert "csrc/solver.c:7:5" in window.results.item(0).text()
 
 
-def test_treegraphs_auto_from_main_and_directed_edges(window, qtbot) -> None:  # type: ignore[no-untyped-def]
-    from codegraph_sci.ui.treegraph import EdgeItem
-
+def test_graphs_3d_start_from_main(window, qtbot) -> None:  # type: ignore[no-untyped-def]
     graph_fn = window.graph_functions
     graph_fl = window.graph_files
-    qtbot.waitUntil(lambda: "py:app.run.run_case" in graph_fn.items and "f:kernel" in graph_fn.items, timeout=5000)
-    qtbot.waitUntil(lambda: "file:app/run.py" in graph_fl.items and "file:fsrc/kernel.f90" in graph_fl.items,
+    qtbot.waitUntil(lambda: "py:app.run.run_case" in graph_fn.node_ids and "c:c_solve" in graph_fn.node_ids,
                     timeout=5000)
-
-    fn_edges = [i for i in graph_fn.scene.items() if isinstance(i, EdgeItem)]
-    assert fn_edges
-    pairs = {(e.src.uid, e.dst.uid) for e in fn_edges}
-    assert ("py:app.run.run_case", "cpp:hybrid::solve(int)") in pairs
-    assert ("c:c_solve", "f:kernel") in pairs
-    for edge in fn_edges:
-        assert not edge.arrow_polygon.isEmpty()
+    qtbot.waitUntil(lambda: "file:app/run.py" in graph_fl.node_ids, timeout=5000)
+    assert graph_fn.main_uid == graph_fn.root_uid
+    assert ("py:app.run.run_case", "cpp:hybrid::solve(int)") in {(s, t) for s, t, _ in graph_fn.link_keys}
 
 
-def test_treegraph_click_connected_and_paths_to_main(window, qtbot) -> None:  # type: ignore[no-untyped-def]
-    graph_fn = window.graph_functions
-    qtbot.waitUntil(lambda: "c:c_solve" in graph_fn.items, timeout=5000)
-    # Set root to an intermediate node and click it to open both callers and callees.
+def test_graph_3d_events_select_expand_link_and_paths(window, qtbot) -> None:  # type: ignore[no-untyped-def]
+    graph = window.graph_functions
+    qtbot.waitUntil(lambda: graph.main_uid is not None, timeout=5000)
+    graph.depth.setValue(1)
     assert window.db is not None
-    graph_fn.set_root(window.db, "c:c_solve", "c_solve", "c")
-    qtbot.waitUntil(lambda: "c:c_solve" in graph_fn.items, timeout=5000)
-    graph_fn.on_node_clicked(graph_fn.items["c:c_solve"])
-    qtbot.waitUntil(
-        lambda: "cpp:hybrid::solve(int)" in graph_fn.items and "f:kernel" in graph_fn.items,
-        timeout=5000,
-    )
-    # Filter to only links up to main.
-    graph_fn.on_node_clicked(graph_fn.items["f:kernel"])
-    graph_fn.btn_to_main.setChecked(True)
-    qtbot.waitUntil(
-        lambda: "py:app.run.run_case" in graph_fn.items
-        and "f:kernel" in graph_fn.items
-        and "main" in graph_fn.info.text().lower(),
-        timeout=5000,
-    )
-
-
-
-def test_view3d_button_args_and_selection_event(window, qtbot) -> None:  # type: ignore[no-untyped-def]
-    window.select_symbol("c:c_solve")
+    graph.set_root(window.db, "f:kernel")
+    qtbot.waitUntil(lambda: graph.node_ids == {"f:kernel", "c:c_solve"}, timeout=5000)
+    # Right-click in the page: neighbours are merged, nothing already shown is dropped.
+    graph.handle_event({"event": "expand", "uid": "c:c_solve"})
+    qtbot.waitUntil(lambda: "cpp:hybrid::solve(int)" in graph.node_ids, timeout=5000)
+    assert {"f:kernel", "c:c_solve"} <= graph.node_ids
+    # Click in the page: the panels follow, the graph stays.
+    shown = set(graph.node_ids)
+    graph.handle_event({"event": "select", "uid": "c:c_solve"})
     qtbot.waitUntil(lambda: window.current is not None and window.current.uid == "c:c_solve", timeout=5000)
-    args = window.view3d_args()
-    assert args[:2] == ["view3d", "c:c_solve"] and "--db" in args and args[args.index("--mode") + 1] == "both"
-    # A click in the 3D window comes back as one JSON line on stdout: the panels follow it.
-    window._on_view3d_event('{"event": "select", "uid": "f:kernel"}')
-    qtbot.waitUntil(lambda: window.current is not None and window.current.uid == "f:kernel", timeout=5000)
-    window._on_view3d_event("not json")  # ignored
+    assert graph.node_ids == shown and graph.root_uid == "f:kernel"
+    # Click on a link: its call sites are listed.
+    graph.handle_event({"event": "link", "source": "c:c_solve", "target": "f:kernel"})
+    qtbot.waitUntil(lambda: window.results.count() == 1, timeout=5000)
+    # Paths to main: only the routines between main and the selected node.
+    graph.handle_event({"event": "select", "uid": "f:kernel"})
+    graph.btn_to_main.setChecked(True)
+    qtbot.waitUntil(lambda: "py:app.run.run_case" in graph.node_ids and "main" in graph.info.text().lower(),
+                    timeout=5000)
+    graph.handle_event({"event": "bogus"})  # unknown events are ignored
+    graph.handle_event({"event": "select"})

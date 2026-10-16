@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QProcess, QSettings, Qt
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QAction, QColor, QFont, QKeySequence, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -43,10 +43,10 @@ from codegraph_sci.core.paths import data_dir
 from codegraph_sci.core.project import Project, open_project
 from codegraph_sci.core.versions import APP_VERSION
 from codegraph_sci.query.types import CallerReport, Direction, NodeSummary, ScanHealth, SourceExcerpt
+from codegraph_sci.ui.graph3d_view import Graph3DView
 from codegraph_sci.ui.highlighter import CodeHighlighter
 from codegraph_sci.ui.models import CallTreeModel, FileTreeModel
-from codegraph_sci.ui.treegraph import TreeGraphView
-from codegraph_sci.ui.workers import CgsProcess, QueryRunner, cgs_command
+from codegraph_sci.ui.workers import CgsProcess, QueryRunner
 
 ABOUT_TEXT = (
     f"<h3>CodeGraph-Sci {APP_VERSION}</h3>"
@@ -201,16 +201,6 @@ class MainWindow(QMainWindow):
         self.hide_amb = QCheckBox("Hide ambiguous sites")
         self.hide_amb.toggled.connect(self.refresh_symbol)
         tb.addWidget(self.hide_amb)
-        tb.addSeparator()
-        self.view3d_mode = QComboBox()
-        self.view3d_mode.addItems(["both", "functions", "files"])
-        self.view3d_mode.setToolTip("3D view: functions, files, or functions with the files that define them")
-        tb.addWidget(self.view3d_mode)
-        self.btn_3d = QPushButton("3D view")
-        self.btn_3d.setToolTip("Open the connections of the selected routine in a 3D window (3d-force-graph)")
-        self.btn_3d.clicked.connect(self.open_view3d)
-        tb.addWidget(self.btn_3d)
-        self.view3d_processes: list[QProcess] = []
 
         help_menu = self.menuBar().addMenu("&Help")
         about = help_menu.addAction("&About CodeGraph-Sci")
@@ -267,14 +257,14 @@ class MainWindow(QMainWindow):
         self.tree_view.doubleClicked.connect(self._tree_activated)
         tl.addWidget(self.tree_view)
         self.tabs.addTab(tree_box, "Tree list")
-        self.graph_functions = TreeGraphView(self.runner, file_level=False)
+        self.graph_functions = Graph3DView(self.runner, files=False)
         self.graph_functions.node_selected.connect(self._graph_node_selected)
         self.graph_functions.sites_requested.connect(self.show_link_sites)
-        self.tabs.addTab(self.graph_functions, "Functions TreeGraph")
-        self.graph_files = TreeGraphView(self.runner, file_level=True)
+        self.tabs.addTab(self.graph_functions, "Functions 3D")
+        self.graph_files = Graph3DView(self.runner, files=True)
         self.graph_files.node_selected.connect(self._graph_node_selected)
         self.graph_files.sites_requested.connect(self.show_link_sites)
-        self.tabs.addTab(self.graph_files, "Files TreeGraph")
+        self.tabs.addTab(self.graph_files, "Files 3D")
         self.health_view = QPlainTextEdit()
         self.health_view.setReadOnly(True)
         self.tabs.addTab(self.health_view, "Analysis health")
@@ -514,7 +504,7 @@ class MainWindow(QMainWindow):
             path = uid[5:]
             self.show_file(path, None)
             if not self._from_graph:
-                self.graph_files.set_root(db, uid, path.rsplit("/", 1)[-1], None)
+                self.graph_files.set_root(db, uid)
             self._from_graph = False
             return
         hide = self.hide_noise.isChecked()
@@ -579,9 +569,9 @@ class MainWindow(QMainWindow):
         self._rebuild_tree()
         if self.db is not None and not self._from_graph:
             self.graph_functions.hide_noise = self.hide_noise.isChecked()
-            self.graph_functions.set_root(self.db, node.uid, node.display_name, node.lang)
+            self.graph_functions.set_root(self.db, node.uid)
             if node.file:
-                self.graph_files.set_root(self.db, f"file:{node.file}", node.file.rsplit("/", 1)[-1], node.lang)
+                self.graph_files.set_root(self.db, f"file:{node.file}")
         self._from_graph = False
 
     def show_file(self, path: str, line: int | None, lang: str | None = None) -> None:
@@ -632,67 +622,11 @@ class MainWindow(QMainWindow):
         if isinstance(path, str) and not path.startswith("dir:"):
             self.show_file(path, None)
             if self.db is not None:
-                self.graph_files.set_root(self.db, f"file:{path}", path.rsplit("/", 1)[-1], None)
+                self.graph_files.set_root(self.db, f"file:{path}")
 
-    # -------------------------------------------------------------- 3D view
-    def view3d_args(self) -> list[str] | None:
-        """Arguments of ``cgs view3d`` for the current selection (or the main routine)."""
-        if self.db is None:
-            return None
-        target = self.current.uid if self.current is not None else None
-        if target is None:
-            return None
-        args = ["view3d", target, "--db", str(self.db), "--mode", self.view3d_mode.currentText()]
-        if not self.hide_noise.isChecked():
-            args.append("--all")
-        return args
-
-    def open_view3d(self) -> None:
-        """The 3D window runs in its own process (PyWebView loop); clicks there select the node here."""
-        args = self.view3d_args()
-        if args is None:
-            self.status_label.setText("Select a routine first (search, tree or TreeGraph), then open the 3D view.")
-            return
-        program, base = cgs_command()
-        proc = QProcess(self)
-        buffer = {"text": ""}
-
-        def read() -> None:
-            buffer["text"] += bytes(proc.readAllStandardOutput().data()).decode("utf-8", errors="replace")
-            while "\n" in buffer["text"]:
-                line, buffer["text"] = buffer["text"].split("\n", 1)
-                self._on_view3d_event(line.strip())
-
-        def finished(code: int, _status: QProcess.ExitStatus) -> None:
-            err = bytes(proc.readAllStandardError().data()).decode("utf-8", errors="replace")
-            if code != 0:
-                QMessageBox.warning(self, "3D view", f"The 3D view could not open (code {code}).\n\n{err[-1500:]}")
-            if proc in self.view3d_processes:
-                self.view3d_processes.remove(proc)
-
-        proc.readyReadStandardOutput.connect(read)
-        proc.finished.connect(finished)
-        self.view3d_processes.append(proc)
-        proc.start(program, base + args)
-        self.status_label.setText("Opening the 3D view…")
-
-    def _on_view3d_event(self, line: str) -> None:
-        if not line.startswith("{"):
-            return
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            return
-        if event.get("event") == "select" and isinstance(event.get("uid"), str):
-            uid = event["uid"]
-            if uid.startswith("file:"):
-                self.show_file(uid[5:], None)
-            else:
-                self._from_graph = True
-                self.select_symbol(uid)
-
+    # ------------------------------------------------------------ 3D graphs
     def _graph_node_selected(self, uid: str) -> None:
-        self._from_graph = True  # keep the drawn tree: only the panels follow the selection
+        self._from_graph = True  # keep the drawn graph: only the panels follow the selection
         self.select_symbol(uid)
 
     def show_link_sites(self, src: str, dst: str) -> None:
@@ -715,9 +649,6 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: Any) -> None:  # noqa: N802 - Qt API
         self.runner.cancel_all()
-        for proc in list(self.view3d_processes):  # 3D windows close with the application
-            proc.kill()
-            proc.waitForFinished(2000)
         super().closeEvent(event)
 
 

@@ -83,13 +83,13 @@
 | **Language inventory** | Per language: file and line count, adapter used (native, keyword profile, none); unrecognized files; AI proposals and their status | Know what is analyzed and how |
 | **Search** | Single field: routines, files, modules (fuzzy search) | Starting point for any exploration |
 | **Callers / Callees panel** | Count + sortable list; double-click → code at call line | Answer to the default question |
-| **Functions TreeGraph** | Visual call tree from a routine (toward callees or toward callers), expandable node by node | Understand a call chain |
-| **Files TreeGraph** | Same principle at file and directory level: link = at least one call, thickness = call count; double-click on link → detailed calls | Understand module architecture |
+| **Functions 3D** | 3D graph (3d-force-graph) of the callers and callees around a routine, starting at `main`; right-click expands a node, "Paths to main" keeps only the chains from `main` | Understand a call chain |
+| **Files 3D** | Same principle at file level: link = at least one call, thickness = call count; click on a link → detailed calls | Understand module architecture |
 | **File explorer** | Repository directory tree with language, routine count, and link count per file | Traditional navigation |
 | **Code inspector** | Read-only syntax-highlighted source, call lines highlighted; click on call → called routine; alert if file changed since analysis | Read code |
 | **Analysis health** | Analyzed, fallback, failed files; grouped ambiguous and unresolved sites; validation metrics | Know if the graph can be trusted |
 
-In both TreeGraphs, a routine or file already shown elsewhere in the tree is marked "↺ already shown" and is not auto-expanded: this keeps cycles and shared calls legible.
+In both 3D graphs a node is drawn once whatever the number of paths reaching it (cycles and shared calls stay legible); the drawn neighbourhood is bounded by a depth and a node ceiling (decision D21, which replaced the 2D TreeGraphs).
 
 ### 1.3. Non-functional requirements
 
@@ -103,7 +103,7 @@ Reference machine: 4-core laptop, 8 GB RAM, no dedicated GPU. These targets are 
 | AI-assisted preparation (identification + completion) | At most 3 iterations of 10 model calls; each call < 60 s |
 | Opening an already analyzed project | < 3 s |
 | Callers of a routine (count + list) | < 100 ms |
-| Expanding a node in a TreeGraph | < 200 ms |
+| Expanding a node in a 3D graph | < 200 ms |
 | Concurrently rendered nodes | 300 by default (configurable); beyond that, "+N" grouping |
 | Application RAM usage, without AI | < 1.5 GB on test case #1 |
 | Interface during an analysis | Remains responsive (analysis in separate process) |
@@ -217,7 +217,7 @@ The interface never manipulates the entire graph. Strategies are detailed in §3
 ```text
 ┌────────────────────────────────────────────────────────────────┐
 │ DESKTOP APPLICATION (PySide6) — main process                   │
-│ Inventory · Search · Callers · TreeGraph                       │
+│ Inventory · Search · Callers · 3D graphs                       │
 │ Code inspector · Analysis health · AI (Pro)                    │
 └──────┬────────────────────────┬────────────────────────┬───────┘
        │ threads                │ subprocesses           │ pipes
@@ -333,7 +333,7 @@ history:
 | `enrich` | Pack engine, schemas, generic packs | `core` |
 | `store` | SQLite schema, read, write, cache | `core` |
 | `query` | Query API (§3.10) | `core`, `store`, `algo` |
-| `layout` | TreeGraph layouts | `core` |
+| `layout` | Tree layouts (deterministic); not used by the UI since D21 | `core` |
 | `audit` | Diagnostic and validation checks (§2.1) | `core`, `inventory`, `extract`, `store`, `query` |
 | `scan` | Pipeline orchestration | `core`, `algo`, `inventory`, `extract`, `link`, `enrich`, `store` |
 | `cli` | `cgs` command | `inventory`, `scan`, `query`, `audit` |
@@ -394,7 +394,7 @@ A graph **edge** aggregates sites sharing (caller, callee, type): carries count,
 | :--- | :--- | :--- |
 | `literal` | `data:mem:solver.state.VALUES` | Name fully known in code |
 | `symbolic` | `data:mem:f:update_state:name//'.VALUES'` | Name computed at runtime: expression is preserved, local to routine |
-| `family` | `data:mem:*.VALUES` | Object family with same suffix; useful for high-level overviews; auto-treated as hub (hidden by default in TreeGraphs) |
+| `family` | `data:mem:*.VALUES` | Object family with same suffix; useful for high-level overviews; auto-treated as hub (hidden by default in the graphs) |
 
 Each access carries its level (`resolution` of access): UI distinguishes "writes object X" from "writes an object in family X".
 
@@ -419,7 +419,7 @@ facts_cache(cache_key TEXT PRIMARY KEY, facts BLOB)                -- canonical 
 edges(src, dst, kind, site_count, min_confidence, origins JSON, conditions JSON)
 node_stats(node_id, fan_in, fan_out, fan_in_filtered, fan_out_filtered,
            impact_size, impact_size_filtered, is_noise, noise_reason)
-file_edges(src_file, dst_file, kind, count)       -- Files TreeGraph
+file_edges(src_file, dst_file, kind, count)       -- Files 3D graph
 dir_edges(src_dir, dst_dir, kind, count)          -- Directory grouping
 search_fts                                        -- FTS5: names, paths, header comments
 
@@ -693,21 +693,21 @@ class GraphQuery:
 | :--- | :--- |
 | Top bar | Project picker, search box, "Analyze" button, filters (hide utilities, min confidence, hide AI links, hide ambiguous sites) |
 | Left | Repository file explorer (with language of each file) |
-| Center (tabs) | Inventory · Functions TreeGraph · Files TreeGraph · Tree list (text version of TreeGraph) |
+| Center (tabs) | Inventory · Tree list (text call tree) · Functions 3D · Files 3D · Analysis health |
 | Right | Code inspector; below it, Callers (N) / Callees (M) panel |
 | Status bar | Analysis in progress, analysis health, active filters |
 
 **Qt components**
 
 - Text lists and trees: lazy `QAbstractItemModel` (`canFetchMore` / `fetchMore`) requesting children in pages of 50 from `GraphQuery.children`.
-- TreeGraph: `QGraphicsView` + `QGraphicsScene`; one `NodeItem` per node, one directed `EdgeItem` with arrow (`caller ──► callee`) per link; auto-start on first $N$ nodes from `main`; click on a node to reveal all its connected neighbors (callers and callees) or filter only paths to `main` (shortest path if multiple paths exceed limit).
+- **3D graphs** (`ui/graph3d_view.py`, decision D21): `Graph3DView` = toolbar (From main, Paths to main, depth, node ceiling, defining files) + `QWebEngineView` showing the vendored 3d-force-graph page (`ui/web/`), written once per process to a private temporary file. Data comes only from `GraphQuery` in a `QueryRunner` thread: `graph3d(root, mode, depth, max_nodes)` for a neighbourhood, `graph3d(uid, depth=1)` merged on right-click, `graph3d_main_paths(target, mode)` for "Paths to main" (shortest path only when there are too many). Python → page: `runJavaScript("cgs.load(…)" / "cgs.merge(…)")`; page → Python: console messages `CGS:{"event": select | expand | link | ready | loaded | error, …}` read by `QWebEnginePage.javaScriptConsoleMessage`. Offline by construction: page CSP without any network source, Qt's off-the-record default profile, a `QWebEngineUrlRequestInterceptor` blocking every scheme other than `file`, `data`, `blob`, navigation refused elsewhere; no server, no port. Without WebGL (offscreen tests, very old GPU) the page still loads and answers, and says that 3D rendering is unavailable. `AA_ShareOpenGLContexts` is set before the `QApplication` is created, and the window is deleted before it.
 - Inspector: read-only `QPlainTextEdit` + per-language `QSyntaxHighlighter` (rules provided by adapter; for keyword profile, keywords highlighted). If `SourceExcerpt.stale` is true: banner "This file has changed since analysis" and "Re-analyze" button.
 - Path view: each step displays its type (call, bridge, dispatch); dispatch steps are flagged "possible".
 - Background tasks: `QThreadPool` for queries; `QProcess` for inventory, analysis, and AI.
 - Settings: `QSettings` in INI format, in the data folder (§3.14).
-- **3D view** (`ui/view3d/`, `cgs view3d`): connections between functions and files drawn with **3d-force-graph** in a **PyWebView** window. It runs in its **own process** (PyWebView has its own GUI loop), launched from the "3D view" button with the selected routine. Data: `GraphQuery.graph3d(root, mode=functions|files|both, depth, max_nodes)` — a bounded, deterministic neighbourhood (callers and callees) plus, in `both` mode, the files defining the routines (`defines` links) and the links between those files. The page is self-contained (vendored JavaScript, data inline) and carries a Content-Security-Policy forbidding every network access; there is **no HTTP server and no port** (`http_server=False`, file URL, `js_api` bridge). Right-click expands a node on demand (`View3DApi.expand`); a click selects it in the main window (one JSON line `{"event": "select", "uid": …}` on stdout, read by `QProcess`). `--export page.html` writes the same page without a window.
+- **Standalone 3D window** (`ui/view3d/`, `cgs view3d`, optional): the same page in a **PyWebView** window running in its **own process** (PyWebView has its own GUI loop), for use outside the main window. Data: `GraphQuery.graph3d(root, mode=functions|files|both, depth, max_nodes)` — a bounded, deterministic neighbourhood (callers and callees) plus, in `both` mode, the files defining the routines (`defines` links) and the links between those files. The page is self-contained (vendored JavaScript, data inline) and carries a Content-Security-Policy forbidding every network access; there is **no HTTP server and no port** (`http_server=False`, file URL, `js_api` bridge). Right-click expands a node on demand (`View3DApi.expand`); a click prints one JSON line `{"event": "select", "uid": …}` on stdout. `--export page.html` writes the same page without a window.
 
-**Workflow when opening a folder:** inventory → display languages and their coverage → if elements are missing and AI is available, prompt "Complete with AI" → analysis → auto-detection of `main` and display of first $N$ nodes in `Functions TreeGraph` and `Files TreeGraph` → click on node → open connected nodes (or path to `main`) and position inspector.
+**Workflow when opening a folder:** inventory → display languages and their coverage → if elements are missing and AI is available, prompt "Complete with AI" → analysis → auto-detection of `main` and display of its neighbourhood in `Functions 3D` and `Files 3D` → click on a node → panels and inspector follow; right-click → its neighbours are added (or, with "Paths to main", only the paths from `main`).
 
 ### 3.12. Graphical performance strategies (CPU only)
 
@@ -716,10 +716,10 @@ class GraphQuery:
 3. **Pagination:** 50 children per expansion; beyond that, a "+N more" node expanding on demand.
 4. **Rendered node ceiling** (300 by default): beyond that, UI proposes switching to file or directory level.
 5. **Aggregation levels:** directory → file → routine; step down one level via double-click.
-6. **Hubs and data families hidden by default** in TreeGraphs, with "+N" badge.
-7. **Tree layout** (linear, deterministic algorithm), computed in a thread and cached; existing nodes do not move upon expansion.
-8. **Level of detail based on zoom:** below a threshold, labels are omitted and nodes become simple rectangles.
-9. **Lightweight rendering on large views:** no antialiasing beyond 200 items, straight segment edges, element render cache (`ItemCoordinateCache`).
+6. **Hubs and data families hidden by default** in the graphs, with the hidden count shown.
+7. **3D force layout** in the WebGL page (3d-force-graph), stopped after 6 s (`cooldownTime`) so that a modest CPU is not kept busy; the camera is fitted once the layout settles. The deterministic tree layout of `layout/tree.py` is no longer used by the UI (D21).
+8. **Labels on hover only** (tooltips), no text sprites: the cost of a frame does not grow with label length.
+9. **Lightweight rendering on large views:** a right-click adds at most 150 nodes and never goes past the node ceiling; directional particles only on bridges and bindings, and can be switched off.
 10. **Unobtrusive analysis:** analysis process at low priority, worker count = cores − 1, facts streamed to database.
 11. **Partial analysis:** ability to restrict detailed analysis to specific directories (§3.3).
 
@@ -797,7 +797,8 @@ CodeGraph-Sci-1.0-linux-x86_64/          (or -windows-x64)
 | :--- | :--- | :--- |
 | Python 3.12 | Sole application language | PSF |
 | PySide6 (Qt 6) | Desktop UI | LGPL-3.0 (obligations detailed in §7) |
-| pywebview *(optional extra `view3d`)* + bottle, proxy_tools, pythonnet (Windows) | 3D view window (§3.11), separate process, no server | BSD-3-Clause / MIT |
+| Qt WebEngine (part of PySide6, Chromium) | Embedded 3D graphs of the main window (§3.11, D21); about +300 MB in the portable folder | LGPL-3.0 (+ Chromium notices) |
+| pywebview *(optional extra `view3d`)* + bottle, proxy_tools, pythonnet (Windows) | Standalone 3D window `cgs view3d` (§3.11), separate process, no server | BSD-3-Clause / MIT |
 | 3d-force-graph 1.80.1 (bundles three.js r186) | 3D rendering, vendored in `ui/web/vendor/` with its licences (SHA-256 `13088340…23be9`) | MIT |
 | py-tree-sitter + Fortran, C, C++, Python grammars | Parsers (Python 2: fallback to tree-sitter grammar) | MIT (`tree-sitter-fortran` wheel verified; otherwise `tree-sitter-language-pack` or build at packaging) |
 | `ast` (standard library) | Python 3 parser | PSF |
@@ -971,7 +972,7 @@ Do not start the next lot.
 ### Lot 11 — Files and functions TreeGraph
 
 - **Objective:** two visual graph views.
-- **Deliverables:** `layout/tree.py` (deterministic tree layout); TreeGraph view (`QGraphicsView`) in both directions (callees, callers) and routine, file, directory levels; color per language; "+N" pagination, "↺ already shown" marks, hubs and data families hidden by default, level of detail, layout cache.
+- **Deliverables:** `layout/tree.py` (deterministic tree layout); TreeGraph view (`QGraphicsView`) in both directions (callees, callers) and routine, file, directory levels; color per language; "+N" pagination, "↺ already shown" marks, hubs and data families hidden by default, level of detail, layout cache. *(The TreeGraph view was replaced by the embedded 3D graphs, decision D21.)*
 - **Validation tests:** identical input produces identical coordinates; expansion < 200 ms; 300 nodes rendered smoothly on reference machine; scenarios S3, S4, S5.
 - **Depends on:** Lot 10.
 
@@ -1128,8 +1129,8 @@ metrics:
 | :--- | :--- | :--- |
 | S1 | Open multi-language folder, run inventory then analysis, cancel, re-run | Languages displayed with coverage; progress visible; clean cancellation; responsive UI |
 | S2 | Search routine | "Called by N routines across M files"; double-click → code at call line |
-| S3 | Functions TreeGraph across 4 callee levels | Expansions in < 200 ms, cycles marked "↺" |
-| S4 | Files TreeGraph of a file, then dive into routines | Weighted links, language colors, detailed calls on double-click |
+| S3 | Functions 3D graph across 4 callee levels (right-click expansions) | Expansions in < 200 ms, each node drawn once |
+| S4 | Files 3D graph of a file, then dive into routines | Weighted links, language colors, detailed calls on link click |
 | S5 | Hide then reveal utilities | "+N" badge, decluttered graph |
 | S6 | Path between two routines in different languages | Path displayed and highlighted, step types visible, dispatches marked "possible" |
 | S7 | Modify file, re-analyze | Re-analysis in < 30 s, views updated |
@@ -1191,7 +1192,7 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 | D4 | Modest machines, CPU only: graphical lightweighting mandatory |
 | D5 | Deterministic graph for a given analysis profile; AI prepares profile, never intervenes during analysis |
 | D6 | Default question: how many routines call a routine, and which ones |
-| D7 | Two TreeGraph views: files and functions |
+| D7 | Two graph views: files and functions (3D since D21) |
 | D8 | No compiler: validation without compilation, via verified samples (§2.1) |
 | D9 | Dual license: PolyForm NC + commercial license |
 | D10 | AI edition of portable version includes model and its license — *hypothesis to confirm* |
@@ -1203,7 +1204,8 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 | D16 | Graph algorithms written in-house (iterative Tarjan, bitsets); NetworkX removed |
 | D17 | Fortran parser chosen via comparative benchmark on real files, among permissive candidates; fxtran (GPL-3.0) excluded from default distribution |
 | D18 | *(Lot 4)* Main Fortran parser: **in-house logical statement analyzer** (fixed and free form, continuations, preprocessor branches preserved, exact positions). Benchmark on fixtures (`docs/bench/fortran_parsers.md`): only candidate with 100% recall and precision; tree-sitter-fortran fails on fixed form (text past col 72, `C`/`*` comments) and loses `#ifdef` branches; fparser fails on 4/23 files and is 25x slower; LFortran not evaluated (binary missing). Fallback and dual extraction: independent pattern extractor. **To confirm on real sample files from test case #1** (`python tools/bench_fortran.py <folder>`) |
-| D20 | *(3D view)* 3D visualization with 3d-force-graph in a **PyWebView** window running in a separate process, without HTTP server or port, JavaScript vendored. **Streamlit rejected**: it is a web application serving on a local port (violates C1 and C2). QtWebEngine not used: excluded from the portable build (size) |
+| D21 | *(3D in the main window)* The two 2D TreeGraphs (`QGraphicsView`) are **replaced** by two embedded 3D graphs (functions, files) drawn by the vendored 3d-force-graph page in a **`QWebEngineView`**: the user prefers the 3D display, and it fits in the current Qt UI, so **no web UI** is needed (C1 kept). Offline guarantees: CSP, off-the-record profile, request interceptor, no server, no port (C2). Cost: Qt WebEngine is now shipped in the portable build (about +300 MB). The PyWebView window of D20 remains as the optional `cgs view3d` command |
+| D20 | *(3D view)* 3D visualization with 3d-force-graph in a **PyWebView** window running in a separate process, without HTTP server or port, JavaScript vendored. **Streamlit rejected**: it is a web application serving on a local port (violates C1 and C2). QtWebEngine not used at the time (size): revised by D21 |
 | D19 | *(Lot 0)* Tree-sitter grammars: standalone wheels `tree-sitter-fortran`, `-python`, `-c`, `-cpp`; `tree-sitter-language-pack` ≥ 1.0 excluded because it downloads grammars at runtime (violates C2) |
 
 ### 8.2. Open questions
@@ -1248,7 +1250,7 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 - **Starter / Full corpus:** real codebase used as test case, first on reduced scope, then in full.
 - **Reference sample:** manually verified links and locations, recorded and replayed automatically.
 - **Hub:** routine (or data family) connected to a very high number of routines, typically a utility.
-- **TreeGraph:** visual expandable tree view, node by node, at function or file level.
+- **TreeGraph:** visual expandable tree view, node by node, at function or file level (replaced by the 3D graphs, D21).
 - **Portable folder:** standalone folder (including embedded Python) functioning when copied anywhere, including a USB drive.
 - **Mock model:** AI replacement returning recorded responses for deterministic testing without inference engine.
 - **GGUF:** model file format executed by llama.cpp.

@@ -98,3 +98,25 @@ def test_cli_view3d_export(hybrid: Path, tmp_path: Path) -> None:
     finally:
         netguard.uninstall()
     assert "ForceGraph3D" in out.read_text(encoding="utf-8")
+
+
+def test_graph3d_main_paths(hybrid: Path) -> None:
+    with GraphQuery(hybrid) as q:
+        graph, report = q.graph3d_main_paths("f:kernel", mode="functions")
+        files, _ = q.graph3d_main_paths("f:kernel", mode="files")
+        both, _ = q.graph3d_main_paths("f:kernel", mode="both")
+    assert report.paths and report.paths[0].steps[-1].uid == "f:kernel"
+    ids = {n.id for n in graph.nodes}
+    assert {"py:app.run.run_case", "c:c_solve", "f:kernel"} <= ids
+    assert graph.root == report.root_uid and any(n.is_root for n in graph.nodes)
+    assert ("c:c_solve", "f:kernel") in {(lk.source, lk.target) for lk in graph.links}
+    assert all(n.kind == "file" for n in files.nodes) and "file:fsrc/kernel.f90" in {n.id for n in files.nodes}
+    assert "defines" in {lk.kind for lk in both.links}
+
+
+def test_html_qt_host_starts_empty(hybrid: Path) -> None:
+    from codegraph_sci.ui.view3d.html import build_html, empty_graph
+
+    page = build_html(empty_graph("functions"), title="functions", host="qt")
+    assert 'window.CGS_HOST = "qt"' in page and "connect-src 'none'" in page
+    assert 'window.CGS_HOST = "pywebview"' in build_html(empty_graph("files"), title="files")  # default host
