@@ -1,0 +1,24 @@
+pack: acme_solver
+version: "0.1"
+format_version: 1
+identifiers: [mem_get, elem_dispatch]
+detect: { all_path: ["kernels/", "acme/"] }
+noise:
+  hide: [mem_*]
+memory_access:
+  - { routine: mem_get, name_arg: 1, mode_arg: 2, modes: { "R": reads, "W": writes },
+      object_key: [literal, local_prefix, symbolic, family], local_prefix_pattern: "^TMP_" }
+  - { routine: mem_new, name_arg: 1, effect: creates, object_key: [literal, local_prefix, symbolic, family],
+      local_prefix_pattern: "^TMP_" }
+  - { routine: mem_free, name_arg: 1, effect: destroys, object_key: [literal, local_prefix, symbolic, family],
+      local_prefix_pattern: "^TMP_" }
+dispatch:
+  - { routine: elem_dispatch, select_on: itype, target_pattern: "elem_{case:03d}" }
+catalogs:
+  - { glob: "catalog/*.yaml", format: yaml, entry: "{option}/{element}", target: "f:{routine}" }
+entry_points:
+  - { kind: command, glob: "acme/commands/*.py",
+      pattern: 'Command\(name="(?P<name>\w+)", routine="(?P<target>\w+)"\)',
+      target: "f:{target}", fallback_target: "py:acme.commands.{file_stem}" }
+tests:
+  - { kind: regression_case, glob: "tests/cases/*.inp", uses_entry_points: true }

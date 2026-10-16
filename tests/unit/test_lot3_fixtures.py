@@ -47,7 +47,7 @@ def test_expected_graph_schema(name: str) -> None:
             assert site["dst"] in uids, site
         if site["resolution"] in ("unresolved", "ambiguous"):
             assert site["dst"] is None, site
-    for edge in data["edges"]:
+    for edge in data["edges"] if not data.get("partial") else []:
         for end in (edge["src"], edge["dst"]):
             assert end in uids or end.startswith("file:"), edge
 

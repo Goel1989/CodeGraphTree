@@ -123,3 +123,19 @@ def test_isolation_no_pack_identifier_in_core() -> None:
             if re.search(rf"(?<![A-Za-z0-9]){re.escape(ident)}(?![A-Za-z0-9])", text, re.IGNORECASE):
                 offenders.append(f"{path.relative_to(ROOT)}: {ident}")
     assert offenders == []
+
+
+def test_pack_acme_memory_dispatch_catalog_entries_tests(tmp_path: Path) -> None:
+    from tests.helpers import graph_diff, scan_fixture
+
+    expected = load_expected("pack_acme")
+    data = export_dict(scan_fixture("pack_acme", tmp_path / "p").db_path)
+    assert graph_diff(data, expected) == []
+    got = sorted((a["src"], a["data"], a["family"], a["mode"], a["key_kind"], a["line"]) for a in data["data_accesses"])
+    want = sorted((a["src"], a["data"], a["family"], a["mode"], a["key_kind"], a["line"])
+                  for a in expected["data_accesses"])
+    assert got == want
+    noise = {s["uid"]: s["noise_reason"] for s in data["node_stats"] if s["is_noise"]}
+    for uid, reason in expected["noise"].items():
+        assert noise.get(uid) == reason
+    assert {p["name"] for p in data["plugins"] if p["type"] == "pack"} == {"acme_solver"}

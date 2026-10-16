@@ -74,3 +74,10 @@
 - Fenêtre principale (§3.11) : inventaire (forcer un langage, ignorer une extension → `cgs profile`), recherche, panneau Appelants / Appelés avec sites, inspecteur de code coloré (sites surlignés, double-clic → routine appelée, bandeau « fichier modifié » + Ré-analyser), explorateur de fichiers, liste arborescente paresseuse (pages de 50, « +N autres », « ↺ déjà vu »), santé de l'analyse, filtres (utilitaires, confiance, liens IA, ambigus).
 - Requêtes dans le pool de threads Qt ; inventaire, analyse et profil en sous-processus `cgs` avec progression JSON et annulation.
 - Tests pytest-qt : scénarios S1, S2, S10 et modèles.
+
+## Lot 12 — Packs, profils de langage par mots-clés, filtrage du bruit
+- `enrich/` : schéma strict des packs (§3.8) et chargement sûr ; packs intégrés `generic_noise` (hubs) et `generic_fortran` (COMMON, variables de module) ; moteur de règles : `memory_access` (clés littérales, locales, symboliques et familles, propagation simple des affectations de chaînes), `dispatch` (`SELECT CASE`), `catalogs`, `entry_points` (cible de repli), `tests` ; `noise.hide` / `optional` / `auto_detect_hubs`.
+- `extract/keywords/` : adaptateur par mots-clés (§3.9) et schéma des profils ; fixture `keywords_language` (profil écrit à la main, couverture mesurée 100 %).
+- Fortran : accès aux données (lecture/écriture), branches `SELECT CASE`, interfaces imbriquées dans un corps d'interface.
+- Fixtures `pack_acme` et `fortran_data` (avec pack) exactes ; test d'isolation du cœur (§6.4).
+- Code_Aster 17.5.7 (corpus de démarrage) : 0 échec, rappel des définitions 99,6 %, rappel des `CALL` Fortran 100 %, non-résolus 9,2 % (idiomes Python/C++ relevant du pack).

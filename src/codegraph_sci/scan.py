@@ -22,6 +22,7 @@ from codegraph_sci.algo.index import aggregate_edges, data_edges, file_and_dir_e
 from codegraph_sci.core.facts import FileFacts, ParseError, SourceFile, decode_facts, encode_facts
 from codegraph_sci.core.graph import (
     DataAccessRecord,
+    EdgeRecord,
     FileRecord,
     GraphBundle,
     InventoryRecord,
@@ -33,6 +34,7 @@ from codegraph_sci.core.plugins import ExtractContext, LanguageAdapter, decode_b
 from codegraph_sci.core.profile import AnalysisProfile
 from codegraph_sci.core.project import Project
 from codegraph_sci.core.versions import APP_VERSION
+from codegraph_sci.enrich.apply import PackEngine
 from codegraph_sci.enrich.noise import hidden, noise_map
 from codegraph_sci.enrich.packs import BUILTIN_PACKS, load_packs
 from codegraph_sci.extract.c import CAdapter
@@ -373,11 +375,24 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
     edges = aggregate_edges(link.call_sites, link.struct_edges)
     data_on = any((pk.data.get("data") or {}).get("fortran_common") or (pk.data.get("data") or {}).get(
         "fortran_module_variables") for pk in packs)
-    data_records = [a for a in link.data_accesses if data_on]
+    data_records = [DataAccessRecord(a.src, a.data, a.family, a.mode, a.key_kind, a.file, a.line,
+                                     "pack:generic_fortran") for a in link.data_accesses if data_on]
     if not data_on:
         link.nodes = [n for n in link.nodes if n.kind != "data"]
-    edges = sorted(edges + data_edges(data_records), key=lambda e: (e.src, e.dst, e.kind))
-    reasons = noise_map(link.nodes, edges, packs)
+    # Declarative pack rules: memory manager, dispatch, catalogs, entry points, tests.
+    enrichment = PackEngine(packs, full, {n.uid: n for n in link.nodes}, [e.path for e in inventory.entries],
+                            read_text).run()
+    link.nodes = sorted(link.nodes + enrichment.nodes, key=lambda n: n.uid)
+    data_records += enrichment.data
+    merged: dict[tuple[str, str, str], EdgeRecord] = {}
+    for de in data_edges([a for a in data_records if a.origin == "pack:generic_fortran"]) + enrichment.edges:
+        key = (de.src, de.dst, de.kind)
+        if key in merged:
+            merged[key].site_count += de.site_count
+        else:
+            merged[key] = EdgeRecord(de.src, de.dst, de.kind, de.site_count, de.min_confidence, list(de.origins), [])
+    edges = sorted(edges + list(merged.values()), key=lambda e: (e.src, e.dst, e.kind))
+    reasons = {**noise_map(link.nodes, edges, packs), **enrichment.noise}
     stats_records = node_statistics(link.nodes, edges, hidden(reasons), reasons)
     file_edges, dir_edges = file_and_dir_edges(link.nodes, link.call_sites)
 
@@ -403,13 +418,12 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
         bundle.inventory.append(InventoryRecord(e.path, e.lang, e.variant, e.confidence, e.decided_by))
     known_files = {f.path for f in bundle.files}
     for n in link.nodes:
-        if n.kind == "file" and n.file and n.file not in known_files:
+        if n.file and n.file not in known_files:
             bundle.files.append(FileRecord(n.file, n.lang, None, current_sha(n.file), 0, None, "not_analyzed"))
             known_files.add(n.file)
     bundle.nodes = link.nodes
     bundle.call_sites = link.call_sites
-    bundle.data_accesses = [DataAccessRecord(a.src, a.data, a.family, a.mode, a.key_kind, a.file, a.line,
-                                             "pack:generic_fortran") for a in data_records]
+    bundle.data_accesses = data_records
     bundle.edges = edges
     bundle.node_stats = stats_records
     bundle.file_edges, bundle.dir_edges = file_edges, dir_edges

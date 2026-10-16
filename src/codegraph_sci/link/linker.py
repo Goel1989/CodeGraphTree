@@ -23,6 +23,8 @@ from codegraph_sci.link.externals import external_for
 INTRINSIC_MODULES = frozenset({"iso_c_binding", "iso_fortran_env", "ieee_arithmetic", "ieee_exceptions",
                                "ieee_features", "omp_lib", "omp_lib_kinds", "openacc", "mpi", "mpi_f08"})
 _DROP = "__drop__"
+# Beyond this, an ambiguous site keeps no candidate: edges to every homonym would only add noise.
+MAX_CANDIDATES = 8
 _NODE_ATTRS_SKIP = {"var_types", "uses", "commons", "args"}
 
 
@@ -491,7 +493,7 @@ class Linker:
         if len(cands) == 1:
             return Resolution(cands[0], "resolved", "heuristic")
         if cands:
-            return Resolution(None, "ambiguous", "ambiguous", cands)
+            return Resolution(None, "ambiguous", "ambiguous", cands if len(cands) <= MAX_CANDIDATES else [])
         return Resolution(None, "external", "exact")
 
     def _py_result(self, uid: str | None, status: str, dotted: str, confidence: str) -> Resolution:
@@ -536,7 +538,7 @@ class Linker:
         if len(cands) == 1:
             return Resolution(cands[0], "resolved", "heuristic")
         if cands:
-            return Resolution(None, "ambiguous", "ambiguous", cands)
+            return Resolution(None, "ambiguous", "ambiguous", cands if len(cands) <= MAX_CANDIDATES else [])
         return None
 
     def _cpp_methods(self, cls: str, name: str, seen: set[str] | None = None) -> list[str]:
@@ -628,7 +630,7 @@ class Linker:
             if len(cands) == 1:
                 return Resolution(cands[0], "resolved", "heuristic")
             if cands:
-                return Resolution(None, "ambiguous", "ambiguous", cands)
+                return Resolution(None, "ambiguous", "ambiguous", cands if len(cands) <= MAX_CANDIDATES else [])
             return Resolution(None, "external", "exact")
         name = str(hint.get("qualified") or hint.get("name") or ref.target_text)
         cls_ctx = hint.get("class")

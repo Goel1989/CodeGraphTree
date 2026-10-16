@@ -1,0 +1,46 @@
+{
+  "description": "Pack acme_solver: memory manager (literal, routine-local, symbolic keys and families), SELECT CASE dispatch, catalog entries, entry points with fallback target, regression cases. Partial: only what the pack adds is listed.",
+  "partial": true,
+  "with_packs": ["acme_solver"],
+  "nodes": [
+    {"uid": "catalog:RIGI_MECA/QUAD4", "kind": "dispatch_target", "subtype": "catalog_entry", "file": "catalog/elements.yaml", "line_start": 1, "line_end": 1},
+    {"uid": "catalog:MASS_MECA/QUAD4", "kind": "dispatch_target", "subtype": "catalog_entry", "file": "catalog/elements.yaml", "line_start": 2, "line_end": 2},
+    {"uid": "catalog:RIGI_MECA/TRIA3", "kind": "dispatch_target", "subtype": "catalog_entry", "file": "catalog/elements.yaml", "line_start": 3, "line_end": 3},
+    {"uid": "data:mem:*.FLAGS", "kind": "data", "subtype": "memory_family", "file": null, "line_start": null, "line_end": null},
+    {"uid": "data:mem:*.VALUES", "kind": "data", "subtype": "memory_family", "file": null, "line_start": null, "line_end": null},
+    {"uid": "data:mem:f:update_state:TMP_WORK", "kind": "data", "subtype": "memory_object", "file": null, "line_start": null, "line_end": null},
+    {"uid": "data:mem:f:update_state:name//'.VALUES'", "kind": "data", "subtype": "memory_object", "file": null, "line_start": null, "line_end": null},
+    {"uid": "data:mem:solver.state.FLAGS", "kind": "data", "subtype": "memory_object", "file": null, "line_start": null, "line_end": null},
+    {"uid": "data:mem:solver.state.VALUES", "kind": "data", "subtype": "memory_object", "file": null, "line_start": null, "line_end": null},
+    {"uid": "entry:MODAL", "kind": "entry_point", "subtype": "command", "file": "acme/commands/modal.py", "line_start": 3, "line_end": 3},
+    {"uid": "entry:STATIC", "kind": "entry_point", "subtype": "command", "file": "acme/commands/static.py", "line_start": 3, "line_end": 3},
+    {"uid": "test:tests/cases/case_both.inp", "kind": "test_case", "subtype": "regression_case", "file": "tests/cases/case_both.inp", "line_start": 1, "line_end": 2},
+    {"uid": "test:tests/cases/case_static.inp", "kind": "test_case", "subtype": "regression_case", "file": "tests/cases/case_static.inp", "line_start": 1, "line_end": 1}
+  ],
+  "call_sites": [],
+  "edges": [
+    {"src": "catalog:MASS_MECA/QUAD4", "dst": "f:elem_002", "kind": "dispatches", "site_count": 1},
+    {"src": "catalog:RIGI_MECA/QUAD4", "dst": "f:elem_001", "kind": "dispatches", "site_count": 1},
+    {"src": "entry:MODAL", "dst": "py:acme.commands.modal", "kind": "calls", "site_count": 1},
+    {"src": "entry:STATIC", "dst": "f:run_static", "kind": "calls", "site_count": 1},
+    {"src": "f:elem_dispatch", "dst": "f:elem_001", "kind": "dispatches", "site_count": 1},
+    {"src": "f:elem_dispatch", "dst": "f:elem_002", "kind": "dispatches", "site_count": 1},
+    {"src": "f:update_state", "dst": "data:mem:f:update_state:TMP_WORK", "kind": "destroys", "site_count": 1},
+    {"src": "f:update_state", "dst": "data:mem:f:update_state:TMP_WORK", "kind": "writes", "site_count": 1},
+    {"src": "f:update_state", "dst": "data:mem:f:update_state:name//'.VALUES'", "kind": "writes", "site_count": 1},
+    {"src": "f:update_state", "dst": "data:mem:solver.state.FLAGS", "kind": "creates", "site_count": 1},
+    {"src": "f:update_state", "dst": "data:mem:solver.state.VALUES", "kind": "reads", "site_count": 1},
+    {"src": "test:tests/cases/case_both.inp", "dst": "entry:MODAL", "kind": "exercises", "site_count": 1},
+    {"src": "test:tests/cases/case_both.inp", "dst": "entry:STATIC", "kind": "exercises", "site_count": 1},
+    {"src": "test:tests/cases/case_static.inp", "dst": "entry:STATIC", "kind": "exercises", "site_count": 1}
+  ],
+  "data_accesses": [
+    {"src": "f:update_state", "data": "data:mem:solver.state.VALUES", "family": "data:mem:*.VALUES", "mode": "reads", "key_kind": "literal", "line": 7},
+    {"src": "f:update_state", "data": "data:mem:f:update_state:name//'.VALUES'", "family": "data:mem:*.VALUES", "mode": "writes", "key_kind": "symbolic", "line": 8},
+    {"src": "f:update_state", "data": "data:mem:f:update_state:TMP_WORK", "family": null, "mode": "writes", "key_kind": "literal", "line": 9},
+    {"src": "f:update_state", "data": "data:mem:solver.state.FLAGS", "family": "data:mem:*.FLAGS", "mode": "creates", "key_kind": "literal", "line": 10},
+    {"src": "f:update_state", "data": "data:mem:f:update_state:TMP_WORK", "family": null, "mode": "destroys", "key_kind": "literal", "line": 11}
+  ],
+  "noise": {"f:mem_get": "pack:acme_solver", "data:mem:*.VALUES": "family", "data:mem:*.FLAGS": "family"},
+  "unmatched": {"catalog:RIGI_MECA/TRIA3": "f:elem_missing", "f:elem_dispatch case 3": "f:elem_003"}
+}

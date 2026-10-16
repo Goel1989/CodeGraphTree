@@ -74,6 +74,10 @@ def scan_fixture(name: str, folder: Path, root: Path | None = None, expected_fil
     expected = json.loads(exp_path.read_text(encoding="utf-8")) if exp_path.is_file() else {}
     src = root or FIXTURES / name / "src"
     project = open_project(src, folder)
+    if (FIXTURES / name / "packs").is_dir() and not (project.folder / "packs").exists():
+        import shutil
+
+        shutil.copytree(FIXTURES / name / "packs", project.folder / "packs")
     if not project.profile_path.is_file():
         profile = profile_from_inventory(run_inventory(src))
         if "profile" in expected:

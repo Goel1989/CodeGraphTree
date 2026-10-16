@@ -26,7 +26,7 @@ from codegraph_sci.extract.fortran.intrinsics import INTRINSICS
 from codegraph_sci.extract.fortran.source import PreparedSource, Statement, prepare
 
 ADAPTER = "fortran"
-VERSION = "1.3"
+VERSION = "1.4"
 
 
 class HardParseError(Exception):
@@ -323,6 +323,7 @@ class FortranParser:
         self.include_depth = 0
         self.seen_includes: set[str] = set()
         self.macros = MacroTable()
+        self.selects: list[tuple[Scope, str]] = []
 
     # ----------------------------------------------------------------- driver
     def run(self) -> tuple[list[Definition], list[Reference], list[IncludeRef], list[Directive], list[ParseError]]:
@@ -549,7 +550,7 @@ class FortranParser:
             kind, subtype = "interface", "f_generic_interface"
         else:
             return
-        attrs: dict[str, object] = dict(scope.attrs)
+        attrs: dict[str, object] = {k: v for k, v in scope.attrs.items() if k != "str_assign"}
         if scope.uses:
             attrs["uses"] = sorted(set(scope.uses))
         if scope.var_types:
@@ -796,6 +797,24 @@ class FortranParser:
         s = stripped
         if not s:
             return
+        if re.match(r"end\s*select", s):
+            if self.selects:
+                self.selects.pop()
+            return
+        m = re.match(r"case\s*\(", s)
+        if m and self.selects:
+            sel_owner, selector = self.selects[-1]
+            p = lo + m.end() - 1
+            close = _match_paren(low, p)
+            cases = sel_owner.attrs.setdefault("select_cases", {})
+            assert isinstance(cases, dict)
+            for a, b in _split_top(low, p + 1, close if close > 0 else len(low)):
+                value = st.orig[a:b].strip()
+                bounds = re.fullmatch(r"(-?\d+)\s*:\s*(-?\d+)", value)
+                values = [str(v) for v in range(int(bounds.group(1)), int(bounds.group(2)) + 1)] if bounds and (
+                    int(bounds.group(2)) - int(bounds.group(1)) < 1000) else [value]
+                cases.setdefault(selector, []).extend(values)
+            return
         m = re.match(r"call\s*(?=[a-z_])", s)
         if m and _top_level_assign(low, lo) < 0:
             self._call_statement(st, low, lo + m.end(), owner)
@@ -818,6 +837,8 @@ class FortranParser:
             if close < 0:
                 return
             self._scan(st, low, p + 1, close, owner)
+            if m.group(1).startswith("select"):
+                self.selects.append((owner, re.sub(r"\s+", "", low[p + 1:close])))
             if m.group(1) in ("where", "forall") and low[close + 1:].strip():
                 self._executable(st, low, close + 1, owner)
             return
@@ -837,6 +858,11 @@ class FortranParser:
             lhs = _IDENT.match(low, lo)
             if lhs is not None:
                 self._data(owner, lhs.group(0), "writes", st.at(lo)[0])
+                rhs_text = st.orig[rhs:].strip()
+                if low[lhs.end():rhs].strip() in ("", "=") and ("'" in rhs_text or '"' in rhs_text):
+                    assigns = owner.attrs.setdefault("str_assign", {})
+                    assert isinstance(assigns, dict)
+                    assigns[lhs.group(0)] = rhs_text  # simple propagation of character expressions
             self._scan(st, low, lhs.end() if lhs is not None and low[lhs.end():lhs.end() + 1] == "(" else rhs,
                        len(low), owner, skip_until=rhs)
             return
@@ -897,6 +923,15 @@ class FortranParser:
                     text = st.orig[a:b].strip()
                     args.append(ArgFact(text, _literal(text)))
             self._scan(st, low, k + 1, end, owner)
+        assigns = owner.attrs.get("str_assign")
+        if isinstance(assigns, dict) and args:
+            exprs = {str(i): assigns[a.text.lower()] for i, a in enumerate(args) if a.text.lower() in assigns}
+            if exprs:
+                arg_exprs = exprs
+            else:
+                arg_exprs = {}
+        else:
+            arg_exprs = {}
         name = chain[0]
         hint: dict[str, object] = {}
         kind = "call"
@@ -917,7 +952,8 @@ class FortranParser:
                     break
                 s = s.parent
         self.references.append(Reference(src=owner.uid or self.file_uid, target_text=target, kind=kind, line=line,
-                                         col=col, args=args, condition=self._cond(st, line), hint=hint))
+                                         col=col, args=args, condition=self._cond(st, line),
+                                         hint={**hint, "arg_exprs": arg_exprs} if arg_exprs else hint))
 
     def _cond(self, st: Statement, line: int) -> str | None:
         return st.condition

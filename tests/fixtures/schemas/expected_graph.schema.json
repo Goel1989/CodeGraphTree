@@ -239,6 +239,15 @@
   },
   "with_packs": {
    "type": "array"
+  },
+  "data_accesses": {
+   "type": "array"
+  },
+  "noise": {
+   "type": "object"
+  },
+  "unmatched": {
+   "type": "object"
   }
  }
 }
