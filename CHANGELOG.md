@@ -86,3 +86,14 @@
 - C/C++ : vrai développement des macros du préprocesseur (`extract/cmacro.py` : paramètres, `#`, `##`, `__VA_ARGS__`, première définition gagnante) ; fonctions déclarées par macro nommées d'après leur développement (`DEFS(X, x, …)` → `x_`). Effet sur Code_Aster : 720 appels C/C++ → Fortran reliés par le pont `fortran_c` (macros `CALL_*`/`CALLO_*`).
 - Link : au-delà de 8 candidats, un site ambigu ne garde aucun candidat (fin des faux hubs `get`).
 - Mesures (corpus de démarrage 17.5.7, packs génériques) : 0 échec, rappel des définitions 99,2 %, rappel des `CALL` Fortran 100 %, non-résolus 8,5 % ; ré-analyse incrémentale ~50 s. Hubs détectés : `assert`, `utmess`, `jeveuo`, `jemarq`, `jedema`… Fiches de vérification régénérées (`tests/corpus/code_aster_start/review/`).
+
+## Lot 13 — IA : identification des langages et complétion des mots-clés (modèle factice ; vrai modèle à installer)
+- Extension Pro : commandes `cgs ai-worker` (processus séparé, JSON sur entrée/sortie standard, aucun port), `cgs complete` (rôles 1 et 2), `cgs ai-approve` (validation en un clic), ajoutées à `cgs` par le point d'entrée `codegraph_sci.commands` (le cœur n'importe jamais l'extension).
+- Modèles : factice à réponses enregistrées (`tests/ai/`) et `llama-cpp-python` (GGUF sur CPU, sortie contrainte par schéma JSON, température nulle), chargé seulement s'il est installé.
+- Contrôles automatiques des propositions en rejouant Link sur les faits en cache : gain ≥ 50 %, aucune régression, cibles plausibles ≥ 90 %, stabilité sur deux échantillons, plafond de nouveaux liens ; aperçu des liens ajoutés/retirés ; écriture dans le profil (`proposed`, ou `approved` en mode automatique).
+- Fixtures `unknown_extension`, `bridge_unknown_prefix` ; profil de mots-clés proposé à partir d'un document technique.
+
+## Lot 14 — Pack Code_Aster (corpus de démarrage)
+- Pack `code_aster` (`src/codegraph_sci_pro/packs/`) : bruit, tableaux JEVEUX, accès mémoire (`jeveuo`, `wkvect`, `jecreo`, `jecrec`, `jedetr`), aiguillages `te0000`/`lc0000`, commandes (`OPER`/`MACRO`) ; points « à valider » vérifiés sur 17.5.7 (`docs/packs/code_aster.md` §7) ; glossaire pour l'IA.
+- Découverte des packs : projet, `CGS_PACKS_PATH`, dossier portable, extension Pro (localisée sans import).
+- Corpus de démarrage : 16/16 attentes (265 commandes, `te0000` → 600 routines élémentaires, `lc0000` → 86 lois, 3 528 accès JEVEUX).

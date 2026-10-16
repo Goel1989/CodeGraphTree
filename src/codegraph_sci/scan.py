@@ -29,14 +29,13 @@ from codegraph_sci.core.graph import (
     PluginRecord,
     ScanRunRecord,
 )
-from codegraph_sci.core.paths import install_dir
 from codegraph_sci.core.plugins import ExtractContext, LanguageAdapter, decode_bytes, sha256_bytes
 from codegraph_sci.core.profile import AnalysisProfile
 from codegraph_sci.core.project import Project
 from codegraph_sci.core.versions import APP_VERSION
 from codegraph_sci.enrich.apply import PackEngine
 from codegraph_sci.enrich.noise import hidden, noise_map
-from codegraph_sci.enrich.packs import BUILTIN_PACKS, load_packs
+from codegraph_sci.enrich.packs import BUILTIN_PACKS, default_search_paths, load_packs
 from codegraph_sci.extract.c import CAdapter
 from codegraph_sci.extract.context import make_include_resolver
 from codegraph_sci.extract.cpp import CppAdapter
@@ -267,7 +266,7 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
     sources = [e for e in inventory.source_files() if e.lang in adapters]
     py_paths = [e.path for e in sources if e.lang == "python"]
     packs = load_packs(sorted(set(profile.packs) | set(options.packs), key=lambda n: (n not in BUILTIN_PACKS, n)),
-                       [project.folder / "packs", install_dir() / "packs"])
+                       default_search_paths(project.folder))
     known_arrays = set(options.extra_known_arrays) | {a for pk in packs for a in pk.known_arrays}
     ctx = ExtractContext(include_paths=profile.include_paths, defines=dict(profile.preprocessor.defines),
                          known_arrays=known_arrays,
@@ -381,7 +380,7 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
         link.nodes = [n for n in link.nodes if n.kind != "data"]
     # Declarative pack rules: memory manager, dispatch, catalogs, entry points, tests.
     enrichment = PackEngine(packs, full, {n.uid: n for n in link.nodes}, [e.path for e in inventory.entries],
-                            read_text).run()
+                            read_text, outline).run()
     link.nodes = sorted(link.nodes + enrichment.nodes, key=lambda n: n.uid)
     data_records += enrichment.data
     merged: dict[tuple[str, str, str], EdgeRecord] = {}

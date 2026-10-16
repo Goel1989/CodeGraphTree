@@ -18,6 +18,12 @@ from codegraph_sci.core.facts import ArgFact, FileFacts, Reference
 from codegraph_sci.core.graph import DataAccessRecord, EdgeRecord, NodeRecord
 from codegraph_sci.enrich.packs import PackRules
 
+
+def _typed(values: dict[str, Any]) -> dict[str, Any]:
+    """Template values: digit strings become integers so that ``{op:04d}`` works."""
+    return {k: int(v) if isinstance(v, str) and v.isdigit() else v for k, v in values.items()}
+
+
 _SUFFIX = re.compile(r"""['"](\.[^'".]+)['"]\s*$""")
 
 
@@ -32,9 +38,11 @@ class Enrichment:
 
 class PackEngine:
     def __init__(self, packs: list[PackRules], facts: list[FileFacts], nodes: dict[str, NodeRecord],
-                 repo_files: list[str], read_text: Callable[[str], str | None]) -> None:
+                 repo_files: list[str], read_text: Callable[[str], str | None],
+                 outline: list[FileFacts] | None = None) -> None:
         self.packs = packs
         self.facts = sorted(facts, key=lambda f: f.path)
+        self.outline = sorted(outline or [], key=lambda f: f.path)
         self.nodes = nodes
         self.repo_files = sorted(repo_files)
         self.read_text = read_text
@@ -135,7 +143,7 @@ class PackEngine:
         routine = str(rule["routine"]).lower()
         selector = str(rule["select_on"]).lower()
         pattern = str(rule["target_pattern"])
-        for facts in self.facts:
+        for facts in self.facts + self.outline:  # dispatchers may sit outside the detailed scope
             for d in facts.definitions:
                 if d.name != routine or d.kind != "routine":
                     continue
@@ -187,8 +195,8 @@ class PackEngine:
                 items = [(item, 1) for item in values if isinstance(item, dict)]
             for item, line in items:
                 try:
-                    entry = str(rule["entry"]).format(**item)
-                    target = str(rule["target"]).format(**item)
+                    entry = str(rule["entry"]).format(**_typed(item))
+                    target = str(rule["target"]).format(**_typed(item))
                 except (KeyError, IndexError, ValueError):
                     continue
                 uid = self.node(f"catalog:{entry}", entry, "dispatch_target", "catalog_entry", path, (line, line))
@@ -218,7 +226,7 @@ class PackEngine:
                     if not template:
                         continue
                     try:
-                        cand = str(template).format(**groups, file_stem=stem)
+                        cand = str(template).format(**_typed(groups), file_stem=stem)
                     except (KeyError, IndexError, ValueError):
                         continue
                     if cand.startswith("f:"):

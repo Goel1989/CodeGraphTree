@@ -98,6 +98,25 @@ def find_pack(name: str, search: list[Path]) -> Path | None:
     return None
 
 
+def default_search_paths(project_folder: Path) -> list[Path]:
+    """Where packs are looked for: the project, ``CGS_PACKS_PATH``, the portable folder, the Pro extension.
+
+    The Pro extension is located without being imported (the core never imports it).
+    """
+    import importlib.util
+    import os
+
+    from codegraph_sci.core.paths import install_dir
+
+    paths = [project_folder / "packs"]
+    paths += [Path(p) for p in os.environ.get("CGS_PACKS_PATH", "").split(os.pathsep) if p]
+    paths.append(install_dir() / "packs")
+    spec = importlib.util.find_spec("codegraph_sci_pro")
+    if spec is not None and spec.submodule_search_locations:
+        paths.append(Path(list(spec.submodule_search_locations)[0]) / "packs")
+    return paths
+
+
 def load_packs(names: list[str], search: list[Path]) -> list[PackRules]:
     packs = []
     for name in names:

@@ -14,7 +14,7 @@ import yaml
 
 from codegraph_sci.audit.common import connect, rows
 
-SUPPORTED_LATER = {"hidden": 12, "writes": 12, "path": 9, "dispatches": 14, "catalog_links": 14, "tests_for": 14}
+SUPPORTED_LATER = {"catalog_links": 14}
 
 
 def load_manifest(path: Path) -> dict[str, Any]:
@@ -23,6 +23,46 @@ def load_manifest(path: Path) -> dict[str, Any]:
         if key not in data:
             raise ValueError(f"{path}: key '{key}' is required")
     return data
+
+
+def _query_expectation(db: Path, kind: str, spec: Any, label: str) -> dict[str, Any]:
+    from codegraph_sci.core.model import CALL_PATH, FILE_DEPENDENCY
+    from codegraph_sci.query.api import GraphQuery, QueryError
+
+    with GraphQuery(db) as q:
+        try:
+            if kind == "hidden":
+                node = q.node(str(spec))
+                return {"item": label, "ok": node.is_noise, "value": node.noise_reason}
+            if kind == "writes":
+                accesses = q.data_accesses(str(spec["routine"]))
+                want_kind = spec.get("key_kind")
+                hits = [a for a in accesses if a.mode == "writes" and (
+                    a.data == spec["data"] or a.family == spec["data"]) and (want_kind is None or (
+                        a.key_kind == want_kind or (want_kind == "family" and a.family == spec["data"])))]
+                return {"item": label, "ok": bool(hits), "value": len(hits)}
+            if kind == "path":
+                kinds = FILE_DEPENDENCY if spec.get("edge_kinds") == "file_dependency" else CALL_PATH
+                report = q.paths(str(spec["from"]), str(spec["to"]), edge_kinds=kinds, k=1,
+                                 max_len=int(spec.get("max_len", 15)))
+                return {"item": label, "ok": bool(report.paths),
+                        "value": [s.uid for s in report.paths[0].steps] if report.paths else None}
+            if kind == "dispatches":
+                page = q.children(str(spec["src"]), direction=_callees(), edge_kinds={"dispatches"}, limit=1)
+                return {"item": label, "ok": page.total >= int(spec.get("min_targets", 1)), "value": page.total}
+            if kind == "tests_for":
+                impact = q.impact(str(spec["routine"]), edge_kinds=CALL_PATH | {"exercises"}, limit=100_000)
+                tests = [s.uid for _d, s in impact.items if s.kind == "test_case"]
+                return {"item": label, "ok": len(tests) >= int(spec.get("min_cases", 1)), "value": len(tests)}
+        except QueryError as exc:
+            return {"item": label, "ok": False, "value": str(exc)}
+    return {"item": label, "ok": None, "status": "unknown expectation"}
+
+
+def _callees() -> Any:
+    from codegraph_sci.query.types import Direction
+
+    return Direction.CALLEES
 
 
 def check_expectations(db: Path, expectations: dict[str, Any]) -> list[dict[str, Any]]:
@@ -67,6 +107,8 @@ def check_expectations(db: Path, expectations: dict[str, Any]) -> list[dict[str,
         elif kind == "out_of_scope_allowed":
             results.append({"item": label, "ok": True, "value": [u for u in sorted(uids)
                                                                 if any(fnmatch.fnmatchcase(u, p) for p in spec)][:5]})
+        elif kind in ("hidden", "writes", "path", "dispatches", "tests_for"):
+            results.append(_query_expectation(db, kind, spec, label))
         else:
             lot = SUPPORTED_LATER.get(kind)
             results.append({"item": label, "ok": None, "status": f"not supported yet (lot {lot})" if lot

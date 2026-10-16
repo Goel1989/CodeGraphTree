@@ -29,6 +29,9 @@ dev = [
 [project.scripts]
 cgs = "codegraph_sci.cli:main"
 
+[project.entry-points."codegraph_sci.commands"]
+pro = "codegraph_sci_pro.cli:register"
+
 [project.gui-scripts]
 codegraph-sci = "codegraph_sci.ui.app:main"
 
@@ -59,11 +62,11 @@ ignore = ["E501"]
 python_version = "3.12"
 strict = true
 mypy_path = "src"
-packages = ["codegraph_sci"]
+packages = ["codegraph_sci", "codegraph_sci_pro"]
 exclude = ["codegraph_sci/ui/"]
 
 [[tool.mypy.overrides]]
-module = ["tree_sitter_fortran", "tree_sitter_python", "tree_sitter_c", "tree_sitter_cpp"]
+module = ["tree_sitter_fortran", "tree_sitter_python", "tree_sitter_c", "tree_sitter_cpp", "llama_cpp", "pypdf"]
 ignore_missing_imports = true
 
 [tool.importlinter]

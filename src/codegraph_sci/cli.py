@@ -208,7 +208,23 @@ def build_parser() -> argparse.ArgumentParser:
     register_query(sub)
 
     register_audit(sub, _cmd_audit_corpus)
+    _register_extensions(sub)
     return parser
+
+
+def _register_extensions(sub: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
+    """Commands added by installed extensions (entry point group ``codegraph_sci.commands``).
+
+    The core never imports an extension by name: an extension declares itself, and its absence
+    or failure never blocks the core.
+    """
+    from importlib.metadata import entry_points
+
+    for ep in sorted(entry_points(group="codegraph_sci.commands"), key=lambda e: e.name):
+        try:
+            ep.load()(sub)
+        except Exception as exc:  # noqa: BLE001 - an extension must never block the core
+            print(f"warning: extension '{ep.name}' not loaded: {exc}", file=sys.stderr)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

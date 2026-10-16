@@ -1,0 +1,48 @@
+# Domain pack for Code_Aster (docs/packs/code_aster.md). Checked against version 17.5.7.
+pack: code_aster
+version: "0.3"
+format_version: 1
+covers: { code_aster: ">=17,<19" }
+identifiers: [jeveuo, jemarq, jedema, utmess, wkvect, te0000, lc0000, rcvalb, libaster, asterfort, CALLO_]
+detect:
+  all_path: ["bibfor/", "bibcxx/", "code_aster/"]
+noise:
+  hide: [jemarq, jedema, utmess, assert, infniv]
+  optional: [jeexin, jelira, dismoi, "getv*", rcvalb, rcvala]
+  auto_detect_hubs: { min_fan_in: 300, max_fan_out: 3 }
+extraction:
+  # Safety net when jeveux.h is not found (it declares these arrays in COMMON blocks).
+  known_arrays: [zi, zi4, zr, zc, zl, zk8, zk16, zk24, zk32, zk80]
+memory_access:
+  - { routine: jeveuo, name_arg: 1, mode_arg: 2, modes: { "L": reads, "E": writes },
+      object_key: [literal, local_prefix, symbolic, family], local_prefix_pattern: "^&&" }
+  - { routine: wkvect, name_arg: 1, effect: creates,
+      object_key: [literal, local_prefix, symbolic, family], local_prefix_pattern: "^&&" }
+  - { routine: jecreo, name_arg: 1, effect: creates,
+      object_key: [literal, local_prefix, symbolic, family], local_prefix_pattern: "^&&" }
+  - { routine: jecrec, name_arg: 1, effect: creates,
+      object_key: [literal, local_prefix, symbolic, family], local_prefix_pattern: "^&&" }
+  - { routine: jedetr, name_arg: 1, effect: destroys,
+      object_key: [literal, local_prefix, symbolic, family], local_prefix_pattern: "^&&" }
+dispatch:
+  # Checked in 17.5.7: te0000 selects on numc, lc0000 on numlcEff.
+  - { routine: te0000, select_on: numc, target_pattern: "te{case:04d}" }
+  - { routine: lc0000, select_on: numlcEff, target_pattern: "lc{case:04d}" }
+entry_points:
+  - kind: command
+    glob: "code_aster/Cata/Commands/*.py"
+    pattern: 'nom\s*=\s*"(?P<name>\w+)",\s*op\s*=\s*(?P<op>\d+)'
+    multiline: true
+    target: "f:op{op:04d}"
+    fallback_target: "py:code_aster.CodeCommands.{file_stem}"
+  - kind: command
+    glob: "code_aster/Cata/Commands/*.py"
+    pattern: '^(?P<name>[A-Z][A-Z0-9_]+)\s*=\s*MACRO\('
+    target: "py:code_aster.CodeCommands.{file_stem}"
+# C/C++ -> Fortran: the CALL_*/CALLO_* and DEFS* macros of bibc/include are expanded by the generic C
+# preprocessor support (version 17): no prefix rule is needed. Kept for older versions without headers:
+bridges:
+  - { from: cpp, to: fortran, call_prefixes: ["CALLO_", "CALL_"], name_transform: [strip_prefix, lowercase] }
+tests:
+  - { kind: regression_case, glob: "astest/*.comm", uses_entry_points: true, coverage: optional }
+glossary: glossary_code_aster.md

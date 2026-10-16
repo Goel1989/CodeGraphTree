@@ -1,0 +1,94 @@
+{
+ "identify": {
+  ".ftx": {
+   "language": "fortran",
+   "use_adapter": "fortran",
+   "rationale": "SUBROUTINE ... END SUBROUTINE and CALL statements: free-form Fortran."
+  },
+  ".acs": {
+   "language": "acme_script",
+   "use_adapter": "keywords",
+   "rationale": "proc/endproc blocks and run statements: a scripting language without adapter."
+  }
+ },
+ "bridge": {
+  "cpp:FORT_*": {
+   "from": "cpp",
+   "to": "fortran",
+   "call_prefixes": [
+    "FORT_"
+   ],
+   "name_transform": [
+    "strip_prefix",
+    "lowercase"
+   ]
+  }
+ },
+ "keywords": {
+  "acme_script": {
+   "language": "acme_script",
+   "version": 1,
+   "format_version": 1,
+   "extensions": [
+    ".acs"
+   ],
+   "case_sensitive": false,
+   "comments": {
+    "line": [
+     "#"
+    ],
+    "block": [
+     [
+      "/*",
+      "*/"
+     ]
+    ]
+   },
+   "strings": [
+    "\""
+   ],
+   "definitions": [
+    {
+     "keywords": [
+      "proc"
+     ],
+     "name": "after_keyword",
+     "end_keywords": [
+      "endproc"
+     ],
+     "kind": "routine"
+    },
+    {
+     "keywords": [
+      "function"
+     ],
+     "name": "after_keyword",
+     "end_keywords": [
+      "endfunction"
+     ],
+     "kind": "routine"
+    }
+   ],
+   "calls": [
+    {
+     "keywords": [
+      "run"
+     ],
+     "name": "after_keyword"
+    },
+    {
+     "style": "name_then_paren",
+     "only_known_names": true
+    }
+   ],
+   "includes": [
+    {
+     "keywords": [
+      "use"
+     ],
+     "target": "after_keyword"
+    }
+   ]
+  }
+ }
+}

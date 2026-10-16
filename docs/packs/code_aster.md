@@ -276,3 +276,15 @@ On retire du pack l'entrée `bridges` par préfixes, puis on lance la boucle de 
 - **`te0xxx` / `lc0xxx` :** routines élémentaires (calculs par élément fini) / routines d'intégration des lois de comportement.
 - **`op0xxx` :** routines Fortran implémentant les opérateurs (commandes).
 - **`.comm` :** fichier de commandes d'une étude ou d'un cas-test.
+
+---
+
+## 7. Vérifications sur la version 17.5.7 (16 octobre 2026)
+
+- **Tableaux `zr`, `zi`…** : déclarés dans `jeveux.h` (blocs `COMMON`) ; aucun site d'appel n'est créé (attente `no_call_to` vérifiée).
+- **`jeveuo`** : modes `'L'` (522 appels dans `bibfor/nonlinear`) et `'E'` (185).
+- **Aiguillages** : `te0000` sélectionne sur `numc` (`select case (numc)`, 600 branches) ; `lc0000` sur `numlcEff`.
+- **Commandes** : `code_aster/Cata/Commands/*.py`, forme `NOM = OPER(nom="NOM", op=70, …)` ; les commandes sans opérateur (`MACRO(`) sont reliées à `code_aster/CodeCommands/<fichier>.py`.
+- **Ponts C/C++ → Fortran** : les macros `CALL_X` / `CALLO_X` sont des `#define` de `bibc/include/aster_fort_*.h` qui se développent en `F_FUNC(X, x)` → `x_` ; les fonctions C appelables depuis le Fortran sont déclarées par `DEFS…(X, x, …)`. Le développement générique des macros C (cœur) et le pont `fortran_c` suffisent : aucune règle de préfixe n'est nécessaire en v17 (elle reste dans le pack pour les versions sans en-têtes).
+- **`mmalgo`** n'existe plus en v17 ; l'attente du corpus de démarrage utilise `mmbouc` (boucle de contact).
+- **`libaster`** : module pybind11 défini par `PYBIND11_MODULE(libaster, mod)` dans `bibcxx/PythonBindings/LibAster.cxx`, dont les fonctions sont exposées dans d'autres fichiers (à traiter : liaisons pybind11 réparties sur plusieurs fichiers).
