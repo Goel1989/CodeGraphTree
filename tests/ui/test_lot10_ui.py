@@ -149,3 +149,14 @@ def test_treegraph_click_connected_and_paths_to_main(window, qtbot) -> None:  # 
         timeout=5000,
     )
 
+
+
+def test_view3d_button_args_and_selection_event(window, qtbot) -> None:  # type: ignore[no-untyped-def]
+    window.select_symbol("c:c_solve")
+    qtbot.waitUntil(lambda: window.current is not None and window.current.uid == "c:c_solve", timeout=5000)
+    args = window.view3d_args()
+    assert args[:2] == ["view3d", "c:c_solve"] and "--db" in args and args[args.index("--mode") + 1] == "both"
+    # A click in the 3D window comes back as one JSON line on stdout: the panels follow it.
+    window._on_view3d_event('{"event": "select", "uid": "f:kernel"}')
+    qtbot.waitUntil(lambda: window.current is not None and window.current.uid == "f:kernel", timeout=5000)
+    window._on_view3d_event("not json")  # ignored

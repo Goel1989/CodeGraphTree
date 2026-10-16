@@ -705,6 +705,7 @@ class GraphQuery:
 - Path view: each step displays its type (call, bridge, dispatch); dispatch steps are flagged "possible".
 - Background tasks: `QThreadPool` for queries; `QProcess` for inventory, analysis, and AI.
 - Settings: `QSettings` in INI format, in the data folder (§3.14).
+- **3D view** (`ui/view3d/`, `cgs view3d`): connections between functions and files drawn with **3d-force-graph** in a **PyWebView** window. It runs in its **own process** (PyWebView has its own GUI loop), launched from the "3D view" button with the selected routine. Data: `GraphQuery.graph3d(root, mode=functions|files|both, depth, max_nodes)` — a bounded, deterministic neighbourhood (callers and callees) plus, in `both` mode, the files defining the routines (`defines` links) and the links between those files. The page is self-contained (vendored JavaScript, data inline) and carries a Content-Security-Policy forbidding every network access; there is **no HTTP server and no port** (`http_server=False`, file URL, `js_api` bridge). Right-click expands a node on demand (`View3DApi.expand`); a click selects it in the main window (one JSON line `{"event": "select", "uid": …}` on stdout, read by `QProcess`). `--export page.html` writes the same page without a window.
 
 **Workflow when opening a folder:** inventory → display languages and their coverage → if elements are missing and AI is available, prompt "Complete with AI" → analysis → auto-detection of `main` and display of first $N$ nodes in `Functions TreeGraph` and `Files TreeGraph` → click on node → open connected nodes (or path to `main`) and position inspector.
 
@@ -796,6 +797,8 @@ CodeGraph-Sci-1.0-linux-x86_64/          (or -windows-x64)
 | :--- | :--- | :--- |
 | Python 3.12 | Sole application language | PSF |
 | PySide6 (Qt 6) | Desktop UI | LGPL-3.0 (obligations detailed in §7) |
+| pywebview *(optional extra `view3d`)* + bottle, proxy_tools, pythonnet (Windows) | 3D view window (§3.11), separate process, no server | BSD-3-Clause / MIT |
+| 3d-force-graph 1.80.1 (bundles three.js r186) | 3D rendering, vendored in `ui/web/vendor/` with its licences (SHA-256 `13088340…23be9`) | MIT |
 | py-tree-sitter + Fortran, C, C++, Python grammars | Parsers (Python 2: fallback to tree-sitter grammar) | MIT (`tree-sitter-fortran` wheel verified; otherwise `tree-sitter-language-pack` or build at packaging) |
 | `ast` (standard library) | Python 3 parser | PSF |
 | sqlite3 + FTS5, `zlib`, `json` (standard library) | Project DB, full-text search, compressed cache | Public domain / PSF |
@@ -1200,6 +1203,7 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 | D16 | Graph algorithms written in-house (iterative Tarjan, bitsets); NetworkX removed |
 | D17 | Fortran parser chosen via comparative benchmark on real files, among permissive candidates; fxtran (GPL-3.0) excluded from default distribution |
 | D18 | *(Lot 4)* Main Fortran parser: **in-house logical statement analyzer** (fixed and free form, continuations, preprocessor branches preserved, exact positions). Benchmark on fixtures (`docs/bench/fortran_parsers.md`): only candidate with 100% recall and precision; tree-sitter-fortran fails on fixed form (text past col 72, `C`/`*` comments) and loses `#ifdef` branches; fparser fails on 4/23 files and is 25x slower; LFortran not evaluated (binary missing). Fallback and dual extraction: independent pattern extractor. **To confirm on real sample files from test case #1** (`python tools/bench_fortran.py <folder>`) |
+| D20 | *(3D view)* 3D visualization with 3d-force-graph in a **PyWebView** window running in a separate process, without HTTP server or port, JavaScript vendored. **Streamlit rejected**: it is a web application serving on a local port (violates C1 and C2). QtWebEngine not used: excluded from the portable build (size) |
 | D19 | *(Lot 0)* Tree-sitter grammars: standalone wheels `tree-sitter-fortran`, `-python`, `-c`, `-cpp`; `tree-sitter-language-pack` ≥ 1.0 excluded because it downloads grammars at runtime (violates C2) |
 
 ### 8.2. Open questions

@@ -235,3 +235,38 @@ class MainPathReport:
     showing_shortest_only: bool
     truncated: bool = False
 
+
+
+@dataclass
+class Graph3DNode:
+    id: str
+    label: str
+    kind: str
+    lang: str | None
+    file: str | None
+    line: int | None
+    fan_in: int
+    fan_out: int
+    is_root: bool = False
+    is_noise: bool = False
+
+
+@dataclass
+class Graph3DLink:
+    source: str
+    target: str
+    kind: str  # calls, bridges, binds, dispatches, implements, uses, defines
+    count: int
+    confidence: str
+
+
+@dataclass
+class Graph3D:
+    """Bounded neighbourhood of a node for the 3D view (functions, files or both)."""
+
+    root: str
+    mode: str
+    nodes: list[Graph3DNode]
+    links: list[Graph3DLink]
+    truncated: bool = False
+    hidden_noise: int = 0

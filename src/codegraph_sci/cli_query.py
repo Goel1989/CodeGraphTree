@@ -196,6 +196,29 @@ def cmd_health(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_view3d(args: argparse.Namespace) -> int:
+    """3D view of the connections between functions and files (PyWebView window, or an HTML export)."""
+    from codegraph_sci.ui.view3d.html import build_html
+
+    db = _db(args)
+    with GraphQuery(db) as q:
+        if args.routine.startswith("file:"):
+            uid, label = args.routine, args.routine[5:]
+        else:
+            node = _pick(q, args.routine)
+            uid, label = node.uid, node.display_name
+        if args.export:
+            graph = q.graph3d(uid, mode=args.mode, depth=args.depth, max_nodes=args.max_nodes,
+                              hide_noise=not args.all)
+            Path(args.export).write_text(build_html(graph, label), encoding="utf-8")
+            print(f"{len(graph.nodes)} node(s), {len(graph.links)} link(s) written to {args.export}")
+            return 0
+    from codegraph_sci.ui.view3d.app import run_window
+
+    return run_window(db, uid, label, mode=args.mode, depth=args.depth, max_nodes=args.max_nodes,
+                      hide_noise=not args.all)
+
+
 def register(sub: Any) -> None:
     def common(p: argparse.ArgumentParser) -> None:
         p.add_argument("--root", help="repository folder (default: current folder)")
@@ -243,6 +266,15 @@ def register(sub: Any) -> None:
     p.add_argument("--limit", type=int, default=50)
     common(p)
     p.set_defaults(func=cmd_unresolved)
+    p = sub.add_parser("view3d", help="3D view of the connections between functions and files")
+    p.add_argument("routine", help="routine name or identifier, or file:<path>")
+    p.add_argument("--mode", choices=["functions", "files", "both"], default="both")
+    p.add_argument("--depth", type=int, default=2, help="levels of callers and callees")
+    p.add_argument("--max-nodes", type=int, default=400)
+    p.add_argument("--all", action="store_true", help="also show utility routines (noise)")
+    p.add_argument("--export", help="write a self-contained HTML page instead of opening a window")
+    common(p)
+    p.set_defaults(func=cmd_view3d)
     p = sub.add_parser("health", help="health of the analysis")
     common(p)
     p.set_defaults(func=cmd_health)

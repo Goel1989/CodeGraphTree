@@ -25,6 +25,9 @@ from codegraph_sci.query.types import (
     DefaultRoots,
     Direction,
     FileLink,
+    Graph3D,
+    Graph3DLink,
+    Graph3DNode,
     GraphPath,
     ImpactReport,
     InventoryReport,
@@ -807,3 +810,99 @@ class GraphQuery:
             truncated=rep.truncated,
         )
 
+
+    # ------------------------------------------------------------- 3D view
+    def graph3d(self, root_uid: str, *, mode: str = "functions", depth: int = 2, max_nodes: int = 400,
+                hide_noise: bool = True) -> Graph3D:
+        """Bounded neighbourhood of ``root_uid`` for the 3D view, callers and callees alike.
+
+        ``mode``: ``functions`` (call graph), ``files`` (file links) or ``both`` (functions, the files that
+        define them, and the links between those files). Breadth-first, ``depth`` levels, at most
+        ``max_nodes`` nodes; deterministic (sorted nodes and links).
+        """
+        if mode not in ("functions", "files", "both"):
+            raise QueryError(f"unknown 3D mode: {mode}")
+        level = Level.FILE if mode == "files" else Level.ROUTINE
+        if root_uid.startswith("file:"):
+            if level is Level.ROUTINE:
+                raise QueryError("a file root needs the 'files' mode")
+            start = root_uid
+        else:
+            detail = self.node(root_uid)
+            if level is Level.FILE:
+                if not detail.file:
+                    raise QueryError(f"{root_uid} has no file")
+                start = f"file:{detail.file}"
+            else:
+                start = detail.uid
+        nodes: dict[str, Graph3DNode] = {}
+        links: dict[tuple[str, str, str], Graph3DLink] = {}
+        truncated = False
+        hidden = 0
+
+        def add_node(uid: str) -> bool:
+            nonlocal truncated
+            if uid in nodes:
+                return True
+            if len(nodes) >= max(1, max_nodes):
+                truncated = True
+                return False
+            nodes[uid] = self._node3d(uid, uid == start)
+            return True
+
+        add_node(start)
+        frontier = [start]
+        for _ in range(max(0, depth)):
+            next_frontier: list[str] = []
+            for uid in frontier:
+                for direction in (Direction.CALLERS, Direction.CALLEES):
+                    page = self.children(uid, direction=direction, level=level, limit=max(50, max_nodes),
+                                         hide_noise=hide_noise)
+                    hidden += page.hidden
+                    for item in page.items:
+                        is_new = item.uid not in nodes
+                        if not add_node(item.uid):
+                            continue
+                        if is_new:
+                            next_frontier.append(item.uid)
+                        src, dst = (item.uid, uid) if direction is Direction.CALLERS else (uid, item.uid)
+                        key = (src, dst, item.edge_kind)
+                        if key not in links:
+                            links[key] = Graph3DLink(src, dst, item.edge_kind, item.count, item.confidence)
+            frontier = sorted(set(next_frontier))
+            if not frontier:
+                break
+        if mode == "both":
+            routine_files = sorted({(n.file, n.id) for n in nodes.values() if n.file and n.kind != "file"})
+            for path, uid in routine_files:
+                fid = f"file:{path}"
+                if add_node(fid):
+                    links[(fid, uid, "defines")] = Graph3DLink(fid, uid, "defines", 1, "exact")
+            paths = {n.file for n in nodes.values() if n.kind == "file" and n.file}
+            if paths:
+                mark = ",".join("?" * len(paths))
+                for a, b, kind, count in self.con.execute(
+                        f"SELECT fa.path, fb.path, e.kind, e.count FROM file_edges e JOIN files fa ON fa.id = e.src_file "
+                        f"JOIN files fb ON fb.id = e.dst_file WHERE fa.path IN ({mark}) AND fb.path IN ({mark})",
+                        (*sorted(paths), *sorted(paths))):
+                    links[(f"file:{a}", f"file:{b}", kind)] = Graph3DLink(f"file:{a}", f"file:{b}", kind, count,
+                                                                       "exact")
+        return Graph3D(root=start, mode=mode, nodes=sorted(nodes.values(), key=lambda n: n.id),
+                       links=sorted(links.values(), key=lambda lk: (lk.source, lk.target, lk.kind)),
+                       truncated=truncated, hidden_noise=hidden)
+
+    def _node3d(self, uid: str, is_root: bool) -> Graph3DNode:
+        if uid.startswith("file:"):
+            path = uid[5:]
+            row = self.con.execute("SELECT id, lang FROM files WHERE path = ?", (path,)).fetchone()
+            if row is None:
+                raise QueryError(f"unknown file: {path}")
+            fan_out = self.con.execute("SELECT count(*) FROM file_edges WHERE src_file = ?", (row[0],)).fetchone()[0]
+            fan_in = self.con.execute("SELECT count(*) FROM file_edges WHERE dst_file = ?", (row[0],)).fetchone()[0]
+            return Graph3DNode(uid, path.rsplit("/", 1)[-1], "file", row[1], path, 1, fan_in, fan_out, is_root)
+        row = self.con.execute(_SUMMARY + "WHERE n.uid = ?", (uid,)).fetchone()
+        if row is None:
+            raise QueryError(f"unknown symbol: {uid}")
+        s = self._summary(row)
+        return Graph3DNode(s.uid, s.display_name, s.kind, s.lang, s.file, s.line, s.fan_in, s.fan_out, is_root,
+                           s.is_noise)

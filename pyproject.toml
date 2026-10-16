@@ -21,6 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+view3d = ["pywebview>=5.4"]
 dev = [
     "pytest", "pytest-qt", "pytest-socket", "hypothesis",
     "ruff", "mypy", "import-linter", "types-PyYAML", "types-jsonschema",
@@ -39,7 +40,7 @@ codegraph-sci = "codegraph_sci.ui.app:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-codegraph_sci = ["**/*.yaml", "**/*.json", "**/*.sql"]
+codegraph_sci = ["**/*.yaml", "**/*.json", "**/*.sql", "ui/web/*.html", "ui/web/*.js", "ui/web/vendor/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

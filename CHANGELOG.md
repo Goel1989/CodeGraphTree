@@ -100,3 +100,10 @@
 - `code_aster` pack (`src/codegraph_sci_pro/packs/`): noise rules, JEVEUX arrays, memory accesses (`jeveuo`, `wkvect`, `jecreo`, `jecrec`, `jedetr`), `te0000`/`lc0000` dispatchers, commands (`OPER`/`MACRO`); items verified against 17.5.7 (`docs/packs/code_aster.md` §7); glossary for local AI.
 - Pack discovery: project folder, `CGS_PACKS_PATH`, portable folder, Pro extension (located without importing).
 - Starter corpus: 16/16 expectations met (265 commands, `te0000` → 600 elementary routines, `lc0000` → 86 constitutive laws, 3,528 JEVEUX accesses).
+
+## 3D view (3d-force-graph via PyWebView)
+- Audit of commit 44659bc (English translation, TreeGraph navigation to `main`): all checks green (168 tests).
+- `GraphQuery.graph3d()`: bounded, deterministic neighbourhood (callers and callees) in `functions`, `files` or `both` mode (files defining routines, file-to-file links).
+- `cgs view3d <routine> [--mode] [--depth] [--max-nodes] [--export page.html]`: PyWebView window in its own process, no HTTP server, no port, CSP forbidding network access; vendored 3d-force-graph 1.80.1 (three.js r186). Click = select in the main window; right-click = expand on demand; search, legend, arrows, flow particles on cross-language bridges.
+- Desktop app: "3D view" button and mode selector; selection comes back through stdout events.
+- Decision D20 (Streamlit rejected: web server and port, contrary to C1/C2); optional extra `view3d` (`pywebview`).

@@ -7,9 +7,11 @@ from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
 
 ROOT = Path(SPECPATH).resolve().parent
 SRC = ROOT / "src"
-datas = collect_data_files("codegraph_sci", includes=["**/*.yaml", "**/*.json", "**/*.sql"])
+datas = collect_data_files("codegraph_sci", includes=["**/*.yaml", "**/*.json", "**/*.sql", "ui/web/*.html",
+                                                       "ui/web/*.js", "ui/web/vendor/*"])
 binaries = []
-hidden = ["tree_sitter", "tree_sitter_fortran", "tree_sitter_python", "tree_sitter_c", "tree_sitter_cpp"]
+hidden = ["tree_sitter", "tree_sitter_fortran", "tree_sitter_python", "tree_sitter_c", "tree_sitter_cpp",
+          "webview", "codegraph_sci.ui.view3d.app"]
 for mod in hidden[1:]:
     binaries += collect_dynamic_libs(mod)
 excludes = ["tkinter", "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.Qt3DCore",

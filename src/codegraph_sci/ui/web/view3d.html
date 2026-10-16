@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Offline by construction: no network request is allowed (constraint C2). -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; worker-src blob:; connect-src 'none'">
+<title>{{TITLE}}</title>
+<style>
+  :root { --bg: #0f1419; --panel: rgba(22, 28, 36, 0.92); --text: #e6edf3; --muted: #8b98a5; --accent: #f2c94c; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+               font: 13px/1.4 "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+  #graph { position: absolute; inset: 0; }
+  .panel { position: absolute; background: var(--panel); border: 1px solid #2d3743; border-radius: 6px;
+           padding: 8px 10px; }
+  #toolbar { top: 10px; left: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; max-width: 70vw; }
+  #toolbar input[type=search] { background: #0b0f14; color: var(--text); border: 1px solid #2d3743;
+                                border-radius: 4px; padding: 4px 6px; width: 220px; }
+  #toolbar button { background: #1f6feb; color: #fff; border: 0; border-radius: 4px; padding: 4px 9px; cursor: pointer; }
+  #toolbar label { color: var(--muted); user-select: none; }
+  #info { bottom: 10px; left: 10px; color: var(--muted); max-width: 60vw; }
+  #legend { top: 10px; right: 10px; }
+  #legend div { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  #legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  #legend b.line { width: 16px; height: 3px; display: inline-block; }
+  #details { bottom: 10px; right: 10px; max-width: 360px; display: none; }
+  #details h3 { margin: 0 0 4px; font-size: 14px; color: var(--accent); word-break: break-all; }
+  #details code { color: var(--muted); word-break: break-all; }
+</style>
+</head>
+<body>
+<div id="graph"></div>
+<div id="toolbar" class="panel">
+  <input id="search" type="search" placeholder="Find a node…">
+  <button id="fit" title="Fit the whole graph in view">Fit</button>
+  <label><input id="files" type="checkbox" checked> files</label>
+  <label><input id="arrows" type="checkbox" checked> arrows</label>
+  <label><input id="particles" type="checkbox" checked> flow on bridges</label>
+</div>
+<div id="legend" class="panel"></div>
+<div id="details" class="panel"></div>
+<div id="info" class="panel"></div>
+<script id="graph-data" type="application/json">{{GRAPH_JSON}}</script>
+<script>{{VENDOR_JS}}</script>
+<script>{{APP_JS}}</script>
+</body>
+</html>
