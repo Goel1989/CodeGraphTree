@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 from codegraph_sci.core import netguard
 from codegraph_sci.core.versions import APP_VERSION
@@ -22,6 +23,17 @@ def _cmd_selftest(args: argparse.Namespace) -> int:
     return 0 if not failed else 1
 
 
+def _cmd_export(args: argparse.Namespace) -> int:
+    from codegraph_sci.store.export import export_json
+
+    text = export_json(args.db)
+    if args.output:
+        Path(args.output).write_text(text, encoding="utf-8", newline="\n")
+    else:
+        sys.stdout.write(text)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cgs", description="CodeGraph-Sci command line.")
     parser.add_argument("--version", action="version", version=f"CodeGraph-Sci {APP_VERSION}")
@@ -29,6 +41,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("selftest", help="check that this installation works offline")
     p.set_defaults(func=_cmd_selftest)
+
+    p = sub.add_parser("export", help="canonical export of a project database")
+    p.add_argument("format", choices=["json"])
+    p.add_argument("db", help="project database (.sqlite)")
+    p.add_argument("-o", "--output", help="output file (default: stdout)")
+    p.set_defaults(func=_cmd_export)
     return parser
 
 

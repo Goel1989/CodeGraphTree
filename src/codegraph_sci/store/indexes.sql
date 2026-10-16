@@ -1,0 +1,17 @@
+-- Created after bulk insertion (§3.6).
+CREATE INDEX IF NOT EXISTS ix_sites_src ON call_sites(src_node);
+CREATE INDEX IF NOT EXISTS ix_sites_dst ON call_sites(dst_node);
+CREATE INDEX IF NOT EXISTS ix_sites_file_line ON call_sites(file_id, line);
+CREATE INDEX IF NOT EXISTS ix_sites_resolution ON call_sites(resolution, target_text);
+CREATE INDEX IF NOT EXISTS ix_candidates_site ON call_site_candidates(site_id);
+CREATE INDEX IF NOT EXISTS ix_data_src ON data_accesses(src_node);
+CREATE INDEX IF NOT EXISTS ix_data_node ON data_accesses(data_node);
+CREATE INDEX IF NOT EXISTS ix_edges_src ON edges(src, kind);
+CREATE INDEX IF NOT EXISTS ix_edges_dst ON edges(dst, kind);
+CREATE INDEX IF NOT EXISTS ix_nodes_file ON nodes(file_id);
+CREATE INDEX IF NOT EXISTS ix_nodes_kind ON nodes(kind);
+CREATE INDEX IF NOT EXISTS ix_file_edges_src ON file_edges(src_file, kind);
+CREATE INDEX IF NOT EXISTS ix_file_edges_dst ON file_edges(dst_file, kind);
+CREATE INDEX IF NOT EXISTS ix_dir_edges_src ON dir_edges(src_dir, kind);
+CREATE INDEX IF NOT EXISTS ix_dir_edges_dst ON dir_edges(dst_dir, kind);
+CREATE INDEX IF NOT EXISTS ix_inventory_file ON inventory(file_id);
