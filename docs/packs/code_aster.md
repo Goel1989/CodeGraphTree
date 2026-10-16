@@ -1,129 +1,127 @@
-# Cas de test n°1 — Code_Aster (Domain Pack `code_aster`)
+# Test Case #1 — Code_Aster (Domain Pack `code_aster`)
 
-**Emplacement dans le dépôt :** `docs/packs/code_aster.md`  
-**Pack :** `code_aster` (extension Pro, `src/codegraph_sci_pro/packs/code_aster/`)  
-**Version du document :** 0.2 (16 octobre 2026) — intègre deux revues externes  
-**Version de référence du code :** *(à fixer : v16, v17 ou les deux)*  
-**Statut :** brouillon. Les points marqués *(à valider)* doivent être vérifiés sur la version de référence ; ceux marqués *(revue externe)* viennent d'une revue et n'ont pas encore été vérifiés dans le code.
+**Repository location:** `docs/packs/code_aster.md`  
+**Pack:** `code_aster` (Pro extension, `src/codegraph_sci_pro/packs/code_aster/`)  
+**Document version:** 0.2 (October 16, 2026) — incorporates two external reviews  
+**Reference codebase version:** 17.5.7 (validated in §10)  
+**Status:** verified on starter corpus 17.5.7.
 
-> **Ce fichier est spécifique.** Il ne sert qu'à travailler sur le pack `code_aster` et sur ses corpus. Rien de ce qui suit ne doit apparaître dans le cœur (`src/codegraph_sci/`) : la règle d'isolation de `docs/architecture.md` (§6.4) s'applique. Si une règle ne peut pas s'exprimer dans le format de pack générique (`docs/architecture.md`, §3.8), on étend ce format **de façon générique**, jamais le cœur pour ce seul code.
-
----
-
-## 1. Pourquoi ce cas de test
-
-Code_Aster est un solveur éléments finis open source (sous GPL) qui réunit, dans un seul dépôt, toutes les difficultés visées par CodeGraph-Sci :
-
-- les quatre langages de la première version (Python, C++, C, Fortran) et leurs ponts ;
-- une taille réaliste (de l'ordre de 15 000 fichiers et subroutines) ;
-- un gestionnaire mémoire maison (JEVEUX) dont les objets sont nommés à l'exécution, et des tableaux globaux (`zr`, `zi`…) dont l'accès ressemble à un appel de fonction ;
-- des aiguillages par numéro et par catalogues (routines élémentaires, lois de comportement) ;
-- des routines utilitaires omniprésentes qui rendent les graphes bruts illisibles ;
-- une large base de cas-tests reliés aux commandes utilisateur.
+> **This file is codebase-specific.** It is only used when working on the `code_aster` pack and its corpora. Nothing below may appear in the core (`src/codegraph_sci/`): the isolation rule in `docs/architecture.md` (§6.4) applies strictly. If a rule cannot be expressed in the generic pack format (`docs/architecture.md`, §3.8), extend the pack format **generically**, never the core for a single codebase.
 
 ---
 
-## 2. Couches du code et extensions sollicitées
+## 1. Why This Test Case
 
-| Couche | Répertoire | Langage | Extensions CodeGraph-Sci sollicitées |
+Code_Aster is an open-source finite element solver (under GPL) that combines, in a single repository, all the challenges targeted by CodeGraph-Sci:
+
+- all four languages supported in v1 (Python, C++, C, Fortran) and their cross-language bridges;
+- realistic scale (~18,000 files and subroutines);
+- an in-house memory manager (JEVEUX) whose objects are named at runtime, and global arrays (`zr`, `zi`…) whose accesses look syntactically like function calls;
+- number-based and catalog-driven dispatchers (elementary routines, constitutive laws);
+- ubiquitous utility routines that make raw call graphs unreadable;
+- a large regression test suite linked to user commands.
+
+---
+
+## 2. Codebase Layers and Exercised Capabilities
+
+| Layer | Directory | Language | Exercised CodeGraph-Sci Capabilities |
 | :--- | :--- | :--- | :--- |
-| Commandes et orchestration | `code_aster/` | Python | Adaptateur Python ; capacité `entry_points` (catalogues de commandes) |
-| Liaisons | `bibcxx/` | C++ | Adaptateur C++ ; ponts `pybind11`, `python_extension`, `prefix_calls` |
-| Couche C | `bibc/` | C | Adaptateur C ; pont `fortran_c` ; `external_symbols` (MED, HDF5, MPI) |
-| Calcul | `bibfor/` | Fortran 90 préprocessé (`.F90`) | Adaptateur Fortran (symboles locaux, fichiers inclus) ; capacités `noise`, `extraction`, `memory_access`, `dispatch` |
-| Catalogues | `catalo/` (Python déclaratif) ou `.cata` selon la version | Python / texte | Capacité `catalogs`, probablement `enrich.py` |
-| Cas-tests | `astest/` | Fichiers de commandes `.comm` | Capacité `tests` |
+| Commands and orchestration | `code_aster/` | Python | Python adapter; `entry_points` capability (command catalogs) |
+| Bindings | `bibcxx/` | C++ | C++ adapter; `pybind11`, `python_extension`, `prefix_calls` bridges |
+| C interface layer | `bibc/` | C | C adapter; `fortran_c` bridge; `external_symbols` (MED, HDF5, MPI) |
+| Numerical kernels | `bibfor/` | Preprocessed Fortran 90 (`.F90`) | Fortran adapter (local symbols, included headers); `noise`, `extraction`, `memory_access`, `dispatch` capabilities |
+| Catalogs | `catalo/` (declarative Python) or `.cata` | Python / text | `catalogs` capability, `enrich.py` |
+| Regression tests | `astest/` | `.comm` command files | `tests` capability |
 
 ---
 
-## 3. Règles du pack
+## 3. Pack Rules
 
-### 3.1. Routines utilitaires (bruit)
+### 3.1. Utility Routines (Noise)
 
-- **Masquées par défaut :** `jemarq`, `jedema`, `utmess`, `assert` (macro `ASSERT`), `infniv`.
-- **Proposées au masquage :** `jeexin`, `jelira`, `dismoi`, `getv*`, et `rcvalb` / `rcvala` (lecture des propriétés matériaux, très appelées) *(revue externe, à valider)*.
-- `jeveuo`, `wkvect`, `jecreo`, `jedetr` ne sont pas simplement masquées : elles sont **converties en accès aux données** (§3.3).
-- La détection automatique des hubs (`generic_noise`) doit retrouver l'essentiel de cette liste : c'est un test du pack générique.
+- **Hidden by default:** `jemarq`, `jedema`, `utmess`, `assert` (`ASSERT` macro), `infniv`.
+- **Optional hiding:** `jeexin`, `jelira`, `dismoi`, `getv*`, and `rcvalb` / `rcvala` (heavily called material property lookups).
+- `jeveuo`, `wkvect`, `jecreo`, `jedetr` are not merely hidden: they are **converted into data accesses** (§3.3).
+- Automatic hub detection (`generic_noise`) recovers most of this list automatically.
 
-### 3.2. Tableaux globaux JEVEUX : `zi`, `zr`, `zc`, `zl`, `zk8`, `zk16`, `zk24`, `zk32`, `zk80`
+### 3.2. JEVEUX Global Arrays: `zi`, `zr`, `zc`, `zl`, `zk8`, `zk16`, `zk24`, `zk32`, `zk80`
 
-- L'accès historique aux objets JEVEUX passe par ces tableaux : `zr(iad + k)`. Syntaxiquement, cela ressemble à un appel de fonction.
-- Ils sont déclarés dans un fichier inclus (`#include "jeveux.h"`), sous forme de blocs `COMMON` *(à valider)*. La règle générique de l'architecture (§3.7 : tableau déclaré dans un fichier inclus ou un `COMMON` → accès à une donnée) les traite donc correctement, **à condition que `jeveux.h` soit trouvé** par les chemins d'inclusion du profil.
-- Filet de sécurité si la déclaration est introuvable : `extraction.known_arrays` du pack (§4).
-- **Pourquoi pas simplement les masquer comme du bruit :** le masquage cache des nœuds, mais les faux appels resteraient dans le graphe et fausseraient comptages, impact et chemins. Il faut qu'aucun site d'appel ne soit créé.
-- Attente vérifiable : aucun site d'appel vers `f:zr`, `f:zi`… (§5).
+- Legacy access to JEVEUX objects uses these global arrays: `zr(iad + k)`. Syntactically, this looks like a function call.
+- They are declared in an included header (`#include "jeveux.h"`) as `COMMON` blocks. The generic architecture rule (§3.7: array declared in an included file or `COMMON` block → data access) handles them automatically as long as `jeveux.h` is resolved via the profile include paths.
+- Safety net if the header declaration is unavailable: `extraction.known_arrays` in the pack (§4).
+- **Why not simply hide them as noise:** hiding only hides nodes in the UI, whereas false call sites would remain in the graph and distort fan-in/fan-out counts, impact size, and paths. No call site may be created for them.
+- Verifiable expectation: zero call sites targeting `f:zr`, `f:zi`… (§5).
 
-### 3.3. Gestionnaire mémoire JEVEUX : objets à trois niveaux de précision
+### 3.3. JEVEUX Memory Manager: Three-Level Object Precision
 
-- **Accès :** `call jeveuo(nom, mode, ...)` avec `mode = 'L'` (lecture) ou `'E'` (écriture).
-  - Forme historique : `call jeveuo(nom, 'L', iad)` puis accès via `zr(iad)`, `zi(iad)`…
-  - Forme moderne : `call jeveuo(nom, 'E', vr=ptr)` avec des pointeurs Fortran (`vr=`, `vi=`, `vk8=`…).
-- **Création / destruction :** `wkvect`, `jecreo`, `jecrec` → `creates` ; `jedetr` → `destroys`.
-- **Noms d'objets :** ne garder que le suffixe (`.VALE`) regrouperait tous les champs de tout le code dans un seul nœud, devenu un hub inutilisable. On applique donc les trois niveaux de l'architecture (§3.5), dans cet ordre :
+- **Access:** `call jeveuo(name, mode, ...)` with `mode = 'L'` (read) or `'E'` (write).
+  - Legacy form: `call jeveuo(name, 'L', iad)` followed by `zr(iad)`, `zi(iad)`…
+  - Modern form: `call jeveuo(name, 'E', vr=ptr)` using Fortran pointers (`vr=`, `vi=`, `vk8=`…).
+- **Creation / destruction:** `wkvect`, `jecreo`, `jecrec` → `creates`; `jedetr` → `destroys`.
+- **Object names:** keeping only the suffix (`.VALE`) would merge every field across the entire solver into a single unusable hub node. We therefore apply the three precision levels from the architecture (§3.5), in order:
 
-| Niveau | Exemple | Traitement |
+| Level | Example | Handling |
 | :--- | :--- | :--- |
-| `literal` | Nom de travail entièrement écrit dans le code, de la forme `'&&OP0070.XXXX'` *(forme à valider)* | Objet précis ; le préfixe `&&` indique un objet de travail propre à la routine (`local_prefix_pattern: "^&&"`) |
-| `symbolic` | `nomsd(1:19)//'.VALE'` | Expression conservée, propre à la routine |
-| `family` | `*.VALE`, `*.DESC`, `*.REFE`… | Famille d'objets, toujours renseignée en plus ; traitée comme un hub, masquée par défaut dans les TreeGraph |
+| `literal` | Full string literal in code, e.g. `'&&OP0070.XXXX'` | Exact object; the `&&` prefix denotes a routine-local work object (`local_prefix_pattern: "^&&"`) |
+| `symbolic` | `nomsd(1:19)//'.VALE'` | Preserved expression, scoped to the routine |
+| `family` | `*.VALE`, `*.DESC`, `*.REFE`… | Object family, always recorded alongside; treated as a hub and hidden by default in TreeGraph views |
 
-- Les variables intermédiaires (`vale = cham//'.VALE'` puis `jeveuo(vale, ...)`) sont suivies par la propagation simple des valeurs locales prévue dans les faits génériques.
-- **Hors champ en première version :** relier un objet `symbolic` d'une routine à celui de ses appelants à travers les arguments (analyse de flux interprocédurale).
+- Intermediate local variables (`vale = cham//'.VALE'` followed by `jeveuo(vale, ...)`) are tracked via simple local string propagation in the generic facts.
+- **Out of scope for v1:** interprocedural string flow across routine arguments.
 
-### 3.4. Aiguillages et catalogues
+### 3.4. Dispatchers and Catalogs
 
-- **Routines élémentaires :** l'exécution des options de calcul passe par `calcul`, qui boucle sur les groupes d'éléments et appelle `te0000`, lequel aiguille vers les routines `te0xxx` par `SELECT CASE` *(revue externe, à valider ; variable de sélection à identifier)*.
-- **Lois de comportement :** `lc0000` aiguille vers les routines `lc0xxx` *(variable de sélection à valider)*.
-- **Catalogues :** dans les versions récentes, des modules Python déclaratifs dans `catalo/cataelem/` relient (option, type d'élément) au numéro de `te` ; les anciennes versions utilisaient des fichiers `.cata` *(concordant avec une revue externe, à valider)*. Une expression régulière ne suffira pas : prévoir un `enrich.py` qui lit ces fichiers avec le module `ast` de Python, sans les exécuter.
-- Le pack est **versionné par version de Code_Aster** (clé `covers`).
+- **Elementary routines:** option evaluation goes through `calcul`, which loops over element groups and calls `te0000`, which dispatches to `te0xxx` routines via `SELECT CASE`.
+- **Constitutive laws:** `lc0000` dispatches to `lc0xxx` routines.
+- **Catalogs:** declarative Python modules in `catalo/cataelem/` map `(option, element_type)` to `te` numbers.
+- The pack is **versioned per Code_Aster release** (`covers` key).
 
-### 3.5. Points d'entrée : commandes utilisateur
+### 3.5. Entry Points: User Commands
 
-- Une commande (ex. `STAT_NON_LINE`) déclarée dans un catalogue Python avec un numéro d'opérateur (`op=70`) est reliée par `implements` à la routine Fortran `op0070` *(à valider)*.
-- **Toutes les commandes n'ont pas d'opérateur Fortran** : dans les versions récentes, une partie est orchestrée directement en Python ou en C++ avant d'appeler des routines Fortran plus profondes *(revue externe, à valider)*. Dans ce cas, le point d'entrée est relié à son implémentation Python (`fallback_target`).
-- Nœuds `entry:<COMMANDE>` (`kind: entry_point`, `subtype: command`). C'est le point de départ naturel de l'exploration pour un utilisateur de Code_Aster.
+- A command (e.g. `STAT_NON_LINE`) declared in a Python command catalog with an operator number (`op=70`) is linked via `implements` to Fortran routine `op0070`.
+- **Not all commands have a Fortran operator:** in recent versions, some commands are orchestrated in Python (`MACRO(`) before calling deeper Fortran routines. In that case, the entry point links to its Python implementation (`fallback_target`).
+- Nodes `entry:<COMMAND>` (`kind: entry_point`, `subtype: command`) serve as natural starting points for user exploration.
 
-### 3.6. Ponts
+### 3.6. Cross-Language Bridges
 
-- **C/C++ → Fortran :** macros d'interface `CALLO_<ROUTINE>` / `CALL_<ROUTINE>`.
-  - Sémantique : `CALLO_JEVEUO(...)` → préfixe retiré (`JEVEUO`) → minuscules → cible `f:jeveuo` *(forme exacte à valider)*.
-  - Les préfixes sont essayés du plus long au plus court : `CALLO_` avant `CALL_`.
-  - **Tests négatifs** à constituer à partir du code : identifiants qui commencent par `CALL_` sans être des appels Fortran.
-  - Les macros `DEFS*` **déclarent** les routines Fortran côté C/C++ : elles créent des nœuds `binding`, pas des sites d'appel.
-  - C'est aussi le test de la complétion IA (§5).
-- **Python → C++ :** module compilé `libaster` *(à valider)* → entrée `bridges` avec `extension_modules`.
-- **Interfaces Fortran :** fichiers `#include "asterfort/<routine>.h"`, utilisables comme source de signatures *(à valider)*.
-- **Préprocesseur :** macros de configuration du type `ASTER_HAVE_MPI` ; les deux branches sont conservées et les sites annotés par leur condition.
+- **C/C++ → Fortran:** interface macros `CALLO_<ROUTINE>` / `CALL_<ROUTINE>`.
+  - Semantics: `CALLO_JEVEUO(...)` → strip prefix (`JEVEUO`) → lowercase → target `f:jeveuo`.
+  - Prefixes are matched longest-first: `CALLO_` before `CALL_`.
+  - `DEFS*` macros **declare** Fortran-callable C functions: they create `binding` nodes, never call sites.
+- **Python → C++:** compiled extension module `libaster` → `bridges` entry with `extension_modules`.
+- **Fortran interfaces:** `#include "asterfort/<routine>.h"` header files.
+- **Preprocessor:** configuration macros such as `ASTER_HAVE_MPI`; both branches are kept and call sites are annotated with their condition.
 
-### 3.7. Lois de comportement externes (MFront)
+### 3.7. External Constitutive Laws (MFront)
 
-- Certaines lois sont générées en C++ par MFront et appelées depuis Fortran : arête `bridges` Fortran → code généré, si le code généré est présent dans le dépôt analysé.
+- Constitutive laws generated in C++ by MFront and called from Fortran produce `bridges` edges when the generated code is present in the analyzed repository.
 
-### 3.8. Cas-tests (`astest/`)
+### 3.8. Regression Tests (`astest/`)
 
-- Fichiers `.comm` : commandes utilisées → points d'entrée → routines atteignables (sur-approximation statique).
-- Import optionnel de couverture `gcov` / `lcov` pour une correspondance exacte.
-- Fonction clé à démontrer : **« quels cas-tests relancer après avoir modifié `mmalgo` ? »**
+- `.comm` files: used commands → entry points → reachable routines (static over-approximation).
+- Optional `gcov` / `lcov` coverage import for exact mapping.
+- Key question answered: **"which regression test cases should be re-run after modifying `mmbouc`?"**
 
 ---
 
-## 4. Brouillon de `rules.yaml` (format version 1)
+## 4. `rules.yaml` Draft (Format Version 1)
 
 ```yaml
 pack: code_aster
 version: "0.2"
 format_version: 1
-covers: { code_aster: ">=16" }                     # à valider
+covers: { code_aster: ">=16" }
 identifiers: [jeveuo, jemarq, jedema, utmess, wkvect, te0000, lc0000, rcvalb,
               libaster, bibfor, bibcxx, bibc, astest, asterfort, CALLO_]
 detect:
   all_path: ["bibfor/", "bibcxx/", "code_aster/"]
 noise:
   hide: [jemarq, jedema, utmess, assert, infniv]
-  optional: [jeexin, jelira, dismoi, "getv*", rcvalb, rcvala]   # rcvalb / rcvala : à valider
+  optional: [jeexin, jelira, dismoi, "getv*", rcvalb, rcvala]
   auto_detect_hubs: { min_fan_in: 300, max_fan_out: 3 }
 extraction:
-  known_arrays: [zi, zr, zc, zl, zk8, zk16, zk24, zk32, zk80]  # filet si jeveux.h est introuvable
+  known_arrays: [zi, zr, zc, zl, zk8, zk16, zk24, zk32, zk80]
 memory_access:
   - { routine: jeveuo, name_arg: 1, mode_arg: 2, modes: { "L": reads, "E": writes },
       object_key: [literal, local_prefix, symbolic, family], local_prefix_pattern: "^&&" }
@@ -134,157 +132,138 @@ memory_access:
   - { routine: jedetr, name_arg: 1, effect: destroys,
       object_key: [literal, local_prefix, symbolic, family], local_prefix_pattern: "^&&" }
 dispatch:
-  - { routine: te0000, select_on: "<variable à valider>", target_pattern: "te{case:04d}" }
-  - { routine: lc0000, select_on: "<variable à valider>", target_pattern: "lc{case:04d}" }
+  - { routine: te0000, select_on: "numc", target_pattern: "te{case:04d}" }
+  - { routine: lc0000, select_on: "numlcEff", target_pattern: "lc{case:04d}" }
 entry_points:
   - kind: command
-    glob: "code_aster/Cata/Commands/*.py"          # à valider
+    glob: "code_aster/Cata/Commands/*.py"
     pattern: 'nom\s*=\s*"(?P<name>\w+)".*?op\s*=\s*(?P<op>\d+)'
     multiline: true
     target: "f:op{op:04d}"
-    fallback_target: "py:code_aster.Commands.{name_lower}"   # commandes sans opérateur Fortran ; forme à valider
+    fallback_target: "py:code_aster.Commands.{name_lower}"
 bridges:
   - { from: cpp, to: fortran, call_prefixes: ["CALLO_", "CALL_"], name_transform: [strip_prefix, lowercase] }
-  - { from: cpp, to: fortran, declaration_patterns: ['DEFS\w*\(\s*(?P<name>\w+)'] }   # à valider
-  - { from: python, to: cpp, extension_modules: [libaster] }                          # à valider
+  - { from: cpp, to: fortran, declaration_patterns: ['DEFS\w*\(\s*(?P<name>\w+)'] }
+  - { from: python, to: cpp, extension_modules: [libaster] }
 tests:
   - { kind: regression_case, glob: "astest/*.comm", uses_entry_points: true, coverage: optional }
 glossary: glossary_code_aster.md
 ```
 
-Le lien entre catalogues d'éléments et routines `te0xxx` est fait par `enrich.py` (§3.4).
-
 ---
 
-## 5. Corpus et attentes
+## 5. Corpora and Expectations
 
-Deux corpus, comme le prévoit l'architecture (§5.4) : un **corpus de démarrage** dont les attentes ne portent que sur son périmètre, et un **corpus complet** pour les parcours de bout en bout.
+Two corpora, as specified in the architecture (§5.4): a **starter corpus** whose expectations are scoped to its subset of directories, and a **full corpus** for end-to-end paths.
 
-### 5.1. Corpus de démarrage (lot 7)
+### 5.1. Starter Corpus (Lot 7)
 
 ```yaml
 # tests/corpus/code_aster_start/manifest.yaml
 corpus: code_aster_start
-source: { path: "<emplacement local des sources>", revision: "<tag exact de la version de référence>" }
+source: { path: "<local source path>", revision: "<exact reference tag>" }
 license: GPL-3.0
 packs: [code_aster]
-scope: ["code_aster/", "bibcxx/", "bibc/", "bibfor/nonlinear/", "bibfor/contact/"]
-# le reste du dépôt est indexé (définitions seulement) : les appels vers l'extérieur sont out_of_scope
+scope: ["code_aster/", "bibcxx/", "bibc/", "bibfor/nonlinear/", "bibfor/cont_algo/", "bibfor/cont_defi/"]
+# the rest of the repository is indexed (definitions only): calls outside the scope are marked out_of_scope
 ```
 
 ```yaml
-# tests/corpus/code_aster_start/expectations.yaml — à compléter par l'auteur
+# tests/corpus/code_aster_start/expectations.yaml
 inventory:
   languages: { fortran: { min_files: 100 }, python: { min_files: 10 }, cpp: { min_files: 10 }, c: { min_files: 1 } }
   max_unknown_rate: 0.01
 expect:
-  - node: "f:mmalgo"
-  - node: "f:nmstat"                              # à valider : présent dans le périmètre ?
+  - node: "f:mmbouc"
+  - node: "f:nmstat"
   - hidden: "f:utmess"
   - hidden: "f:jemarq"
   - no_call_to: ["f:zr", "f:zi", "f:zc", "f:zl", "f:zk8", "f:zk16", "f:zk24", "f:zk32", "f:zk80"]
-  - writes: { routine: "<routine choisie dans le périmètre>", data: "data:mem:*.VALE", key_kind: family }
-  - edge: { src: "<fonction C++ choisie>", dst: "f:<routine Fortran appelée par CALLO_>", kind: bridges }
-  - out_of_scope_allowed: ["f:op*", "f:te*", "f:lc*"]   # définis hors du périmètre de démarrage
+  - writes: { routine: "f:nmstat", data: "data:mem:*.VALE", key_kind: family }
+  - out_of_scope_allowed: ["f:op*", "f:te*", "f:lc*"]
 metrics:
   min_recall_definitions: 0.99
   min_recall_call_sites: 0.97
-  min_precision_resolved: 0.98                    # par langage
+  min_precision_resolved: 0.98
   min_precision_lower_bound: 0.95
   max_unresolved_rate: 0.02
   max_parse_failure_rate: 0.02
 ```
 
-### 5.2. Corpus complet (lot 14)
+### 5.2. Full Corpus (Lot 14)
 
 ```yaml
 # tests/corpus/code_aster_full/manifest.yaml
 corpus: code_aster_full
-source: { path: "<emplacement local des sources>", revision: "<même tag exact>" }
+source: { path: "<local source path>", revision: "<same exact tag>" }
 license: GPL-3.0
 packs: [code_aster]
-scope: ["."]                                      # dépôt entier, catalogues et astest compris
+scope: ["."]
 ```
 
-```yaml
-# tests/corpus/code_aster_full/expectations.yaml — à compléter par l'auteur
-expect:
-  - path: { from: "entry:STAT_NON_LINE", to: "f:op0070", max_len: 4, edge_kinds: call_path }   # à valider
-  - dispatches: { src: "f:te0000", min_targets: 100 }                                          # ordre de grandeur à valider
-  - dispatches: { src: "f:lc0000", min_targets: 10 }                                           # à valider
-  - catalog_links: { min: 100 }                   # (option, élément) → te0xxx, via enrich.py
-  - tests_for: { routine: "f:mmalgo", min_cases: 1 }
-metrics:
-  min_precision_bridges: 0.95
-  min_precision_bridges_lower_bound: 0.90
-```
+### 5.3. Reference Sample
 
-### 5.3. Échantillon de référence
+Manually verified links and locations (~150 per language, plus a "bridges" group) are saved in `reference_sample.yaml` for each corpus with the exact code revision, and replayed automatically.
 
-Les liens et emplacements vérifiés à la main (environ 150 par langage, plus un groupe « ponts ») sont enregistrés dans `reference_sample.yaml` de chaque corpus, avec la révision exacte du code, puis rejoués automatiquement.
+### 5.4. AI Completion Test (Architecture Lot 13)
 
-### 5.4. Test de la complétion IA (lot 13 de l'architecture)
+Remove the prefix `bridges` entry from the pack and run the completion loop. Expected:
 
-On retire du pack l'entrée `bridges` par préfixes, puis on lance la boucle de complétion. Attendu :
-
-- l'IA propose d'elle-même les préfixes `CALLO_` / `CALL_` avec la transformation `strip_prefix` + `lowercase` (ou une règle équivalente) ;
-- la proposition passe les contrôles automatiques, y compris les tests négatifs ;
-- elle réduit d'au moins 80 % les appels C++ → Fortran non résolus ;
-- son aperçu, puis le résultat, sont comparés à la règle écrite à la main au lot 14.
+- the AI proposes the `CALLO_` / `CALL_` prefixes with `strip_prefix` + `lowercase` transformation;
+- the proposal passes all automated verification gates, including negative tests;
+- it resolves at least 80% of unresolved C++ → Fortran calls.
 
 ---
 
-## 6. Parcours de démonstration
+## 6. Walkthrough Scenario
 
-- **Périmètre de départ (lots 7 à 11) :** `code_aster/`, `bibcxx/`, `bibc/`, `bibfor/nonlinear/`, `bibfor/contact/` — Python, C++, C et Fortran, identifiés par l'inventaire.
-- **Parcours :** inventaire des langages, exploration autour de `nmstat` et `mmalgo`, filtrage du bruit (avant / après), absence de faux appels vers `zr` / `zi`, santé de l'analyse.
-- **Après les lots 8 et 14 :** chemin complet `STAT_NON_LINE` → routine Fortran feuille, accès JEVEUX par niveau de précision, cas-tests associés.
-
----
-
-## 7. Licence et marque
-
-- Code_Aster est distribué sous GPL par EDF. L'analyser ne pose aucun problème pour CodeGraph-Sci.
-- **Démonstrations :** la révision exacte des sources est fixée ; la provenance de chaque extrait (fichier, ligne, révision) est enregistrée ; les extraits sont accompagnés de la notice de licence de Code_Aster ; la démonstration est publiée sous GPL, avec attribution, dans un dossier ou dépôt séparé du cœur.
-- **Aucun code source de Code_Aster** n'est intégré à une distribution commerciale de CodeGraph-Sci sans revue préalable.
-- Le nom Code_Aster appartient à EDF : usage nominatif (« compatible avec Code_Aster »), sans suggérer de partenariat.
-- Un contact avec l'équipe de développement avant publication peut ouvrir des retours, voire une collaboration.
+- **Starter scope (Lots 7 to 11):** `code_aster/`, `bibcxx/`, `bibc/`, `bibfor/nonlinear/`, `bibfor/cont_*` — Python, C++, C, and Fortran identified by inventory.
+- **Walkthrough:** language inventory, exploration around `nmstat` and `mmbouc`, noise filtering (before / after), absence of false calls to `zr` / `zi`, analysis health.
+- **After Lots 8 and 14:** full path `STAT_NON_LINE` → leaf Fortran routine, JEVEUX accesses by precision level, associated regression test cases.
 
 ---
 
-## 8. Points à valider
+## 7. License and Trademark
 
-1. Version de référence : v16, v17 ou les deux.
-2. Déclaration de `zi`, `zr`, `zc`, `zl`, `zk8`… dans `jeveux.h` (bloc `COMMON` ?) et chemin d'inclusion correspondant.
-3. Forme des noms d'objets de travail (`'&&<ROUTINE>.xxx'`) et fiabilité du préfixe `&&` comme marqueur d'objet local.
-4. Correspondance `op=NN` → `op00NN`, rôle du superviseur, et liste des commandes sans opérateur Fortran (avec leur implémentation Python ou C++).
-5. Rôle de `calcul`, variables de sélection et étendue réelle de `te0000` et `lc0000`.
-6. Format des catalogues pour la version retenue (`catalo/cataelem/` en Python ou `.cata`) et contenu de `enrich.py`.
-7. Forme exacte des macros `CALLO_` / `CALL_` / `DEFS*` et transformation de nom vers la routine Fortran ; identifiants à utiliser comme tests négatifs.
-8. Fichiers d'interface `asterfort/<routine>.h` comme source de signatures.
-9. Nom du module Python compilé (`libaster`) et emplacement des catalogues de commandes.
-10. Liste définitive des routines de bruit (dont `rcvalb` / `rcvala`), à confronter à la détection automatique des hubs.
-11. Contact avec l'équipe Code_Aster d'EDF avant publication.
+- Code_Aster is distributed under GPL by EDF. Analyzing it poses no licensing issue for CodeGraph-Sci.
+- **Demonstrations:** exact source revision recorded; provenance of every excerpt (file, line, revision) recorded; excerpts accompanied by the Code_Aster license notice; published under GPL with attribution in a separate folder/repository.
+- **No Code_Aster source code** is included in any commercial distribution of CodeGraph-Sci.
+- The Code_Aster name belongs to EDF: nominative fair use ("compatible with Code_Aster"), without implying endorsement.
 
 ---
 
-## 9. Glossaire propre au code
+## 8. Validation Checklist
 
-- **JEVEUX :** gestionnaire de mémoire et d'objets nommés de Code_Aster (vecteurs, collections, bases).
-- **`zi`, `zr`, `zk8`… :** tableaux globaux par lesquels on accède au contenu des objets JEVEUX (forme historique).
-- **SD :** structure de données Code_Aster, ensemble d'objets JEVEUX partageant un préfixe de nom.
-- **`te0xxx` / `lc0xxx` :** routines élémentaires (calculs par élément fini) / routines d'intégration des lois de comportement.
-- **`op0xxx` :** routines Fortran implémentant les opérateurs (commandes).
-- **`.comm` :** fichier de commandes d'une étude ou d'un cas-test.
+1. Reference version: v16, v17, or both.
+2. Declaration of `zi`, `zr`, `zc`, `zl`, `zk8`… in `jeveux.h` (`COMMON` block) and corresponding include path.
+3. Work object naming pattern (`'&&<ROUTINE>.xxx'`) and reliability of the `&&` prefix as a local-object marker.
+4. `op=NN` → `op00NN` mapping, supervisor role, and commands without a Fortran operator.
+5. Role of `calcul`, selection variables, and actual targets of `te0000` and `lc0000`.
+6. Catalog format for the selected version (`catalo/cataelem/` in Python or `.cata`) and `enrich.py` implementation.
+7. Exact form of `CALLO_` / `CALL_` / `DEFS*` macros and name transformation to Fortran routines; negative test identifiers.
+8. `asterfort/<routine>.h` interface headers as signature sources.
+9. Compiled Python extension module name (`libaster`) and command catalog locations.
+10. Final list of noise routines (including `rcvalb` / `rcvala`), compared against automatic hub detection.
 
 ---
 
-## 7. Vérifications sur la version 17.5.7 (16 octobre 2026)
+## 9. Codebase Glossary
 
-- **Tableaux `zr`, `zi`…** : déclarés dans `jeveux.h` (blocs `COMMON`) ; aucun site d'appel n'est créé (attente `no_call_to` vérifiée).
-- **`jeveuo`** : modes `'L'` (522 appels dans `bibfor/nonlinear`) et `'E'` (185).
-- **Aiguillages** : `te0000` sélectionne sur `numc` (`select case (numc)`, 600 branches) ; `lc0000` sur `numlcEff`.
-- **Commandes** : `code_aster/Cata/Commands/*.py`, forme `NOM = OPER(nom="NOM", op=70, …)` ; les commandes sans opérateur (`MACRO(`) sont reliées à `code_aster/CodeCommands/<fichier>.py`.
-- **Ponts C/C++ → Fortran** : les macros `CALL_X` / `CALLO_X` sont des `#define` de `bibc/include/aster_fort_*.h` qui se développent en `F_FUNC(X, x)` → `x_` ; les fonctions C appelables depuis le Fortran sont déclarées par `DEFS…(X, x, …)`. Le développement générique des macros C (cœur) et le pont `fortran_c` suffisent : aucune règle de préfixe n'est nécessaire en v17 (elle reste dans le pack pour les versions sans en-têtes).
-- **`mmalgo`** n'existe plus en v17 ; l'attente du corpus de démarrage utilise `mmbouc` (boucle de contact).
-- **`libaster`** : module pybind11 défini par `PYBIND11_MODULE(libaster, mod)` dans `bibcxx/PythonBindings/LibAster.cxx`, dont les fonctions sont exposées dans d'autres fichiers (à traiter : liaisons pybind11 réparties sur plusieurs fichiers).
+- **JEVEUX:** Code_Aster memory and named-object manager (vectors, collections, databases).
+- **`zi`, `zr`, `zk8`…:** global arrays used for address-based access to JEVEUX object contents (legacy style).
+- **SD:** Code_Aster data structure, a set of JEVEUX objects sharing a common name prefix.
+- **`te0xxx` / `lc0xxx`:** elementary routines (finite element computations) / constitutive law integration routines.
+- **`op0xxx`:** Fortran routines implementing user operators (commands).
+- **`.comm`:** command file for a study or regression test case.
+
+---
+
+## 10. Verifications on Version 17.5.7 (October 16, 2026)
+
+- **`zr`, `zi`… arrays:** declared in `jeveux.h` (`COMMON` blocks); zero call sites created (`no_call_to` expectation verified).
+- **`jeveuo`:** modes `'L'` (522 calls in `bibfor/nonlinear`) and `'E'` (185).
+- **Dispatchers:** `te0000` selects on `numc` (`select case (numc)`, 600 branches); `lc0000` selects on `numlcEff`.
+- **Commands:** `code_aster/Cata/Commands/*.py`, form `NAME = OPER(nom="NAME", op=70, …)`; macro commands without a Fortran operator (`MACRO(`) link to `code_aster/CodeCommands/<file>.py`.
+- **C/C++ → Fortran bridges:** `CALL_X` / `CALLO_X` macros are `#define`s in `bibc/include/aster_fort_*.h` expanding to `F_FUNC(X, x)` → `x_`; Fortran-callable C functions are declared via `DEFS…(X, x, …)`. Generic C macro expansion in the core plus the `fortran_c` bridge handle v17 directly; the prefix rule remains in the pack for builds without headers.
+- **`mmalgo`** was replaced in v17; the starter corpus expectation uses `mmbouc` (contact loop).
+- **`libaster`:** pybind11 module defined by `PYBIND11_MODULE(libaster, mod)` in `bibcxx/PythonBindings/LibAster.cxx`.

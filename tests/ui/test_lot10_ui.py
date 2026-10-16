@@ -31,15 +31,15 @@ def test_inventory_files_and_health(window, qtbot) -> None:  # type: ignore[no-u
     assert langs == {"c", "cpp", "fortran", "python"}
     qtbot.waitUntil(lambda: window.files_view.model() is not None, timeout=5000)
     assert window.files_view.model().rowCount() == 4  # app, csrc, ext, fsrc
-    qtbot.waitUntil(lambda: "Taux de non-résolus" in window.health_view.toPlainText(), timeout=5000)
+    qtbot.waitUntil(lambda: "Unresolved rate" in window.health_view.toPlainText(), timeout=5000)
 
 
 def test_s2_search_then_callers(window, qtbot) -> None:  # type: ignore[no-untyped-def]
     window.search.setText("kernel")
     window.run_search()
     qtbot.waitUntil(lambda: window.current is not None and window.current.uid == "f:kernel", timeout=5000)
-    assert "Appelée par <b>1</b> routine(s) dans <b>1</b>" in window.summary.text()
-    assert window.links_tabs.tabText(0) == "Appelants (1)"
+    assert "Called by <b>1</b> routine(s) in <b>1</b>" in window.summary.text()
+    assert window.links_tabs.tabText(0) == "Callers (1)"
     top = window.callers_tree.topLevelItem(0)
     assert top.text(0).startswith("c_solve")
     site = top.child(0)
@@ -107,3 +107,45 @@ def test_s3_s4_treegraphs(window, qtbot) -> None:  # type: ignore[no-untyped-def
     window.show_link_sites("c:c_solve", "f:kernel")
     qtbot.waitUntil(lambda: window.results.count() == 1, timeout=5000)
     assert "csrc/solver.c:7:5" in window.results.item(0).text()
+
+
+def test_treegraphs_auto_from_main_and_directed_edges(window, qtbot) -> None:  # type: ignore[no-untyped-def]
+    from codegraph_sci.ui.treegraph import EdgeItem
+
+    graph_fn = window.graph_functions
+    graph_fl = window.graph_files
+    qtbot.waitUntil(lambda: "py:app.run.run_case" in graph_fn.items and "f:kernel" in graph_fn.items, timeout=5000)
+    qtbot.waitUntil(lambda: "file:app/run.py" in graph_fl.items and "file:fsrc/kernel.f90" in graph_fl.items,
+                    timeout=5000)
+
+    fn_edges = [i for i in graph_fn.scene.items() if isinstance(i, EdgeItem)]
+    assert fn_edges
+    pairs = {(e.src.uid, e.dst.uid) for e in fn_edges}
+    assert ("py:app.run.run_case", "cpp:hybrid::solve(int)") in pairs
+    assert ("c:c_solve", "f:kernel") in pairs
+    for edge in fn_edges:
+        assert not edge.arrow_polygon.isEmpty()
+
+
+def test_treegraph_click_connected_and_paths_to_main(window, qtbot) -> None:  # type: ignore[no-untyped-def]
+    graph_fn = window.graph_functions
+    qtbot.waitUntil(lambda: "c:c_solve" in graph_fn.items, timeout=5000)
+    # Set root to an intermediate node and click it to open both callers and callees.
+    assert window.db is not None
+    graph_fn.set_root(window.db, "c:c_solve", "c_solve", "c")
+    qtbot.waitUntil(lambda: "c:c_solve" in graph_fn.items, timeout=5000)
+    graph_fn.on_node_clicked(graph_fn.items["c:c_solve"])
+    qtbot.waitUntil(
+        lambda: "cpp:hybrid::solve(int)" in graph_fn.items and "f:kernel" in graph_fn.items,
+        timeout=5000,
+    )
+    # Filter to only links up to main.
+    graph_fn.on_node_clicked(graph_fn.items["f:kernel"])
+    graph_fn.btn_to_main.setChecked(True)
+    qtbot.waitUntil(
+        lambda: "py:app.run.run_case" in graph_fn.items
+        and "f:kernel" in graph_fn.items
+        and "main" in graph_fn.info.text().lower(),
+        timeout=5000,
+    )
+

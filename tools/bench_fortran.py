@@ -150,7 +150,7 @@ def bench(folders: list[Path]) -> dict[str, dict[str, object]]:
                         "def_precision": _ratio(d_ok, d_found), "call_recall": _ratio(c_ok, c_ref),
                         "call_precision": _ratio(c_ok, c_found), "time_s": round(elapsed, 3)}
     if shutil.which("lfortran") is None:
-        report["LFortran"] = {"files": len(files), "failures": "non évalué (binaire absent)"}
+        report["LFortran"] = {"files": len(files), "failures": "not evaluated (binary missing)"}
     return report
 
 
@@ -162,10 +162,10 @@ def main() -> int:
     fixtures = sorted(p.parent for p in (ROOT / "tests" / "fixtures").glob("*/src")
                       if any(p.rglob("*.f*")) or any(p.rglob("*.F*")))
     report = bench(fixtures + list(args.extra))
-    lines = ["# Banc comparatif des parseurs Fortran", "",
-             "Référence : faits du parseur d'instructions, eux-mêmes égaux aux graphes attendus écrits à la main "
-             "(tests du lot 4). Appels : instructions `CALL` seulement (le seul type d'appel commun à tous).", "",
-             "| Candidat | Fichiers | Échecs | Rappel déf. | Précision déf. | Rappel CALL | Précision CALL | Temps (s) |",
+    lines = ["# Fortran Parser Benchmark", "",
+             "Reference: statement parser facts, matching the hand-written expected graphs "
+             "(Lot 4 tests). Calls: `CALL` statements only (the only call kind common to all parsers).", "",
+             "| Candidate | Files | Failures | Def. Recall | Def. Precision | CALL Recall | CALL Precision | Time (s) |",
              "| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]
     for name, r in report.items():
         lines.append(f"| {name} | {r.get('files')} | {r.get('failures')} | {r.get('def_recall', '-')} | "

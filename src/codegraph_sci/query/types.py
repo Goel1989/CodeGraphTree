@@ -192,3 +192,46 @@ class ScanHealth:
     ambiguous: int
     last_scan: dict[str, Any]
     failures: list[dict[str, Any]]
+
+
+@dataclass
+class DefaultRoots:
+    main_routine: NodeSummary | None
+    main_file: NodeSummary | None
+    routine_candidates: list[NodeSummary] = field(default_factory=list)
+
+
+@dataclass
+class SubgraphEdge:
+    src: str
+    dst: str
+    item: TreeItem
+
+
+@dataclass
+class SubgraphReport:
+    root: TreeItem
+    nodes: dict[str, TreeItem]
+    edges: list[SubgraphEdge]
+    truncated: bool = False
+    hidden_noise: int = 0
+
+
+@dataclass
+class NeighborsReport:
+    center: TreeItem
+    callers: list[TreeItem]
+    callees: list[TreeItem]
+    hidden_noise: int = 0
+
+
+@dataclass
+class MainPathReport:
+    root_uid: str
+    target_uid: str
+    paths: list[GraphPath]
+    total_found: int
+    multiple_possible: bool
+    showing_shortest_only: bool
+    truncated: bool = False
+

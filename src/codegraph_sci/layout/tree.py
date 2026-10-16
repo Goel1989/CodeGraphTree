@@ -47,9 +47,30 @@ class TreeLayout:
         self.next_free[d] = start + len(new) * self.dy
         return out
 
+    def place_parents(self, child_id: str, parent_ids: list[str]) -> dict[str, tuple[float, float]]:
+        """Positions of the new upstream callers of ``child_id`` in column ``depth - 1``."""
+        if child_id not in self.positions:
+            raise KeyError(child_id)
+        new = [p for p in parent_ids if p not in self.positions]
+        if not new:
+            return {}
+        cx, cy = self.positions[child_id]
+        d = self.depth[child_id] - 1
+        start = cy - (len(new) - 1) * self.dy / 2
+        start = max(start, self.next_free.get(d, -1e18))
+        out: dict[str, tuple[float, float]] = {}
+        for i, p in enumerate(new):
+            pos = (cx - self.dx, start + i * self.dy)
+            self.positions[p] = pos
+            self.depth[p] = d
+            out[p] = pos
+        self.next_free[d] = start + len(new) * self.dy
+        return out
+
     def bounds(self) -> tuple[float, float, float, float]:
         if not self.positions:
             return (0.0, 0.0, 0.0, 0.0)
         xs = [p[0] for p in self.positions.values()]
         ys = [p[1] for p in self.positions.values()]
         return (min(xs), min(ys), max(xs), max(ys))
+

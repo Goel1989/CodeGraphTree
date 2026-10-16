@@ -1,280 +1,280 @@
-# CodeGraph-Sci — Architecture et plan de réalisation
+# CodeGraph-Sci — Architecture and Implementation Plan
 
-**Version :** 7.0 — document d'exécution (16 octobre 2026)  
-**Auteur :** Marian Bogdan Neagoe, PhD  
-**Objet :** application de bureau, 100 % hors ligne, qui identifie les langages d'un dépôt de code scientifique ou industriel (Fortran, Python, C, C++ au départ), construit le graphe « qui appelle qui » à travers ces langages, et répond à la question « qui appelle quoi, et où ? ».
+**Version:** 7.0 — execution document (October 16, 2026)  
+**Author:** Marian Bogdan Neagoe, PhD  
+**Purpose:** desktop application, 100% offline, identifying languages in a scientific or industrial codebase (Fortran, Python, C, C++ initially), building the "who calls who" graph across these languages, and answering the question "who calls what, and where?".
 
-> **Comment utiliser ce document.**
+> **How to use this document.**
 >
-> - **§0 à §2 :** ce que l'application doit faire, et les verrous techniques à lever en premier.
-> - **§3 :** l'architecture, avec les contrats que le code doit respecter.
-> - **§4 et §5 :** le plan de réalisation en **lots** numérotés, chacun avec son test de validation, puis la stratégie de test.
-> - **§6 à §8 et annexes :** extensibilité, contraintes de licence, décisions, consignes pour l'agent de développement (Annexe C, à copier dans `AGENTS.md`).
+> - **§0 to §2:** what the application must do, and technical bottlenecks to address first.
+> - **§3:** architecture, along with the contracts that the code must follow.
+> - **§4 and §5:** implementation plan in numbered **lots**, each with its validation test, followed by the test strategy.
+> - **§6 to §8 and appendices:** extensibility, license constraints, decisions, developer agent guidelines (Appendix C, to copy into `AGENTS.md`).
 >
-> Ce document est **générique** : aucune règle propre à un code analysé n'y figure. Chaque code est un cas de test décrit dans `docs/packs/<code>.md`. La stratégie commerciale et de licence est dans `docs/strategie_licence.md`.
+> This document is **generic**: no rule specific to an analyzed codebase appears here. Each codebase is a test case described in `docs/packs/<code>.md`. The business and licensing strategy is in `docs/strategie_licence.md`.
 
 ---
 
-## 0. En une page
+## 0. At a Glance
 
-**Ce que fait l'application.** On lui donne un dossier de code source.
+**What the application does.** Given a source code folder:
 
-1. Elle **identifie les langages** présents, fichier par fichier, et vérifie qu'elle sait tous les analyser.
-2. Si un langage ou une liaison entre langages lui est inconnu, l'**IA locale définit les mots-clés manquants** (définitions de fonctions et de subroutines, appels, inclusions, liaisons entre langages). Ses propositions sont contrôlées automatiquement, montrées à l'utilisateur avec leur effet sur le graphe, puis enregistrées dans le **profil d'analyse** du projet.
-3. L'analyse, **entièrement déterministe**, construit le graphe d'appels à partir de ce profil et le stocke dans une base locale. Chaque appel constaté dans le code est conservé comme un **site d'appel** (fichier, ligne, colonne, condition, origine).
-4. Une fenêtre de bureau permet de l'explorer : pour chaque routine, **combien de routines l'appellent et lesquelles**, ce qu'elle appelle, les liens entre fichiers, le chemin entre deux routines, l'impact d'une modification.
+1. It **identifies present languages**, file by file, and verifies that it can analyze all of them.
+2. If a language or a cross-language bridge is unknown, the **local AI defines missing keywords** (definitions of functions and subroutines, calls, includes, cross-language bridges). Its proposals are automatically validated, shown to the user with their effect on the graph, and saved in the project's **analysis profile**.
+3. The analysis, **entirely deterministic**, builds the call graph from this profile and stores it in a local database. Each call observed in code is preserved as a **call site** (file, line, column, condition, origin).
+4. A desktop window allows exploring it: for each routine, **how many routines call it and which ones**, what it calls, links between files, the path between two routines, and the impact of a change.
 
-**Contraintes non négociables**
+**Non-negotiable constraints**
 
-| # | Contrainte | Conséquence technique |
+| # | Constraint | Technical consequence |
 | :--- | :--- | :--- |
-| C1 | Application de bureau, pas d'application web | Interface Python + Qt (PySide6) ; ni navigateur, ni serveur |
-| C2 | 100 % hors ligne | Aucun accès réseau, aucun port ouvert, vérifié sur l'application distribuée |
-| C3 | Version complète transférable sur clé USB | Dossier portable avec Python embarqué, un par système : Linux x86_64 (cible : Ubuntu) et Windows x64 |
-| C4 | Machine modeste, CPU seul | L'interface ne charge jamais tout le graphe ; tout est précalculé et paginé ; l'IA n'est appelée que sur des échantillons |
-| C5 | Structuration déterministe | Même dépôt + même profil d'analyse + mêmes versions = même graphe ; l'IA prépare le profil, elle n'intervient jamais pendant l'analyse |
-| C6 | Dépôts multi-langages dès le départ | Le premier cas de test mélange Fortran, Python et C ou C++ : l'inventaire des langages et les quatre adaptateurs arrivent dans les premiers lots |
-| C7 | Extensible | Nouveaux langages et nouveaux codes ajoutés par plugins ou par profils de mots-clés, sans modifier le cœur |
-| C8 | Pas de compilateur disponible | Validation de l'analyse sans compilation, par échantillons vérifiés (§2.1) |
+| C1 | Desktop application, no web app | Python + Qt (PySide6) interface; neither browser nor server |
+| C2 | 100% offline | No network access, no open ports, verified on the distributed application |
+| C3 | Full version transferable on a USB drive | Portable folder with embedded Python, one per OS: Linux x86_64 (target: Ubuntu) and Windows x64 |
+| C4 | Modest machine, CPU only | Interface never loads the entire graph; everything is precomputed and paginated; AI is only invoked on samples |
+| C5 | Deterministic structure | Same repo + same analysis profile + same versions = same graph; AI prepares the profile, it never intervenes during analysis |
+| C6 | Multi-language repositories from the start | The first test case mixes Fortran, Python, and C or C++: language inventory and all four adapters arrive in early lots |
+| C7 | Extensible | New languages and new codebases added via plugins or keyword profiles, without modifying the core |
+| C8 | No compiler available | Validation of analysis without compilation, through verified samples (§2.1) |
 
-**Ordre de réalisation.** On construit de bas en haut ; chaque lot se termine par un test qui doit passer avant de commencer le suivant (détail au §4). Le lot 7 est un **point d'arrêt** : tant que la justesse du graphe n'est pas démontrée, on ne développe pas l'interface.
+**Implementation order.** Built bottom-up; each lot finishes with a test that must pass before starting the next one (details in §4). Lot 7 is a **stop point**: as long as graph accuracy is not demonstrated, UI development does not start.
 
-| Lot | Titre | Dépend de |
+| Lot | Title | Depends on |
 | :--- | :--- | :--- |
-| 0 | Squelette portable (clé USB, hors ligne) | — |
-| 1 | Modèle de données et stockage | 0 |
-| 2 | Inventaire des langages et profil d'analyse | 1 |
-| 3 | Mini-codes de référence (tests écrits avant le code) | 2 |
-| 4 | Adaptateur Fortran (avec banc comparatif des parseurs) | 3 |
-| 5 | Adaptateurs Python, C et C++ | 3 |
-| 6 | Link, Index et commande `cgs scan` | 4, 5 |
-| 7 | Validation sur un code réel (verrou V1, point d'arrêt) | 6 |
-| 8 | Ponts inter-langages | 6 |
-| 9 | API de requêtes et ligne de commande | 7, 8 |
-| 10 | Application de bureau : inventaire, recherche, appelants, inspecteur | 9 |
-| 11 | TreeGraph fichiers et fonctions | 10 |
-| 12 | Packs, profils de langage par mots-clés, filtrage du bruit | 11 |
-| 13 | IA : identification des langages et complétion des mots-clés | 12 |
-| 14 | Pack du cas de test n°1 | 13 |
-| 15 | IA : explications | 13 |
-| 16 | Édition Pro, conformité des licences et version finale | 14, 15 |
+| 0 | Portable skeleton (USB drive, offline) | — |
+| 1 | Data model and storage | 0 |
+| 2 | Language inventory and analysis profile | 1 |
+| 3 | Reference mini-codebases (tests written before code) | 2 |
+| 4 | Fortran adapter (with parser benchmark) | 3 |
+| 5 | Python, C, and C++ adapters | 3 |
+| 6 | Link, Index, and `cgs scan` command | 4, 5 |
+| 7 | Validation on a real codebase (Bottleneck V1, stop point) | 6 |
+| 8 | Cross-language bridges | 6 |
+| 9 | Query API and command line | 7, 8 |
+| 10 | Desktop application: inventory, search, callers, inspector | 9 |
+| 11 | Files and functions TreeGraph | 10 |
+| 12 | Packs, keyword-based language profiles, noise filtering | 11 |
+| 13 | AI: language identification and keyword completion | 12 |
+| 14 | Test case #1 Pack | 13 |
+| 15 | AI: explanations | 13 |
+| 16 | Pro Edition, license compliance, and final release | 14, 15 |
 
 ---
 
-## 1. Ce que l'application doit faire
+## 1. What the application must do
 
-### 1.1. Questions auxquelles elle répond
+### 1.1. Questions it answers
 
-| Priorité | Question | Exemple de réponse |
+| Priority | Question | Example answer |
 | :--- | :--- | :--- |
-| **À l'ouverture** | Quels langages contient ce dépôt, et sont-ils tous couverts ? | « Fortran 9 120 fichiers, Python 2 400, C++ 1 830, C 210 — tous couverts ; 40 fichiers `.xyz` : langage inconnu, mots-clés proposés par l'IA » |
-| **Défaut** | Combien de routines appellent `X`, et lesquelles ? | « `X` est appelée par 37 routines dans 21 fichiers » + liste (routine, fichier, ligne de chaque appel) |
-| 1 | Qu'appelle `X` ? | Liste des routines appelées, avec les lignes des appels |
-| 1 | Quels fichiers sont liés à ce fichier ? | Fichiers appelés et appelants, avec le nombre d'appels |
-| 2 | Comment `A` atteint-il `B` ? | Chemins d'appel possibles de `A` à `B`, à travers les langages, avec la nature de chaque étape |
-| 2 | Si je modifie `X`, qu'est-ce qui est concerné ? | Appelants transitifs, points d'entrée, tests |
-| 3 | Quelles données `X` lit-elle ou écrit-elle ? | Blocs `COMMON`, variables de module, objets mémoire décrits par un pack, avec leur degré de précision |
-| 3 | Quels tests relancer après une modification ? | Liste classée (avec un pack qui décrit les tests du code) |
+| **At opening** | Which languages does this repo contain, and are they all covered? | "Fortran 9,120 files, Python 2,400, C++ 1,830, C 210 — all covered; 40 `.xyz` files: unknown language, keywords proposed by AI" |
+| **Default** | How many routines call `X`, and which ones? | "`X` is called by 37 routines across 21 files" + list (routine, file, line of each call) |
+| 1 | What does `X` call? | List of called routines, with call lines |
+| 1 | Which files are linked to this file? | Called and calling files, with number of calls |
+| 2 | How does `A` reach `B`? | Possible call paths from `A` to `B` across languages, with nature of each step |
+| 2 | If I modify `X`, what is affected? | Transitive callers, entry points, tests |
+| 3 | What data does `X` read or write? | `COMMON` blocks, module variables, memory objects described by a pack, with their precision level |
+| 3 | Which tests should be re-run after a modification? | Ranked list (with a pack describing the codebase's tests) |
 
-### 1.2. Vues de l'application
+### 1.2. Application views
 
-| Vue | Contenu | Usage |
+| View | Content | Usage |
 | :--- | :--- | :--- |
-| **Inventaire des langages** | Par langage : nombre de fichiers et de lignes, adaptateur utilisé (natif, profil de mots-clés, aucun) ; fichiers non reconnus ; propositions de l'IA et leur état | Savoir ce qui est analysé, et comment |
-| **Recherche** | Champ unique : routines, fichiers, modules (recherche floue) | Point de départ de toute exploration |
-| **Panneau Appelants / Appelés** | Nombre + liste triable ; double-clic → code à la ligne de l'appel | Réponse à la question par défaut |
-| **TreeGraph fonctions** | Arbre dessiné des appels depuis une routine (vers les appelés ou vers les appelants), dépliable nœud par nœud | Comprendre une chaîne d'appels |
-| **TreeGraph fichiers** | Même principe au niveau des fichiers et des répertoires : un lien = au moins un appel, épaisseur = nombre d'appels ; double-clic sur un lien → appels détaillés | Comprendre l'architecture d'un module |
-| **Explorateur de fichiers** | Arborescence du dépôt avec, par fichier, son langage, le nombre de routines et de liens | Navigation classique |
-| **Inspecteur de code** | Source en lecture seule, colorée, lignes des appels surlignées ; clic sur un appel → routine appelée ; alerte si le fichier a changé depuis l'analyse | Lire le code |
-| **Santé de l'analyse** | Fichiers analysés, en repli, en échec ; sites ambigus et non résolus, regroupés ; métriques de validation | Savoir si l'on peut faire confiance au graphe |
+| **Language inventory** | Per language: file and line count, adapter used (native, keyword profile, none); unrecognized files; AI proposals and their status | Know what is analyzed and how |
+| **Search** | Single field: routines, files, modules (fuzzy search) | Starting point for any exploration |
+| **Callers / Callees panel** | Count + sortable list; double-click → code at call line | Answer to the default question |
+| **Functions TreeGraph** | Visual call tree from a routine (toward callees or toward callers), expandable node by node | Understand a call chain |
+| **Files TreeGraph** | Same principle at file and directory level: link = at least one call, thickness = call count; double-click on link → detailed calls | Understand module architecture |
+| **File explorer** | Repository directory tree with language, routine count, and link count per file | Traditional navigation |
+| **Code inspector** | Read-only syntax-highlighted source, call lines highlighted; click on call → called routine; alert if file changed since analysis | Read code |
+| **Analysis health** | Analyzed, fallback, failed files; grouped ambiguous and unresolved sites; validation metrics | Know if the graph can be trusted |
 
-Dans les deux TreeGraph, une routine ou un fichier déjà affiché ailleurs dans l'arbre est marqué « ↺ déjà vu » et n'est pas redéplié automatiquement : c'est ce qui rend lisibles les cycles et les appels partagés.
+In both TreeGraphs, a routine or file already shown elsewhere in the tree is marked "↺ already shown" and is not auto-expanded: this keeps cycles and shared calls legible.
 
-### 1.3. Exigences non fonctionnelles
+### 1.3. Non-functional requirements
 
-Machine de référence : portable 4 cœurs, 8 Go de mémoire vive, sans carte graphique dédiée. Ces cibles sont des **objectifs à mesurer** (lots 2, 6, 7, 9, 11, 13) ; elles seront ajustées d'après les mesures réelles.
+Reference machine: 4-core laptop, 8 GB RAM, no dedicated GPU. These targets are **metrics to measure** (lots 2, 6, 7, 9, 11, 13); they will be adjusted based on actual measurements.
 
-| Mesure | Cible |
+| Metric | Target |
 | :--- | :--- |
-| Inventaire des langages d'un dépôt d'environ 15 000 fichiers | < 1 min |
-| Analyse complète du même dépôt | < 15 min |
-| Ré-analyse après modification de 50 fichiers au plus | < 30 s |
-| Préparation assistée par IA (identification + complétion) | Au plus 3 itérations de 10 appels au modèle ; chaque appel < 60 s |
-| Ouverture d'un projet déjà analysé | < 3 s |
-| Appelants d'une routine (nombre + liste) | < 100 ms |
-| Dépliage d'un nœud dans un TreeGraph | < 200 ms |
-| Nœuds dessinés simultanément | 300 par défaut (réglable) ; au-delà, regroupement « +N » |
-| Mémoire vive de l'application, sans IA | < 1,5 Go sur le cas de test n°1 |
-| Interface pendant une analyse | Reste utilisable (analyse dans un processus séparé) |
+| Language inventory of a ~15,000 file repository | < 1 min |
+| Full analysis of the same repository | < 15 min |
+| Re-analysis after modifying at most 50 files | < 30 s |
+| AI-assisted preparation (identification + completion) | At most 3 iterations of 10 model calls; each call < 60 s |
+| Opening an already analyzed project | < 3 s |
+| Callers of a routine (count + list) | < 100 ms |
+| Expanding a node in a TreeGraph | < 200 ms |
+| Concurrently rendered nodes | 300 by default (configurable); beyond that, "+N" grouping |
+| Application RAM usage, without AI | < 1.5 GB on test case #1 |
+| Interface during an analysis | Remains responsive (analysis in separate process) |
 
-### 1.4. Ce que l'analyse statique peut dire, et ce qu'elle ne peut pas dire
+### 1.4. What static analysis can and cannot tell
 
-- Elle donne les **chemins d'exécution possibles** : tout ce que le code *peut* appeler.
-- Le chemin **réellement suivi** pendant un calcul dépend des données d'entrée : un `SELECT CASE` choisit une branche à l'exécution. Les étapes d'un chemin qui passent par un aiguillage sont affichées comme « possibles ». Un pack peut restreindre les chemins à partir d'un point d'entrée ou d'une option ; il ne peut pas les deviner sans exécuter le code.
-- Chaque lien affiché a un **niveau de confiance** (`exact`, `resolved`, `heuristic`, `ambiguous`), une **origine** (adaptateur natif, profil de mots-clés, pont, règle proposée par l'IA…) et des preuves (sites d'appel) : l'utilisateur sait toujours sur quoi repose ce qu'il voit.
-- Pour les données, **mieux vaut un lien approximatif signalé comme tel qu'une fausse précision** : un accès dont l'objet exact est inconnu est rattaché à une famille d'objets, et marqué comme tel (§3.5).
+- It provides **possible execution paths**: everything that code *can* call.
+- The path **actually followed** during execution depends on input data: a `SELECT CASE` picks a branch at runtime. Path steps going through a dispatch are displayed as "possible". A pack can narrow paths from an entry point or option; it cannot guess them without running code.
+- Each displayed link has a **confidence level** (`exact`, `resolved`, `heuristic`, `ambiguous`), an **origin** (native adapter, keyword profile, bridge, AI-proposed rule…), and evidence (call sites): the user always knows what underlies what they see.
+- For data, **an approximate link flagged as such is better than false precision**: an access whose exact object is unknown is attached to an object family and marked accordingly (§3.5).
 
-### 1.5. Rôle de l'IA
+### 1.5. Role of AI
 
-L'IA locale a trois rôles, dans cet ordre de priorité :
+Local AI has three roles, in order of priority:
 
-1. **Identifier les langages** que l'inventaire déterministe n'a pas su reconnaître (extension inconnue ou ambiguë, fichier sans extension), à partir de l'extension et du contenu de quelques fichiers d'exemple.
-2. **Vérifier qu'on a tous les éléments pour construire le graphe et, sinon, définir elle-même les mots-clés manquants :**
-   - pour un langage sans adaptateur : mots-clés de définition (fonction, subroutine, procédure…), d'appel, d'inclusion, marqueurs de commentaires et de chaînes → un **profil de langage par mots-clés** (§3.9) ;
-   - pour des appels restés non résolus : préfixes ou mots-clés de liaison entre langages (par exemple un préfixe de macro qui appelle une routine Fortran depuis du C++) → une **règle de liaison**.
-   L'IA peut s'appuyer sur un document technique fourni par l'utilisateur ; sinon, sur ce qu'elle connaît déjà des langages.
-3. **Expliquer** une routine à partir de ce que le graphe fournit, avec des citations vérifiées.
+1. **Identify languages** that deterministic inventory could not recognize (unknown or ambiguous extension, file without extension), using extension and content of a few sample files.
+2. **Verify all elements needed to build the graph are present, and otherwise define missing keywords:**
+   - for a language without an adapter: definition keywords (function, subroutine, procedure…), call, include, comment and string markers → a **keyword-based language profile** (§3.9);
+   - for unresolved calls: cross-language bridge prefixes or keywords (e.g. macro prefix calling a Fortran routine from C++) → a **bridge rule**.
+   AI can rely on technical documentation provided by the user; otherwise, on its prior language knowledge.
+3. **Explain** a routine based on what the graph provides, with verified citations.
 
-**Comment l'IA reste compatible avec le déterminisme et la justesse**
+**How AI remains compatible with determinism and correctness**
 
-- Ses propositions sont **contrôlées automatiquement** (§3.13). Ces contrôles mesurent la plausibilité, pas la vérité : une cible qui existe n'est pas forcément la bonne. C'est pourquoi, par défaut, l'utilisateur **valide en un clic** après avoir vu l'aperçu des liens ajoutés et retirés. Un mode d'adoption automatique existe, activable par projet (§3.13).
-- Une proposition adoptée est **écrite dans le profil d'analyse** du projet, un fichier figé et versionné. L'analyse ne lit que ce profil : elle n'appelle jamais l'IA.
-- Les liens issus d'une règle proposée par l'IA restent **marqués comme tels** (`origin`, confiance `heuristic`) et peuvent être masqués d'un clic.
-- **Sans modèle** (édition sans IA), tout fonctionne : les langages inconnus sont signalés, et leurs profils de mots-clés peuvent être écrits à la main.
+- Its proposals are **automatically checked** (§3.13). These checks measure plausibility, not truth: a target that exists is not necessarily the right one. This is why, by default, the user **validates in one click** after seeing a preview of added and removed links. An automatic adoption mode exists, configurable per project (§3.13).
+- An adopted proposal is **written to the project's analysis profile**, a frozen, versioned file. Analysis only reads this profile: it never calls AI.
+- Links stemming from an AI-proposed rule remain **marked as such** (`origin`, `heuristic` confidence) and can be hidden in one click.
+- **Without a model** (edition without AI), everything works: unknown languages are reported, and keyword profiles can be written manually.
 
 ---
 
-## 2. Les verrous techniques et comment les lever
+## 2. Technical bottlenecks and how to overcome them
 
-### 2.1. Verrou V1 — Extraction juste dans un dépôt multi-langages, sans compilateur
+### 2.1. Bottleneck V1 — Accurate extraction in a multi-language repository, without a compiler
 
-**Pourquoi c'est difficile**
+**Why it is difficult**
 
-- **Reconnaître le langage de chaque fichier :** `.h` peut être du C ou du C++, `.inc` du Fortran ou autre chose, certains fichiers n'ont pas d'extension, `.F90` doit passer par le préprocesseur, `.f` est souvent en format fixe.
-- **Fortran :** préprocesseur (`#ifdef`, `#include`) ; formats fixe et libre ; `x = f(i)` est soit un appel de fonction, soit un accès à un tableau, et la déclaration du tableau se trouve souvent dans un fichier inclus ou un bloc `COMMON` ; fonctions intrinsèques ; interfaces génériques, procédures passées en argument ; « call x » dans un commentaire ou une chaîne.
-- **C et C++ :** macros qui masquent des appels, surcharges (deux méthodes de même nom), fonctions `static` de même nom dans des fichiers différents, templates.
-- **Python :** appels dynamiques ; anciens fichiers en Python 2, que le module `ast` de Python 3 ne lit pas.
-- **Partout :** encodages anciens (Latin-1 avec commentaires accentués), fins de ligne Windows, fichiers très volumineux ou malformés.
+- **Recognizing the language of each file:** `.h` can be C or C++, `.inc` can be Fortran or something else, some files have no extension, `.F90` must go through the preprocessor, `.f` is often fixed-form.
+- **Fortran:** preprocessor (`#ifdef`, `#include`); fixed and free forms; `x = f(i)` is either a function call or an array access, and the array declaration is often in an included file or a `COMMON` block; intrinsic functions; generic interfaces, procedures passed as arguments; "call x" inside a comment or string literal.
+- **C and C++:** macros hiding calls, overloads (two methods with the same name), `static` functions with the same name in different files, templates.
+- **Python:** dynamic calls; legacy Python 2 files that Python 3's `ast` module cannot parse.
+- **Everywhere:** legacy encodings (Latin-1 with accented comments), Windows line endings, very large or malformed files.
 
-**Comment prouver que c'est juste, sans compilateur.** Contrôles automatisés dans `cgs audit` (lot 7) :
+**How to prove correctness without a compiler.** Automated checks in `cgs audit` (Lot 7):
 
-| Contrôle | Principe | Ce qu'il mesure |
+| Check | Principle | What it measures |
 | :--- | :--- | :--- |
-| Mini-codes de référence | Petits dépôts écrits à la main, dont l'inventaire et le graphe attendus sont connus exactement | Exactitude sur chaque piège |
-| Cohérence de l'inventaire | Langage de chaque fichier confronté au contexte : un `.h` inclus par des fichiers C++ est du C++, un `.inc` inclus par du Fortran est du Fortran | Fichiers mal attribués |
-| Référence textuelle indépendante | Recherche simple, ligne par ligne, des définitions (`SUBROUTINE`, `FUNCTION`, `def`, `class`…) et des instructions `CALL`, hors commentaires et chaînes | **Contre-vérification** du rappel. Cette référence est elle-même imparfaite : ses écarts avec le graphe sont examinés, pas pris pour la vérité |
-| Double extraction | Deux extracteurs différents par langage (parseur et extracteur à motifs) ; chaque désaccord est listé et classé | Erreurs propres à l'un des deux |
-| **Échantillon de précision** | Tirage stratifié de liens résolus : un groupe par langage, plus un groupe « ponts » ; environ 150 liens par groupe (graine fixe), vérifiés à la main dans une fiche (une touche par lien) | **Précision**, avec intervalle de confiance |
-| **Échantillon de rappel** | Tirage d'emplacements de code au hasard (lignes susceptibles de contenir un appel) ; la personne indique les appels réellement présents ; comparaison avec les sites d'appel extraits | **Rappel** des sites d'appel, avec intervalle de confiance |
-| Invariants | Définitions en double, sites non résolus, routines jamais appelées, fichiers en échec | Cohérence globale |
+| Reference mini-codebases | Small hand-written repos whose expected inventory and graph are known exactly | Accuracy on every pitfall |
+| Inventory consistency | Language of each file checked against context: a `.h` included by C++ files is C++, a `.inc` included by Fortran is Fortran | Misattributed files |
+| Independent textual baseline | Simple line-by-line search for definitions (`SUBROUTINE`, `FUNCTION`, `def`, `class`…) and `CALL` statements outside comments and strings | **Cross-check** of recall. This baseline is itself imperfect: discrepancies with the graph are investigated, not taken as ground truth |
+| Dual extraction | Two different extractors per language (parser and pattern-based extractor); each disagreement is listed and categorized | Errors specific to either tool |
+| **Precision sample** | Stratified draw of resolved links: one group per language, plus a "bridges" group; ~150 links per group (fixed seed), manually verified in a review sheet (one keystroke per link) | **Precision**, with confidence interval |
+| **Recall sample** | Random draw of code locations (lines likely to contain a call); human marks calls actually present; compared with extracted call sites | **Recall** of call sites, with confidence interval |
+| Invariants | Duplicate definitions, unresolved sites, never-called routines, failed files | Overall consistency |
 
-Les échantillons vérifiés à la main sont **enregistrés** (`reference_sample.yaml` du corpus). Ils deviennent un test de non-régression automatique : l'effort manuel (quelques heures) n'est fait qu'une fois par corpus.
+Manually verified samples are **recorded** (`reference_sample.yaml` in the corpus). They become an automated regression test: manual effort (a few hours) is only performed once per corpus.
 
-**Métriques et seuils** (sur le cas de test n°1, pour chacun de ses langages ; bornes basses = intervalle de Wilson à 95 %) :
+**Metrics and thresholds** (on test case #1, for each of its languages; lower bounds = 95% Wilson score interval):
 
-| Métrique | Définition | Seuil |
+| Metric | Definition | Threshold |
 | :--- | :--- | :--- |
-| Attribution des fichiers | Fichiers source attribués à un langage couvert ou explicitement classés (ignorés, inconnus) | ≥ 99 % |
-| Fichiers en échec | Ni parseur ni repli | ≤ 2 % |
-| Rappel des définitions | Définitions trouvées par rapport à la référence textuelle, écarts examinés | ≥ 99 % |
-| Rappel des sites d'appel | Estimé par l'échantillon de rappel | ≥ 97 %, borne basse ≥ 93 % |
-| Précision des liens résolus | Estimée par l'échantillon de précision | ≥ 98 %, borne basse ≥ 95 % |
-| Précision des ponts | Groupe « ponts » de l'échantillon (après le lot 8) | ≥ 95 %, borne basse ≥ 90 % |
-| Sites ambigus | Sites à plusieurs cibles possibles | Mesurés et expliqués |
-| Sites non résolus (hors externes connus et hors périmètre) | — | ≤ 2 %, tous regroupés et expliqués |
+| File attribution | Source files assigned to a covered language or explicitly classified (ignored, unknown) | ≥ 99% |
+| Failed files | Neither parser nor fallback succeeded | ≤ 2% |
+| Definition recall | Definitions found compared to textual baseline, discrepancies examined | ≥ 99% |
+| Call site recall | Estimated by recall sample | ≥ 97%, lower bound ≥ 93% |
+| Resolved link precision | Estimated by precision sample | ≥ 98%, lower bound ≥ 95% |
+| Bridge precision | "Bridges" group in sample (after Lot 8) | ≥ 95%, lower bound ≥ 90% |
+| Ambiguous sites | Sites with multiple candidate targets | Measured and explained |
+| Unresolved sites (excluding known externals and out-of-scope) | — | ≤ 2%, all grouped and explained |
 
-Avec 150 liens et au plus 2 erreurs, la borne basse de la précision dépasse 95 % : c'est ce qui fixe la taille des échantillons.
+With 150 links and at most 2 errors, the lower bound of precision exceeds 95%: this determines sample size.
 
-**Plan B** si les critères ne sont pas atteints : changer de parseur principal parmi les candidats sous licence permissive évalués au lot 4 (§3.15), renforcer l'extracteur à motifs, ou ajouter des règles au pack. fxtran, sous licence GPL-3.0, n'est envisageable qu'en outil externe après revue de licence (§7). La décision est consignée au §8.
+**Plan B** if criteria are not met: switch main parser among permissive-license candidates evaluated in Lot 4 (§3.15), strengthen pattern-based extractor, or add rules to the pack. fxtran (GPL-3.0) is only considered as an external tool after license review (§7). Decision is recorded in §8.
 
-Si un compilateur devient disponible plus tard, il apportera un contrôle de plus (symboles des fichiers objets) ; il n'est pas nécessaire.
+If a compiler becomes available later, it will provide an additional check (object file symbols); it is not required.
 
-### 2.2. Verrou V2 — Fonctionner depuis une clé USB, sans Internet
+### 2.2. Bottleneck V2 — Running from a USB drive, offline
 
-Levé **dès le lot 0**, avant toute fonctionnalité : un dossier contenant Python, Qt et les bibliothèques, qui démarre sur une machine vierge sans réseau. Points de vigilance connus :
+Addressed **as early as Lot 0**, before any feature: a folder containing Python, Qt, and libraries, starting on a clean machine without network. Known watchpoints:
 
-- Un *venv* n'est pas déplaçable (il contient des chemins absolus) : on utilise un Python embarqué dans le dossier (PyInstaller, mode « dossier »).
-- Le mode « fichier unique » est exclu : il se décompresse à chaque lancement, ce qui est très lent depuis une clé.
-- **Compatibilité Linux :** un exécutable ne démarre que sur des systèmes dont la bibliothèque C (glibc) est au moins aussi récente que celle de la machine de construction. La version Linux est donc construite dans un conteneur à glibc 2.28 (AlmaLinux ou Rocky Linux 8) : elle démarre sur Ubuntu 20.04 et suivants, et aussi sur les stations RHEL/Rocky 8 fréquentes dans l'industrie. Attention : les Python des images `manylinux` ne conviennent pas, car PyInstaller exige une bibliothèque Python partagée ; utiliser un Python compilé avec bibliothèque partagée (à vérifier au lot 0).
-- Ubuntu 22.04 : Qt 6.5 et suivants ont besoin de `libxcb-cursor0`, absente par défaut ; la bibliothèque est embarquée dans le dossier, ou son absence est détectée avec un message clair.
-- **Processeurs anciens :** une bibliothèque d'inférence compilée pour AVX2 ou AVX-512 plante (« instruction illégale ») sur un processeur qui ne les a pas. llama.cpp est donc compilé avec choix des instructions au démarrage (variantes multiples du moteur CPU), ou livré en deux variantes (base et AVX2) ; `cgs selftest` affiche les jeux d'instructions détectés.
-- **Windows :** chemins de plus de 260 caractères (application déclarée compatible avec les chemins longs) ; un exécutable non signé peut déclencher SmartScreen ou un antivirus (signature prévue au lot 16).
+- A *venv* is not relocatable (contains absolute paths): embedded Python is used inside the folder (PyInstaller, directory mode).
+- "One-file" mode is excluded: it unpacks on every launch, which is very slow from a USB drive.
+- **Linux compatibility:** an executable only starts on systems whose C library (glibc) is at least as new as the build machine's. The Linux version is built in a glibc 2.28 container (AlmaLinux or Rocky Linux 8): it starts on Ubuntu 20.04+ as well as RHEL/Rocky 8 workstations common in industry. Note: `manylinux` Python builds are unsuitable because PyInstaller requires a shared Python library; use Python compiled with a shared library (to verify in Lot 0).
+- Ubuntu 22.04: Qt 6.5+ needs `libxcb-cursor0`, missing by default; the library is bundled or its absence detected with a clear message.
+- **Older processors:** an inference library compiled for AVX2 or AVX-512 crashes ("illegal instruction") on a CPU lacking them. llama.cpp is compiled with runtime instruction selection (CPU engine variants) or shipped in two variants (baseline and AVX2); `cgs selftest` displays detected instruction sets.
+- **Windows:** paths exceeding 260 characters (application declared long-path aware); unsigned executables may trigger SmartScreen or antivirus (signing planned in Lot 16).
 
-### 2.3. Verrou V3 — Fluidité sur une machine modeste
+### 2.3. Bottleneck V3 — Smooth performance on a modest machine
 
-L'interface ne manipule jamais le graphe entier. Les stratégies sont détaillées au §3.12 : précalculs pendant l'analyse, requêtes paginées, nombre de nœuds dessinés plafonné, regroupement, mise en page en arrière-plan, niveau de détail selon le zoom. Côté écriture, la base est construite par insertions groupées, index créés à la fin (§3.6).
+The interface never manipulates the entire graph. Strategies are detailed in §3.12: precomputations during analysis, paginated queries, capped rendered node count, grouping, background layout, level-of-detail zoom. On the storage side, database is built via bulk inserts with indexes created at the end (§3.6).
 
-### 2.4. Verrou V4 — Une IA utile sur CPU, sans casser le déterminisme
+### 2.4. Bottleneck V4 — Useful AI on CPU without breaking determinism
 
-**Difficultés :** un petit modèle sur CPU est lent et se trompe facilement ; on ne peut pas lui faire lire 15 000 fichiers ; et une règle plausible n'est pas forcément juste.
+**Challenges:** small CPU model is slow and error-prone; cannot feed 15,000 files into it; a plausible rule is not necessarily correct.
 
-**Parades :**
+**Countermeasures:**
 
-- **Le déterministe d'abord :** l'inventaire par extensions et signatures de contenu traite l'immense majorité des fichiers ; l'IA ne voit que les groupes de fichiers restés inconnus et les sites restés non résolus.
-- **Échantillons courts et regroupés :** l'IA reçoit un résumé (comptages, quelques extraits de code) par groupe, jamais le dépôt entier.
-- **Des mots-clés, pas du code :** l'IA remplit des gabarits simples (listes de mots-clés, préfixes, transformations de noms, marqueurs de commentaires) plutôt que d'écrire des expressions régulières ; c'est le cœur qui les transforme en règles.
-- **Génération contrainte par le schéma :** la réponse du modèle est toujours un fichier valide.
-- **Contrôles automatiques chiffrés**, puis **aperçu des changements et validation en un clic** (§3.13) ; nombre d'appels au modèle borné (§1.3).
-- **Tests sans modèle :** en intégration continue, un modèle factice renvoie des réponses enregistrées ; la chaîne complète est testée de façon déterministe. Les tests avec le vrai modèle tournent sur la machine de développement.
+- **Deterministic first:** extension and content-signature inventory handles vast majority of files; AI only sees unknown file groups and unresolved sites.
+- **Short, grouped samples:** AI receives a summary (counts, a few code excerpts) per group, never the full repository.
+- **Keywords, not code:** AI fills simple templates (keyword lists, prefixes, name transforms, comment markers) rather than writing regexes; the core converts them into rules.
+- **Schema-constrained generation:** model output is always a valid file.
+- **Automated quantitative checks**, followed by **change preview and one-click validation** (§3.13); bounded model call count (§1.3).
+- **Tests without model:** in CI, a mock model returns recorded responses; the entire pipeline is tested deterministically. Tests with the real model run on development machines.
 
 ---
 
 ## 3. Architecture
 
-### 3.1. Vue d'ensemble
+### 3.1. Overview
 
 ```text
 ┌────────────────────────────────────────────────────────────────┐
-│ APPLICATION DE BUREAU (PySide6) — processus principal          │
-│ Inventaire · Recherche · Appelants · TreeGraph                 │
-│ Inspecteur de code · Santé de l'analyse · IA (Pro)             │
+│ DESKTOP APPLICATION (PySide6) — main process                   │
+│ Inventory · Search · Callers · TreeGraph                       │
+│ Code inspector · Analysis health · AI (Pro)                    │
 └──────┬────────────────────────┬────────────────────────┬───────┘
-       │ threads                │ sous-processus         │ tubes
-       │ (lecture)              │ (progression)          │ (JSON)
+       │ threads                │ subprocesses           │ pipes
+       │ (read)                 │ (progress)             │ (JSON)
 ┌──────▼──────┐   ┌─────────────▼─────────────┐   ┌──────▼───────┐
-│ API de      │   │ cgs inventory             │   │ Worker IA    │
-│ requêtes    │   │ cgs scan (déterministe)   │   │ (Pro)        │
-│ query/      │   │ lit le profil             │   │ modèle GGUF  │
+│ Query       │   │ cgs inventory             │   │ AI Worker    │
+│ API         │   │ cgs scan (deterministic)  │   │ (Pro)        │
+│ query/      │   │ reads profile             │   │ GGUF model   │
 └──────┬──────┘   └─────────────┬─────────────┘   └──────┬───────┘
-       │ lit                    │ écrit                  │ propose
+       │ reads                  │ writes                 │ proposes
        └───────────┬────────────┘                        │
           ┌────────▼────────┐               ┌────────────▼───────┐
-          │ <projet>.sqlite │               │ profil d'analyse   │
+          │ <project>.sqlite│               │ analysis profile   │
           └─────────────────┘               └────────────────────┘
 
-Aucun port réseau, aucune connexion : uniquement des fichiers, des appels
-de fonctions, des sous-processus et des tubes. cgs scan n'appelle jamais l'IA.
+No network ports, no connections: strictly files, function calls,
+subprocesses, and pipes. cgs scan never calls AI.
 ```
 
-- **Processus principal :** l'interface Qt. Il ne lit jamais les fichiers source pour l'analyse et n'exécute lui-même aucune requête longue.
-- **Threads de requêtes :** chaque requête (appelants, dépliage, recherche) s'exécute dans un thread du pool Qt, avec sa propre connexion SQLite en lecture seule, puis renvoie son résultat par signal.
-- **Processus d'analyse :** l'interface lance `cgs inventory` puis `cgs scan` (le même programme qu'en ligne de commande) comme sous-processus, lit leur progression (une ligne JSON par événement) et peut les interrompre. Un plantage de parseur ne peut pas faire tomber l'interface ; un fichier qui dépasse son délai d'analyse est marqué en échec, et l'analyse continue.
-- **Processus IA (Pro) :** sous-processus dédié qui charge le modèle ; il dialogue par l'entrée et la sortie standard (un message JSON par ligne). **Aucun port réseau**, même en interne. Il n'est jamais appelé par `cgs scan`.
-- **Fichiers du projet :** le profil d'analyse (`analysis_profile.yaml`, les règles adoptées) et la base SQLite.
+- **Main process:** Qt interface. Never reads source files for analysis and never executes long queries itself.
+- **Query threads:** each query (callers, expand, search) runs in a Qt threadpool thread, with its own read-only SQLite connection, returning results via signals.
+- **Analysis process:** interface spawns `cgs inventory` then `cgs scan` (same CLI executable) as subprocesses, reads progress (one JSON line per event), and can cancel them. A parser crash cannot crash the UI; a file exceeding its timeout is flagged as failed, and analysis proceeds.
+- **AI process (Pro):** dedicated subprocess loading the model; communicates via stdin/stdout (one JSON message per line). **No network ports**, even internally. Never called by `cgs scan`.
+- **Project files:** analysis profile (`analysis_profile.yaml`, adopted rules) and SQLite database.
 
-### 3.2. Inventaire des langages et profil d'analyse
+### 3.2. Language inventory and analysis profile
 
-**Étape déterministe : `cgs inventory <dossier>`**
+**Deterministic step: `cgs inventory <folder>`**
 
-1. **Parcours du dépôt :** respect du `.gitignore` et des exclusions configurées (répertoires de construction, `.git`) ; les fichiers binaires (octets nuls) sont ignorés ; les liens symboliques en boucle et les fichiers illisibles sont signalés sans bloquer le parcours.
-2. **Table des extensions** (configurable) :
+1. **Repository traversal:** obeys `.gitignore` and configured exclusions (build dirs, `.git`); binary files (null bytes) are ignored; symlink loops and unreadable files are logged without blocking traversal.
+2. **Extensions table** (configurable):
 
-| Extensions | Langage | Particularité |
+| Extensions | Language | Note |
 | :--- | :--- | :--- |
-| `.f`, `.for`, `.f77`, `.ftn` | Fortran | Format fixe par défaut |
-| `.f90`, `.f95`, `.f03`, `.f08` | Fortran | Format libre |
-| `.F`, `.F90`, `.FOR`… (majuscule) | Fortran | Passage par le préprocesseur |
-| `.py` | Python | Python 2 détecté et signalé |
+| `.f`, `.for`, `.f77`, `.ftn` | Fortran | Fixed-form by default |
+| `.f90`, `.f95`, `.f03`, `.f08` | Fortran | Free-form |
+| `.F`, `.F90`, `.FOR`… (uppercase) | Fortran | Runs through preprocessor |
+| `.py` | Python | Python 2 detected and flagged |
 | `.c` | C | — |
 | `.cc`, `.cpp`, `.cxx`, `.hpp`, `.hh`, `.hxx` | C++ | — |
-| `.h` | **C ou C++** | Tranché à l'étape 4 |
-| `.inc`, `.fi`, `.fh` | **Fortran ou autre** | Tranché à l'étape 4 |
-| Autres (`.pyx`, `.cu`, `.m`…) | Connu mais non couvert en première version | Signalé dans l'inventaire |
+| `.h` | **C or C++** | Decided in step 4 |
+| `.inc`, `.fi`, `.fh` | **Fortran or other** | Decided in step 4 |
+| Others (`.pyx`, `.cu`, `.m`…) | Known but not covered in v1 | Flagged in inventory |
 
-3. **Signatures de contenu**, pour les fichiers sans extension ou ambigus : ligne `#!` (ex. `#!/usr/bin/env python`), lignes de mode d'éditeur (`-*- mode: f90 -*-`), et score de mots-clés caractéristiques sur les premières lignes, avec des poids fixes (ex. `subroutine`, `end do` pour Fortran ; `namespace`, `template`, `::` pour C++ ; `def`, `import` pour Python).
-4. **Contexte du dépôt :** un `.h` inclus par des fichiers C++, ou qui contient `class`, `namespace` ou `template`, est du C++ ; sinon du C. Un `.inc` inclus par des fichiers Fortran est du Fortran. Les répertoires qui contiennent des fichiers inclus forment les **chemins d'inclusion** du profil.
-5. **Résultat par fichier :** langage, variante (format fixe ou libre, préprocesseur, Python 2), confiance, règle qui a décidé. Les fichiers non reconnus sont regroupés par extension.
-6. **Rapport de couverture :** par langage, nombre de fichiers et de lignes, et adaptateur disponible — natif, profil de mots-clés, ou aucun.
+3. **Content signatures**, for extensionless or ambiguous files: `#!` line (e.g. `#!/usr/bin/env python`), editor mode lines (`-*- mode: f90 -*-`), and characteristic keyword scoring on top lines with fixed weights (e.g. `subroutine`, `end do` for Fortran; `namespace`, `template`, `::` for C++; `def`, `import` for Python).
+4. **Repository context:** a `.h` included by C++ files, or containing `class`, `namespace`, or `template`, is C++; otherwise C. A `.inc` included by Fortran files is Fortran. Directories containing included files form **include paths** in the profile.
+5. **Result per file:** language, variant (fixed/free form, preprocessor, Python 2), confidence, rule that decided. Unrecognized files are grouped by extension.
+6. **Coverage report:** per language, file and line counts, and available adapter — native, keyword profile, or none.
 
-**Étape IA, optionnelle (lot 13) :** pour chaque groupe de fichiers non reconnus, l'IA reçoit l'extension et le début de trois fichiers d'exemple, et répond : langage, adaptateur existant à utiliser (ex. `.ftn` → Fortran) ou besoin d'un profil de mots-clés (§3.9). Puis, après une première analyse, elle examine les sites non résolus (§3.13).
+**Optional AI step (Lot 13):** for each group of unrecognized files, AI receives the extension and start of three sample files, answering: language, existing adapter to use (e.g. `.ftn` → Fortran) or need for a keyword profile (§3.9). Then, after a first analysis, it inspects unresolved sites (§3.13).
 
-**Le profil d'analyse** rassemble toutes ces décisions dans un fichier du projet. L'analyse ne lit que lui :
+**The analysis profile** consolidates all decisions in a project file. Analysis reads only this file:
 
 ```yaml
-# <projet>/analysis_profile.yaml
+# <project>/analysis_profile.yaml
 profile_version: 4
-scope: { include: ["src/"], exclude: ["src/third_party/"] }    # périmètre analysé en détail
+scope: { include: ["src/"], exclude: ["src/third_party/"] }    # detailed analysis scope
 languages:
   fortran: { files: 9120, adapter: native:fortran, variants: [fixed, free, preprocessed] }
   python:  { files: 2400, adapter: native:python }
@@ -284,174 +284,174 @@ languages:
 include_paths: ["include/", "src/common/"]
 preprocessor: { defines: { HAVE_MPI: "1" }, keep_all_branches: true }
 file_overrides:
-  - { glob: "include/*.h", language: cpp, reason: "inclus par des fichiers C++" }
-  - { glob: "legacy/*.inc", language: fortran, reason: "inclus par des fichiers Fortran" }
+  - { glob: "include/*.h", language: cpp, reason: "included by C++ files" }
+  - { glob: "legacy/*.inc", language: fortran, reason: "included by Fortran files" }
 ignored:
-  - { ext: ".dat", files: 300, reason: "données" }
+  - { ext: ".dat", files: 300, reason: "data" }
 packs: [generic_noise, generic_fortran]
 rules:
   - { id: r-0001, kind: bridge, source: ai, status: approved, file: rules/r-0001.yaml }
 history:
-  - { version: 4, change: "règle r-0001 approuvée", by: "utilisateur" }
+  - { version: 4, change: "rule r-0001 approved", by: "user" }
 ```
 
-- Le profil est versionné ; chaque analyse enregistre l'empreinte du profil utilisé.
-- L'utilisateur peut modifier le profil dans l'interface (forcer un langage, ignorer un groupe de fichiers, approuver ou refuser une règle) ; chaque modification crée une nouvelle version.
+- The profile is versioned; each run logs the hash of the profile used.
+- The user can edit the profile in the UI (force language, ignore file group, approve/reject rule); each edit increments the version.
 
-### 3.3. Le pipeline d'analyse
+### 3.3. The analysis pipeline
 
 ```text
- cgs inventory ──► profil d'analyse ◄──── IA (optionnelle, lot 13) :
-                         │                 langages inconnus, mots-clés manquants
+ cgs inventory ──► analysis profile ◄──── AI (optional, Lot 13):
+                         │                 unknown languages, missing keywords
                          ▼                               ▲
    Extract → Link → Enrich → Index ──► Diagnostic ───────┘
-   └──────────── cgs scan : déterministe ───────────┘
+   └──────────── cgs scan: deterministic ───────────┘
 ```
 
-| Étape | Entrée | Sortie | Où | Propriétés |
+| Step | Input | Output | Where | Properties |
 | :--- | :--- | :--- | :--- | :--- |
-| **Inventory** | Le dépôt | Langage de chaque fichier, chemins d'inclusion, rapport de couverture | `inventory/` | Déterministe ; < 1 min |
-| **Extract** | Un fichier + son langage + ses fichiers inclus | *Faits* : définitions avec leurs symboles locaux, sites d'appel non résolus, accès aux données, directives, inclusions | `extract/` (un adaptateur par langage, ou adaptateur par mots-clés) | Fichier par fichier, en parallèle, avec délai maximal ; cache (§3.6) |
-| **Link** | Tous les faits | Sites d'appel résolus, ambigus, externes, hors périmètre ou non résolus ; nœuds | `link/` (table de symboles + ponts) | Global ; normalise les noms (casse, décoration) |
-| **Enrich** | Graphe | Masquages, accès aux données, aiguillages, points d'entrée, tests | `enrich/` (packs) | Règles déclaratives figées |
-| **Index** | Graphe enrichi | Arêtes agrégées, comptages, liens entre fichiers et répertoires, taille d'impact, recherche plein texte | `store/`, `algo/` | Algorithmes en Python standard (§3.6) |
-| **Diagnostic** | Base | Santé de l'analyse ; sites non résolus et ambigus regroupés par motif | `audit/` | Sert à l'utilisateur et, s'il est activé, à l'IA |
+| **Inventory** | Repository | Language of each file, include paths, coverage report | `inventory/` | Deterministic; < 1 min |
+| **Extract** | One file + language + included files | *Facts*: definitions with local symbols, unresolved call sites, data accesses, directives, includes | `extract/` (one adapter per language, or keyword adapter) | Per file, in parallel, with timeout; cache (§3.6) |
+| **Link** | All facts | Resolved, ambiguous, external, out-of-scope, or unresolved call sites; nodes | `link/` (symbol table + bridges) | Global; normalizes names (casing, mangling) |
+| **Enrich** | Graph | Hiding, data accesses, dispatches, entry points, tests | `enrich/` (packs) | Declarative frozen rules |
+| **Index** | Enriched graph | Aggregated edges, counts, file/directory links, impact size, full-text search | `store/`, `algo/` | Standard Python algorithms (§3.6) |
+| **Diagnostic** | Database | Analysis health; unresolved and ambiguous sites grouped by pattern | `audit/` | Used by user and, if enabled, by AI |
 
-- **Ré-analyse :** l'étape Extract n'est refaite que pour les fichiers dont la clé de cache a changé (le fichier, un fichier qu'il inclut, son adaptateur ou les paramètres d'extraction) ; les étapes suivantes sont refaites en entier, ce qui est rapide.
-- **Analyse partielle :** si le profil limite le périmètre (`scope`), une passe légère indexe quand même les **définitions** de tout le dépôt (noms seulement). Un appel vers une routine définie hors du périmètre pointe vers un nœud marqué `out_of_scope` : il n'est pas compté comme « non résolu ».
-- **Calculs de l'étape Index :** composantes fortement connexes (algorithme de Tarjan, en version itérative pour éviter la limite de récursion de Python), graphe condensé, puis taille d'impact de chaque nœud par propagation d'ensembles de bits (entiers Python) dans l'ordre topologique ; sur le graphe brut et sur le graphe filtré.
+- **Re-analysis:** the Extract step is only re-run for files whose cache key changed (file, an included file, its adapter, or extraction settings); subsequent steps are re-run entirely, which is fast.
+- **Partial analysis:** if profile restricts `scope`, a lightweight pass still indexes **definitions** across the whole repository (names only). A call to a routine defined outside scope points to an `out_of_scope` node: not counted as "unresolved".
+- **Index step computations:** strongly connected components (iterative Tarjan algorithm to avoid Python recursion limits), condensed graph, then impact size of each node by bitset propagation (Python big ints) in topological order; on raw graph and filtered graph.
 
-### 3.4. Découpage en paquets et règles de dépendance
+### 3.4. Package breakdown and dependency rules
 
-| Paquet | Rôle | Peut importer |
+| Package | Role | Allowed imports |
 | :--- | :--- | :--- |
-| `core` | Modèle de données, identifiants, profil d'analyse (types), versions des formats | (rien d'interne) |
-| `algo` | Algorithmes de graphe : Tarjan itératif, condensation, ensembles de bits, parcours bornés | `core` |
-| `inventory` | Détection des langages, rapport de couverture, lecture et écriture du profil | `core` |
-| `extract` | Adaptateurs natifs et adaptateur par mots-clés | `core` |
-| `link` | Table de symboles, ponts inter-langages | `core` |
-| `enrich` | Moteur de packs, schémas, packs génériques | `core` |
-| `store` | Schéma SQLite, écriture, lecture, cache | `core` |
-| `query` | API de requêtes (§3.10) | `core`, `store`, `algo` |
-| `layout` | Mise en page des TreeGraph | `core` |
-| `audit` | Diagnostic et contrôles de validation (§2.1) | `core`, `inventory`, `extract`, `store`, `query` |
-| `scan` | Orchestration du pipeline | `core`, `algo`, `inventory`, `extract`, `link`, `enrich`, `store` |
-| `cli` | Commande `cgs` | `inventory`, `scan`, `query`, `audit` |
-| `ui` | Application de bureau | `core`, `query`, `layout` — **jamais** `extract`, `link`, `enrich` ni `store` directement |
-| `codegraph_sci_pro` | IA, packs de codes, licence | tout le cœur ; le cœur ne l'importe jamais |
+| `core` | Data model, identifiers, analysis profile (types), format versions | (no internal imports) |
+| `algo` | Graph algorithms: iterative Tarjan, condensation, bitsets, bounded traversals | `core` |
+| `inventory` | Language detection, coverage report, profile read/write | `core` |
+| `extract` | Native adapters and keyword-based adapter | `core` |
+| `link` | Symbol table, cross-language bridges | `core` |
+| `enrich` | Pack engine, schemas, generic packs | `core` |
+| `store` | SQLite schema, read, write, cache | `core` |
+| `query` | Query API (§3.10) | `core`, `store`, `algo` |
+| `layout` | TreeGraph layouts | `core` |
+| `audit` | Diagnostic and validation checks (§2.1) | `core`, `inventory`, `extract`, `store`, `query` |
+| `scan` | Pipeline orchestration | `core`, `algo`, `inventory`, `extract`, `link`, `enrich`, `store` |
+| `cli` | `cgs` command | `inventory`, `scan`, `query`, `audit` |
+| `ui` | Desktop application | `core`, `query`, `layout` — **never** `extract`, `link`, `enrich`, or `store` directly |
+| `codegraph_sci_pro` | AI, codebase packs, licensing | all of core; core never imports it |
 
-Ces règles sont vérifiées automatiquement par `import-linter` dès le lot 0.
+These rules are enforced by `import-linter` starting in Lot 0.
 
-### 3.5. Modèle de données
+### 3.5. Data model
 
-**Identité des symboles.** Chaque symbole a un `uid` stable et unique, utilisé partout en interne, et un `display_name` lisible pour l'interface.
+**Symbol identity.** Each symbol has a stable, unique `uid` used everywhere internally, and a user-friendly `display_name` for the UI.
 
-| Langage | Forme du `uid` | Remarques |
+| Language | `uid` format | Notes |
 | :--- | :--- | :--- |
-| Fortran | `f:<nom>` ; procédure de module `f:<module>::<nom>` | En minuscules (langage insensible à la casse) |
-| C | `c:<nom>` ; fonction `static` : `c:<nom>@<fichier>` | Deux fonctions `static` de même nom dans deux fichiers sont deux symboles |
-| C++ | `cpp:<ns>::<Classe>::<méthode>(<types des paramètres normalisés>)` | La signature fait partie de l'identité ; le `display_name` ne la montre pas |
-| Python | `py:<module>.<nom qualifié>` | — |
-| Profil de mots-clés | `kw:<langage>:<nom>` | — |
-| Autres | `file:<chemin>`, `entry:<nom>`, `data:<clé>`, `test:<id>`, `ext:<bibliothèque>:<nom>` | Chemins relatifs à la racine du dépôt, avec des `/` |
+| Fortran | `f:<name>`; module procedure `f:<module>::<name>` | Lowercase (case-insensitive language) |
+| C | `c:<name>`; `static` function: `c:<name>@<file>` | Two `static` functions with same name in two files are distinct symbols |
+| C++ | `cpp:<ns>::<Class>::<method>(<normalized param types>)` | Signature is part of identity; `display_name` omits it |
+| Python | `py:<module>.<qualified name>` | — |
+| Keyword profile | `kw:<language>:<name>` | — |
+| Others | `file:<path>`, `entry:<name>`, `data:<key>`, `test:<id>`, `ext:<library>:<name>` | Paths relative to repository root, using `/` |
 
-- **Variantes préprocesseur :** si une même routine est définie dans plusieurs branches `#ifdef`, chaque définition reçoit un suffixe `#2`, `#3`… et garde sa condition.
-- **Surcharges et interfaces génériques :** quand l'appel ne permet pas de choisir (types inconnus en analyse statique), le site d'appel garde **toutes les cibles candidates** et devient `ambiguous`.
+- **Preprocessor variants:** if a routine is defined across multiple `#ifdef` branches, each receives a suffix `#2`, `#3`… and preserves its condition.
+- **Overloads and generic interfaces:** when a call cannot disambiguate (types unknown statically), call site retains **all candidate targets** and becomes `ambiguous`.
 
-**Identité des sites d'appel.** Chaque appel ou usage constaté dans le code est un **site** : fichier, ligne, colonne, routine appelante, texte de la cible tel qu'écrit. Le site garde sa condition préprocesseur, son origine, sa confiance et son état de résolution :
+**Call site identity.** Every call or usage observed in code is a **site**: file, line, column, caller routine, target text as written. Site preserves its preprocessor condition, origin, confidence, and resolution state:
 
-| État (`resolution`) | Sens |
+| State (`resolution`) | Meaning |
 | :--- | :--- |
-| `resolved` | Une cible unique dans le dépôt |
-| `ambiguous` | Plusieurs cibles candidates |
-| `external` | Bibliothèque connue hors dépôt (MPI, BLAS…) ou fonction intrinsèque |
-| `out_of_scope` | Cible définie dans le dépôt, hors du périmètre analysé |
-| `unresolved` | Aucune cible trouvée |
+| `resolved` | Unique target in repository |
+| `ambiguous` | Multiple candidate targets |
+| `external` | Known external library (MPI, BLAS…) or intrinsic function |
+| `out_of_scope` | Target defined in repository, outside analyzed scope |
+| `unresolved` | No target found |
 
-Une **arête** du graphe est l'agrégation des sites de même (appelant, appelé, type) : elle porte leur nombre, la confiance la plus faible, l'ensemble des origines et des conditions. Les requêtes rapides utilisent les arêtes ; la navigation ligne par ligne utilise les sites.
+A graph **edge** aggregates sites sharing (caller, callee, type): carries count, lowest confidence, set of origins, and conditions. Fast queries use edges; line-by-line navigation uses call sites.
 
-**Types de nœuds :** `kind` prend une valeur d'une liste fixe ; `subtype` est libre et fourni par les plugins.
+**Node kinds:** `kind` takes a value from a fixed list; `subtype` is open and provided by plugins.
 
-| `kind` | Signification | `subtype` (exemples) |
+| `kind` | Meaning | `subtype` (examples) |
 | :--- | :--- | :--- |
-| `file` | Fichier source | — |
-| `module` | Module, paquet, espace de noms | `py_module`, `f_module`, `cpp_namespace` |
-| `type` | Classe, structure, type dérivé | `py_class`, `cpp_class`, `f_derived_type` |
-| `routine` | Fonction, subroutine, méthode, procédure, programme | `f_subroutine`, `f_function`, `f_program`, `cpp_method`, `py_function`, `kw_routine` |
-| `interface` | Interface générique ou abstraite | `f_generic_interface` |
-| `binding` | Exposition ou déclaration d'un symbole dans un autre langage | `pybind11_def`, `bind_c`, `macro_declaration` |
-| `data` | Donnée partagée | `common_block`, `module_variable`, `c_global`, `memory_object` |
-| `entry_point` | Point d'entrée utilisateur ou externe | `command`, `program_main`, `external_callback` |
-| `dispatch_target` | Entrée de catalogue ou branche d'aiguillage | `catalog_entry`, `case_branch` |
-| `test_case` | Test ou cas-test | `unit_test`, `regression_case` |
-| `external` | Symbole hors dépôt | `mpi`, `blas`, `intrinsic`, `system` |
+| `file` | Source file | — |
+| `module` | Module, package, namespace | `py_module`, `f_module`, `cpp_namespace` |
+| `type` | Class, struct, derived type | `py_class`, `cpp_class`, `f_derived_type` |
+| `routine` | Function, subroutine, method, procedure, program | `f_subroutine`, `f_function`, `f_program`, `cpp_method`, `py_function`, `kw_routine` |
+| `interface` | Generic or abstract interface | `f_generic_interface` |
+| `binding` | Cross-language symbol exposure or declaration | `pybind11_def`, `bind_c`, `macro_declaration` |
+| `data` | Shared data | `common_block`, `module_variable`, `c_global`, `memory_object` |
+| `entry_point` | User or external entry point | `command`, `program_main`, `external_callback` |
+| `dispatch_target` | Catalog entry or dispatch branch | `catalog_entry`, `case_branch` |
+| `test_case` | Test or testcase | `unit_test`, `regression_case` |
+| `external` | Out-of-repository symbol | `mpi`, `blas`, `intrinsic`, `system` |
 
-**Types d'arêtes :** `contains`, `calls`, `uses`, `inherits`, `binds`, `bridges`, `implements`, `dispatches`, `reads`, `writes`, `creates`, `destroys`, `exercises`.
+**Edge kinds:** `contains`, `calls`, `uses`, `inherits`, `binds`, `bridges`, `implements`, `dispatches`, `reads`, `writes`, `creates`, `destroys`, `exercises`.
 
-**Données partagées : trois niveaux de précision.** Un accès à une donnée (bloc `COMMON`, variable de module, objet d'un gestionnaire mémoire décrit par un pack) est rattaché à l'objet le plus précis qu'on sache identifier, et toujours à sa famille :
+**Shared data: three precision levels.** An access to data (`COMMON` block, module variable, memory manager object described by a pack) is linked to the most specific identifiable object and always to its family:
 
-| Niveau (`key_kind`) | Exemple fictif | Sens |
+| Level (`key_kind`) | Fictional example | Meaning |
 | :--- | :--- | :--- |
-| `literal` | `data:mem:solver.state.VALUES` | Nom entièrement connu dans le code |
-| `symbolic` | `data:mem:f:update_state:name//'.VALUES'` | Nom calculé à l'exécution : l'expression est conservée, propre à la routine |
-| `family` | `data:mem:*.VALUES` | Famille d'objets de même suffixe ; utile pour les vues d'ensemble ; traitée automatiquement comme un hub (masquée par défaut dans les TreeGraph) |
+| `literal` | `data:mem:solver.state.VALUES` | Name fully known in code |
+| `symbolic` | `data:mem:f:update_state:name//'.VALUES'` | Name computed at runtime: expression is preserved, local to routine |
+| `family` | `data:mem:*.VALUES` | Object family with same suffix; useful for high-level overviews; auto-treated as hub (hidden by default in TreeGraphs) |
 
-Chaque accès porte son niveau (`resolution` de l'accès) : l'interface distingue « écrit l'objet X » de « écrit un objet de la famille X ».
+Each access carries its level (`resolution` of access): UI distinguishes "writes object X" from "writes an object in family X".
 
-### 3.6. Schéma SQLite
+### 3.6. SQLite schema
 
 ```sql
--- Contenu analysé
+-- Analyzed content
 files(id INTEGER PRIMARY KEY, path TEXT UNIQUE, lang, variant, sha256, size, encoding,
       parse_status, adapter, adapter_version, error)
 inventory(file_id, lang, variant, confidence, decided_by)
 nodes(id INTEGER PRIMARY KEY, uid TEXT UNIQUE, display_name, kind, subtype, lang,
       file_id, line_start, line_end, in_scope, attrs JSON)
-conditions(id INTEGER PRIMARY KEY, expr TEXT UNIQUE)              -- gardes préprocesseur
+conditions(id INTEGER PRIMARY KEY, expr TEXT UNIQUE)              -- preprocessor guards
 call_sites(id INTEGER PRIMARY KEY, src_node, file_id, line, col, ref_kind, target_text,
-           dst_node, resolution, confidence, origin, condition_id)  -- un site = une ligne
-call_site_candidates(site_id, dst_node)                            -- cibles des sites ambigus
+           dst_node, resolution, confidence, origin, condition_id)  -- one site = one line
+call_site_candidates(site_id, dst_node)                            -- targets of ambiguous sites
 data_accesses(id INTEGER PRIMARY KEY, src_node, data_node, family_node, mode,
               key_kind, file_id, line, origin)
-facts_cache(cache_key TEXT PRIMARY KEY, facts BLOB)                -- JSON canonique compressé (zlib)
+facts_cache(cache_key TEXT PRIMARY KEY, facts BLOB)                -- canonical compressed JSON (zlib)
 
--- Précalculs pour l'interface (étape Index)
+-- Precomputations for UI (Index step)
 edges(src, dst, kind, site_count, min_confidence, origins JSON, conditions JSON)
 node_stats(node_id, fan_in, fan_out, fan_in_filtered, fan_out_filtered,
            impact_size, impact_size_filtered, is_noise, noise_reason)
-file_edges(src_file, dst_file, kind, count)       -- TreeGraph fichiers
-dir_edges(src_dir, dst_dir, kind, count)          -- regroupement par répertoire
-search_fts                                        -- FTS5 : noms, chemins, commentaires d'en-tête
+file_edges(src_file, dst_file, kind, count)       -- Files TreeGraph
+dir_edges(src_dir, dst_dir, kind, count)          -- Directory grouping
+search_fts                                        -- FTS5: names, paths, header comments
 
--- Traçabilité
+-- Traceability
 plugins(name, type, version)
 scan_runs(id, started_at, finished_at, root, git_rev, profile_version, profile_sha256,
           plugins JSON, stats JSON)
 
--- Plus tard
-summaries(node_id, content_hash, model_id, prompt_version, text)   -- lot 15
-layout_cache(key, layout_version, data JSON)                        -- lot 11
+-- Later lots
+summaries(node_id, content_hash, model_id, prompt_version, text)   -- Lot 15
+layout_cache(key, layout_version, data JSON)                        -- Lot 11
 ```
 
-**Index** (créés **après** les insertions) : `call_sites(src_node)`, `call_sites(dst_node)`, `call_sites(file_id, line)`, `call_sites(resolution, target_text)`, `data_accesses(src_node)`, `data_accesses(data_node)`, `edges(src, kind)`, `edges(dst, kind)`, `nodes(file_id)`.
+**Indexes** (created **after** inserts): `call_sites(src_node)`, `call_sites(dst_node)`, `call_sites(file_id, line)`, `call_sites(resolution, target_text)`, `data_accesses(src_node)`, `data_accesses(data_node)`, `edges(src, kind)`, `edges(dst, kind)`, `nodes(file_id)`.
 
-**Écriture et performance**
+**Writing and performance**
 
-- **Analyse complète :** la base est construite dans un fichier temporaire (`<projet>.sqlite.tmp`), journal désactivé pendant la construction (`PRAGMA journal_mode=OFF`, `PRAGMA synchronous=OFF`), insertions groupées (`executemany` par lots de 50 000 lignes), index créés à la fin, puis `ANALYZE` et remplacement atomique du fichier : l'interface ne voit jamais une base à moitié écrite.
-- **Ré-analyse incrémentale :** mode WAL (`PRAGMA journal_mode=WAL`, `PRAGMA synchronous=NORMAL`) ; l'interface continue de lire pendant l'écriture.
-- **Volume :** de l'ordre du million de sites d'appel pour 15 000 fichiers. Une ligne par site, composée d'entiers, représente quelques dizaines de Mo, s'écrit en quelques secondes par insertions groupées, et se lit par index pour la navigation ligne par ligne de l'inspecteur.
-- **Cache des faits :** clé = SHA-256 du fichier + SHA-256 de **tous les fichiers qu'il inclut** (récursivement) + nom et version de l'adaptateur + paramètres du profil qui influencent l'extraction (langage, variante, macros du préprocesseur, chemins d'inclusion). Contenu : JSON canonique compressé avec `zlib` (bibliothèque standard). **Jamais `pickle`** (risques de sécurité et d'incompatibilité entre versions).
-- Le schéma porte un numéro de version ; une base d'une version antérieure est migrée ou ré-analysée.
+- **Full analysis:** database is constructed in a temporary file (`<project>.sqlite.tmp`), journal disabled during build (`PRAGMA journal_mode=OFF`, `PRAGMA synchronous=OFF`), bulk inserts (`executemany` in 50,000-row chunks), indexes created at the end, then `ANALYZE` and atomic file rename: UI never sees a half-written DB.
+- **Incremental re-analysis:** WAL mode (`PRAGMA journal_mode=WAL`, `PRAGMA synchronous=NORMAL`); UI continues reading while writing.
+- **Volume:** ~1 million call sites for 15,000 files. One row per site, mostly integers, represents tens of MBs, writes in seconds via bulk inserts, and is read via index for line-by-line inspector navigation.
+- **Facts cache:** key = file SHA-256 + recursive SHA-256 of **all included files** + adapter name and version + profile parameters affecting extraction (language, variant, preprocessor macros, include paths). Content: canonical JSON compressed with `zlib` (standard library). **Never `pickle`** (security risks and cross-version incompatibility).
+- The schema carries a version number; an older version database is migrated or re-analyzed.
 
-### 3.7. Contrats des plugins et faits
+### 3.7. Plugin contracts and facts
 
 ```python
 class LanguageAdapter(Protocol):
-    name: str                      # "fortran", "python", "c", "cpp", "keywords:<langage>"
+    name: str                      # "fortran", "python", "c", "cpp", "keywords:<language>"
     version: str
-    languages: list[str]           # langages de l'inventaire qu'il sait lire
+    languages: list[str]           # inventory languages it can read
     def extract(self, file: SourceFile, ctx: ExtractContext) -> FileFacts: ...
-        # ctx : chemins d'inclusion, macros, délai maximal, noms connus comme tableaux
+        # ctx: include paths, macros, timeout, names known as arrays
 
 class Bridge(Protocol):
     name: str                      # "pybind11", "fortran_c", "prefix_calls", ...
@@ -464,32 +464,32 @@ class DomainPack(Protocol):
     name: str
     version: str
     def detect(self, repo: RepoInfo) -> float: ...           # 0..1
-    def rules(self) -> PackRules: ...                        # rules.yaml chargé et validé
-    def enrich(self, graph: GraphView) -> GraphPatch: ...    # optionnel
+    def rules(self) -> PackRules: ...                        # loaded & validated rules.yaml
+    def enrich(self, graph: GraphView) -> GraphPatch: ...    # optional
 
 @dataclass
 class SourceFile:
     path: str; lang: str; variant: str | None; encoding: str; text: str
 
 @dataclass
-class LocalSymbol:     # déclaration visible dans une routine (surtout Fortran)
+class LocalSymbol:     # visible declaration in routine (especially Fortran)
     name: str
     role: str          # "array", "scalar", "dummy", "dummy_procedure", "external",
                        # "function", "intrinsic", "parameter"
-    source: str        # "local", "include:<chemin>", "common:<bloc>", "module:<nom>"
+    source: str        # "local", "include:<path>", "common:<block>", "module:<name>"
 
 @dataclass
-class Definition:      # routine, type, module, donnée...
+class Definition:      # routine, type, module, data...
     uid: str; display_name: str; kind: str; subtype: str; name: str
     span: tuple[int, int]; signature: str | None; doc: str | None
     local_symbols: list[LocalSymbol]
 
 @dataclass
-class Reference:       # un site d'appel ou d'usage, non résolu à ce stade
+class Reference:       # a call or use site, unresolved at this stage
     src: str; target_text: str
     kind: str          # "call", "maybe_call", "use", "include", ...
-    line: int; col: int; args: list[ArgFact]     # arguments, avec valeur littérale si connue
-    condition: str | None                        # garde préprocesseur
+    line: int; col: int; args: list[ArgFact]     # arguments, with literal value if known
+    condition: str | None                        # preprocessor guard
 
 @dataclass
 class IncludeRef:
@@ -500,71 +500,71 @@ class FileFacts:
     path: str; lang: str; encoding: str; adapter: str; adapter_version: str
     definitions: list[Definition]
     references: list[Reference]
-    data_accesses: list[DataAccess]              # COMMON, globales, INTENT...
+    data_accesses: list[DataAccess]              # COMMON, globals, INTENT...
     directives: list[Directive]                  # #ifdef...
-    includes: list[IncludeRef]                   # pour la clé de cache et les déclarations
+    includes: list[IncludeRef]                   # for cache key and declarations
     errors: list[ParseError]
     used_fallback: bool
 ```
 
-- Le langage de chaque fichier vient de l'inventaire (profil) ; l'adaptateur ne le devine pas.
-- Les faits ont la même forme pour tous les langages : le cœur ne connaît que ce format.
-- Les arguments littéraux (chaînes, constantes, valeurs obtenues par propagation simple des variables locales) sont conservés. C'est ce qui permet à un pack ou à une règle d'interpréter des appels particuliers (gestionnaire mémoire, macros) sans réanalyser le code.
-- Les faits sont **triés** (par ligne, colonne, puis nom) avant d'être stockés : c'est une condition du déterminisme.
+- Each file's language comes from inventory (profile); adapter does not guess it.
+- Facts have identical structure across all languages: core only knows this format.
+- Literal arguments (strings, constants, values obtained through simple propagation of local variables) are preserved. This enables a pack or rule to interpret specific calls (memory manager, macros) without re-parsing code.
+- Facts are **sorted** (by line, column, then name) before storage: essential for determinism.
 
-**Règle Fortran pour `nom(...)` dans une expression** (appliquée par l'adaptateur, puis par Link) :
+**Fortran rule for `name(...)` in an expression** (applied by adapter, then Link):
 
-1. `nom` déclaré comme tableau — localement, en argument, dans un bloc `COMMON`, dans un fichier inclus ou dans un module utilisé — → **accès à une donnée**, pas un appel ;
-2. `nom` est une fonction intrinsèque Fortran (liste fixe : `sin`, `max`, `size`…) → site `external` (`ext:intrinsic:<nom>`), masqué par défaut ;
-3. `nom` déclaré `EXTERNAL` ou comme fonction → site `call` ;
-4. `nom` figure dans la liste `extraction.known_arrays` d'un pack (déclaration introuvable) → accès à une donnée ;
-5. sinon → site `maybe_call`, tranché par Link : fonction définie dans le dépôt → appel ; tableau d'un module → donnée ; sinon site `ambiguous`, classé à part dans le diagnostic pour ne pas noyer les vrais non résolus.
+1. `name` declared as array — locally, in dummy argument, `COMMON` block, included file, or used module — → **data access**, not a call;
+2. `name` is a Fortran intrinsic function (fixed list: `sin`, `max`, `size`…) → `external` site (`ext:intrinsic:<name>`), hidden by default;
+3. `name` declared `EXTERNAL` or as function → `call` site;
+4. `name` appears in pack's `extraction.known_arrays` list (missing declaration) → data access;
+5. otherwise → `maybe_call` site, decided by Link: function defined in repo → call; module array → data; otherwise `ambiguous` site, grouped separately in diagnostic so as not to pollute genuine unresolved sites.
 
-### 3.8. Format des Domain Packs
+### 3.8. Domain Packs format
 
-Un pack est d'abord un fichier déclaratif `rules.yaml` ; du Python (`enrich`) ne s'ajoute que si le format ne suffit pas.
+A pack is primarily a declarative `rules.yaml` file; Python (`enrich`) is only added if declarative format is insufficient.
 
-**Chargement :** `yaml.safe_load` uniquement, puis validation par un schéma JSON (`enrich/schemas/pack.schema.json`). Une clé inconnue, un type invalide ou une version de format inconnue font échouer le chargement avec un message qui indique le fichier, la clé et la valeur fautive. Les mêmes règles s'appliquent aux profils de langage (§3.9), aux règles de liaison et au profil d'analyse.
+**Loading:** `yaml.safe_load` exclusively, followed by JSON schema validation (`enrich/schemas/pack.schema.json`). Unknown keys, invalid types, or unsupported format versions cause loading failure with a message specifying file, key, and offending value. The same rules apply to language profiles (§3.9), bridge rules, and analysis profiles.
 
-**Spécification du format, version 1**
+**Format specification, version 1**
 
-| Clé | Type | Obligatoire | Sens précis |
+| Key | Type | Required | Precise meaning |
 | :--- | :--- | :--- | :--- |
-| `pack` | texte | oui | Nom du pack (minuscules et `_`) |
-| `version` | texte `MAJ.MIN` | oui | Version du pack |
-| `format_version` | entier | oui | Version du format ; une version inconnue est refusée |
-| `identifiers` | liste de textes | oui | Identifiants caractéristiques du code, interdits dans le cœur (§6.4) |
-| `covers` | `{code: intervalle}` | non | Versions du code analysé couvertes, ex. `">=16,<18"` |
-| `detect.any_path` | liste de chemins | non | Pack proposé si **au moins un** chemin existe |
-| `detect.all_path` | liste de chemins | non | Pack proposé si **tous** les chemins existent ; si les deux clés sont données, les deux conditions doivent être vraies |
-| `noise.hide` | liste de noms (motifs `*` admis) | non | Routines masquées par défaut (badge « +N », réaffichables) |
-| `noise.optional` | liste de noms | non | Routines **proposées** au masquage, visibles par défaut |
-| `noise.auto_detect_hubs` | `{min_fan_in, max_fan_out}` | non | Seuils de détection des hubs, proposés au masquage |
-| `extraction.known_arrays` | liste de noms | non | Noms toujours traités comme des tableaux (jamais comme des appels) quand leur déclaration est introuvable |
-| `memory_access[]` | objets (ci-dessous) | non | Appels à un gestionnaire mémoire → accès aux données |
-| `dispatch[]` | `{routine, select_on, target_pattern}` | non | Chaque branche du `SELECT CASE` sur `select_on` → arête `dispatches` vers `target_pattern` (`{case}` = valeur de la branche, ex. `elem_{case:03d}`) |
-| `catalogs[]` | `{glob, format, entry, target}` | non | Chaque entrée d'un fichier de configuration (`yaml`, `json`, `python`) → cible |
-| `entry_points[]` | `{kind, glob, pattern, multiline, target, fallback_target}` | non | Points d'entrée ; `fallback_target` est utilisé si `target` n'existe pas dans le dépôt |
-| `bridges[]` | objets (ci-dessous) | non | Liaisons entre langages |
-| `tests[]` | `{kind, glob, uses_entry_points, coverage}` | non | Découverte des tests |
-| `glossary` | chemin | non | Vocabulaire métier pour l'IA |
+| `pack` | string | yes | Pack name (lowercase and `_`) |
+| `version` | string `MAJ.MIN` | yes | Pack version |
+| `format_version` | integer | yes | Format version; unsupported version is rejected |
+| `identifiers` | list of strings | yes | Codebase identifiers forbidden in core (§6.4) |
+| `covers` | `{code: range}` | no | Analyzed codebase versions covered, e.g. `">=16,<18"` |
+| `detect.any_path` | list of paths | no | Pack suggested if **at least one** path exists |
+| `detect.all_path` | list of paths | no | Pack suggested if **all** paths exist; if both given, both must be satisfied |
+| `noise.hide` | list of names (`*` wildcards allowed) | no | Routines hidden by default ("+N" badge, revealable) |
+| `noise.optional` | list of names | no | Routines **suggested** for hiding, visible by default |
+| `noise.auto_detect_hubs` | `{min_fan_in, max_fan_out}` | no | Hub detection thresholds, proposed for hiding |
+| `extraction.known_arrays` | list of names | no | Names always treated as arrays (never calls) when declaration is missing |
+| `memory_access[]` | objects (below) | no | Memory manager calls → data accesses |
+| `dispatch[]` | `{routine, select_on, target_pattern}` | no | Each `SELECT CASE` branch on `select_on` → `dispatches` edge to `target_pattern` (`{case}` = branch value, e.g. `elem_{case:03d}`) |
+| `catalogs[]` | `{glob, format, entry, target}` | no | Each entry in a config file (`yaml`, `json`, `python`) → target |
+| `entry_points[]` | `{kind, glob, pattern, multiline, target, fallback_target}` | no | Entry points; `fallback_target` used if `target` does not exist in repository |
+| `bridges[]` | objects (below) | no | Cross-language links |
+| `tests[]` | `{kind, glob, uses_entry_points, coverage}` | no | Test discovery |
+| `glossary` | path | no | Domain vocabulary for AI |
 
-**`memory_access[]`** — `{routine, name_arg, mode_arg, modes, effect, object_key, local_prefix_pattern}` :
+**`memory_access[]`** — `{routine, name_arg, mode_arg, modes, effect, object_key, local_prefix_pattern}`:
 
-- soit `mode_arg` + `modes` (valeur littérale de l'argument → `reads` ou `writes`), soit `effect` (`creates` ou `destroys`) ;
-- `object_key` : liste **ordonnée** de stratégies essayées dans l'ordre — `literal` (nom entièrement connu), `local_prefix` (nom qui commence par `local_prefix_pattern`, propre à la routine), `symbolic` (expression conservée), `family` (suffixe statique) ; l'accès est relié à l'objet le plus précis trouvé **et** à sa famille.
+- either `mode_arg` + `modes` (literal arg value → `reads` or `writes`), or `effect` (`creates` or `destroys`);
+- `object_key`: **ordered** list of strategies attempted in order — `literal` (fully known name), `local_prefix` (name starting with `local_prefix_pattern`, routine-local), `symbolic` (retained expression), `family` (static suffix); access is linked to the most specific object found **and** its family.
 
-**`bridges[]`** — `{from, to, call_prefixes, name_transform, declaration_patterns, extension_modules}` :
+**`bridges[]`** — `{from, to, call_prefixes, name_transform, declaration_patterns, extension_modules}`:
 
-- `call_prefixes` : essayés **du plus long au plus court** ; un appel `PREFIXE` + `NOM(...)` produit un site vers la cible obtenue en appliquant `name_transform` ;
-- `name_transform` : liste ordonnée d'opérations parmi `strip_prefix` (par défaut, en premier), `lowercase`, `uppercase`, `append_underscore`, `strip_underscore` ;
-- `declaration_patterns` : motifs qui **déclarent** une routine de l'autre langage (prototype, macro de déclaration). Ils créent des nœuds `binding`, **jamais des sites d'appel** ;
-- `extension_modules` : modules compilés exposés à Python.
+- `call_prefixes`: attempted **longest to shortest**; a call `PREFIX` + `NAME(...)` yields a site toward the target produced by applying `name_transform`;
+- `name_transform`: ordered list of operations among `strip_prefix` (default, first), `lowercase`, `uppercase`, `append_underscore`, `strip_underscore`;
+- `declaration_patterns`: patterns that **declare** a routine from the other language (prototype, declaration macro). They create `binding` nodes, **never call sites**;
+- `extension_modules`: compiled modules exposed to Python.
 
-Toute règle de liaison s'accompagne de tests positifs **et négatifs** (identifiants qui ressemblent au préfixe sans en être, fixture `bridge_prefix_negative`).
+Every bridge rule must be accompanied by positive **and negative** tests (identifiers resembling prefix without matching, `bridge_prefix_negative` fixture).
 
 ```yaml
-# Exemple fictif
+# Fictional example
 pack: acme_solver
 version: "0.1"
 format_version: 1
@@ -595,14 +595,14 @@ tests:
 glossary: docs/glossary.md
 ```
 
-Les **règles de liaison proposées par l'IA** utilisent exactement le format d'une entrée `bridges`, dans un fichier à part (`rules/r-<n>.yaml`) référencé par le profil.
+**AI-proposed bridge rules** follow the exact format of a `bridges` entry, in a dedicated file (`rules/r-<n>.yaml`) referenced by the profile.
 
-### 3.9. Profils de langage par mots-clés
+### 3.9. Keyword-based language profiles
 
-Pour un langage sans adaptateur natif, l'**adaptateur par mots-clés** (`extract/keywords/`) lit un profil qui ne contient que des listes de mots-clés et de marqueurs. C'est le cœur qui les transforme en règles d'extraction, de façon déterministe. Un profil peut être écrit à la main ou proposé par l'IA.
+For a language lacking a native adapter, the **keyword adapter** (`extract/keywords/`) reads a profile containing only keyword lists and markers. The core converts them into extraction rules deterministically. A profile can be written by hand or proposed by AI.
 
 ```yaml
-# <projet>/rules/languages/acme_script.yaml — exemple fictif
+# <project>/rules/languages/acme_script.yaml — fictional example
 language: acme_script
 version: 1
 format_version: 1
@@ -616,28 +616,28 @@ line_continuation: "\\"
 definitions:
   - { keywords: ["proc", "function"], name: after_keyword, end_keywords: ["endproc", "endfunction"], kind: routine }
 calls:
-  - { keywords: ["run"], name: after_keyword }            # run nom(...)
-  - { style: name_then_paren, only_known_names: true }    # nom(...) si nom est défini quelque part
+  - { keywords: ["run"], name: after_keyword }            # run name(...)
+  - { style: name_then_paren, only_known_names: true }    # name(...) if name is defined somewhere
 includes:
   - { keywords: ["use"], target: after_keyword }
-coverage:                     # mesurée, jamais supposée
+coverage:                     # measured, never assumed
   sample_files: 12
   definitions_recall: 0.97
   calls_precision: 0.93
 evidence:
-  document: "docs/acme_script_manual.pdf"                 # document technique fourni, s'il existe
+  document: "docs/acme_script_manual.pdf"                 # user-provided technical document, if any
   samples: ["scripts/a.acs", "scripts/b.acs"]
 ```
 
-- **Portée limitée, assumée :** un profil de mots-clés est une extraction **heuristique**. Il ne résout ni les portées, ni les imbrications complexes, ni les surcharges. Ses liens ont la confiance `heuristic`.
-- **Couverture mesurée :** un profil n'est jugé utilisable qu'avec une couverture mesurée sur une fixture ou un échantillon vérifié (bloc `coverage`) ; sinon l'interface l'affiche « non mesuré ».
-- `only_known_names: true` évite de prendre n'importe quelle parenthèse pour un appel : seuls les noms définis dans le dépôt (ou déclarés externes) sont retenus.
+- **Deliberately limited scope:** a keyword profile provides **heuristic** extraction. It does not resolve scopes, complex nesting, or overloads. Its links carry `heuristic` confidence.
+- **Measured coverage:** a profile is deemed usable only with measured coverage on a fixture or verified sample (`coverage` block); otherwise UI displays "unmeasured".
+- `only_known_names: true` prevents treating every parenthesized expression as a call: only names defined in repo (or declared external) are kept.
 
-### 3.10. API de requêtes (contrat entre le moteur, la ligne de commande et l'interface)
+### 3.10. Query API (contract between engine, CLI, and UI)
 
 ```python
-CALL_PATH = {"calls", "bridges", "binds", "implements", "dispatches"}   # chemins d'exécution
-FILE_DEPENDENCY = {"uses", "contains"}                                   # dépendances de fichiers
+CALL_PATH = {"calls", "bridges", "binds", "implements", "dispatches"}   # execution paths
+FILE_DEPENDENCY = {"uses", "contains"}                                   # file dependencies
 
 class GraphQuery:
     def __init__(self, db_path: Path, *, read_only: bool = True): ...
@@ -645,181 +645,193 @@ class GraphQuery:
     def find(self, text: str, kinds: set[str] | None = None, limit: int = 50) -> list[NodeSummary]: ...
     def node(self, uid: str) -> NodeDetail: ...
     def callers(self, uid: str, *, hide_noise: bool = True) -> CallerReport: ...
-        # CallerReport : count, file_count, items = [(caller, sites=[CallSite])]
+        # CallerReport: count, file_count, items = [(caller, sites=[CallSite])]
     def callees(self, uid: str, *, hide_noise: bool = True) -> CalleeReport: ...
     def children(self, uid: str, *, direction: Direction, level: Level,
                  edge_kinds: set[str] = CALL_PATH, offset: int = 0, limit: int = 50,
                  hide_noise: bool = True) -> Page[TreeItem]: ...
-        # direction : CALLERS ou CALLEES ; level : ROUTINE, FILE ou DIRECTORY
+        # direction: CALLERS or CALLEES; level: ROUTINE, FILE, or DIRECTORY
     def file_links(self, file_uid: str, *, direction: Direction) -> list[FileLink]: ...
     def call_sites(self, src_uid: str, dst_uid: str) -> list[CallSite]: ...
-        # CallSite : file, line, col, condition, origin, confidence, resolution
+        # CallSite: file, line, col, condition, origin, confidence, resolution
     def paths(self, src_uid: str, dst_uid: str, *, edge_kinds: set[str] = CALL_PATH,
               k: int = 5, max_len: int = 15) -> list[Path]: ...
-        # Path = étapes (uid, type d'arête, confiance, possible: bool) ; possible=True pour un aiguillage
+        # Path = steps (uid, edge kind, confidence, possible: bool); possible=True for dispatch
     def impact(self, uid: str, *, edge_kinds: set[str] = CALL_PATH,
                max_depth: int | None = None) -> ImpactReport: ...
-    def data_accesses(self, uid: str) -> list[DataAccessView]: ...   # avec niveau literal/symbolic/family
+    def data_accesses(self, uid: str) -> list[DataAccessView]: ...   # with literal/symbolic/family level
     def unresolved(self, *, group_by: str = "pattern", include_ambiguous: bool = False,
                    limit: int = 50) -> list[SiteGroup]: ...
     def source(self, file_uid: str, start: int, end: int) -> SourceExcerpt: ...
-        # SourceExcerpt.stale = True si le fichier sur disque a changé depuis l'analyse
+        # SourceExcerpt.stale = True if file on disk changed since analysis
     def scan_health(self) -> ScanHealth: ...
+    def default_roots(self, *, hide_noise: bool = True) -> DefaultRoots: ...
+        # deterministic detection of primary entry point (main_routine, main_file)
+    def initial_subgraph(self, root_uid: str | None = None, *, level: Level = Level.ROUTINE,
+                         max_nodes: int = 25, hide_noise: bool = True) -> SubgraphReport: ...
+        # breadth-first subgraph of first N nodes from main (or root_uid)
+    def connected_neighbors(self, uid: str, *, level: Level = Level.ROUTINE,
+                            limit: int = 50, hide_noise: bool = True) -> NeighborsReport: ...
+        # direct callers and callees of a clicked node (routine, file, or directory)
+    def paths_from_main(self, target_uid: str, *, root_uid: str | None = None,
+                        level: Level = Level.ROUTINE, max_paths: int = 4,
+                        max_len: int = 15) -> MainPathReport: ...
+        # paths from main to target_uid; fallback to shortest path if > max_paths
 ```
 
-- Toutes les listes sont **paginées** (`offset`, `limit`) et triées de façon stable.
-- Les requêtes de base (`callers`, `callees`, `children`, `file_links`) sont de simples requêtes SQL indexées sur les tables précalculées : aucune ne charge le graphe en mémoire.
-- `paths` et `impact` utilisent explicitement un ensemble de types d'arêtes (chemin d'exécution, ou dépendance de fichiers) ; ils parcourent le graphe en largeur avec des bornes (profondeur, nombre de nœuds), s'arrêtent proprement à la limite et le signalent.
-- `source` compare l'empreinte du fichier sur disque à celle de l'analyse (taille et date d'abord, puis SHA-256 si besoin) : une ligne affichée correspond toujours à la preuve qui a servi à construire le lien, ou l'interface prévient qu'elle ne correspond plus.
-- La ligne de commande et l'interface utilisent exactement cette API : ce qui est testé en ligne de commande est ce que l'interface affiche.
+- All lists are **paginated** (`offset`, `limit`) and stably sorted.
+- Basic queries (`callers`, `callees`, `children`, `file_links`, `default_roots`, `connected_neighbors`) are simple SQL queries indexed on precomputed tables: none load the graph into memory.
+- `paths`, `paths_from_main`, `initial_subgraph`, and `impact` explicitly use an edge kind set (execution path or file dependency); they traverse breadth-first with bounds (depth, node count), stopping cleanly at limit and signaling it.
+- `source` compares on-disk file fingerprint with analysis fingerprint (size and mtime first, then SHA-256 if needed): a displayed line always matches the evidence used to build the link, or UI warns that it has changed.
+- CLI and UI share this exact API: what is tested in CLI is what the UI renders.
 
-### 3.11. Application de bureau
+### 3.11. Desktop application
 
-**Fenêtre principale**
+**Main window**
 
-| Zone | Contenu |
+| Area | Content |
 | :--- | :--- |
-| Barre du haut | Choix du projet, champ de recherche, bouton « Analyser », filtres (masquer les utilitaires, confiance minimale, masquer les liens issus de l'IA, masquer les sites ambigus) |
-| Gauche | Explorateur de fichiers du dépôt (avec le langage de chaque fichier) |
-| Centre (onglets) | Inventaire · TreeGraph fonctions · TreeGraph fichiers · Liste arborescente (version texte du TreeGraph) |
-| Droite | Inspecteur de code ; en dessous, panneau Appelants (N) / Appelés (M) |
-| Barre d'état | Analyse en cours, santé de l'analyse, filtres actifs |
+| Top bar | Project picker, search box, "Analyze" button, filters (hide utilities, min confidence, hide AI links, hide ambiguous sites) |
+| Left | Repository file explorer (with language of each file) |
+| Center (tabs) | Inventory · Functions TreeGraph · Files TreeGraph · Tree list (text version of TreeGraph) |
+| Right | Code inspector; below it, Callers (N) / Callees (M) panel |
+| Status bar | Analysis in progress, analysis health, active filters |
 
-**Composants Qt**
+**Qt components**
 
-- Listes et arbres texte : `QAbstractItemModel` paresseux (`canFetchMore` / `fetchMore`) qui demande les enfants par pages de 50 à `GraphQuery.children`.
-- TreeGraph : `QGraphicsView` + `QGraphicsScene` ; un `NodeItem` par nœud, un `EdgeItem` par lien ; la mise en page est calculée par `layout/` dans un thread, puis appliquée.
-- Inspecteur : `QPlainTextEdit` en lecture seule + `QSyntaxHighlighter` par langage (règles fournies par l'adaptateur ; pour un profil de mots-clés, coloration de ses mots-clés). Si `SourceExcerpt.stale` est vrai : bandeau « Ce fichier a changé depuis l'analyse » et bouton « Ré-analyser ».
-- Vue d'un chemin : chaque étape affiche son type (appel, pont, aiguillage) ; les étapes d'aiguillage sont marquées « possible ».
-- Travaux en arrière-plan : `QThreadPool` pour les requêtes ; `QProcess` pour l'inventaire, l'analyse et l'IA.
-- Réglages : `QSettings` au format INI, dans le dossier de données (§3.14).
+- Text lists and trees: lazy `QAbstractItemModel` (`canFetchMore` / `fetchMore`) requesting children in pages of 50 from `GraphQuery.children`.
+- TreeGraph: `QGraphicsView` + `QGraphicsScene`; one `NodeItem` per node, one directed `EdgeItem` with arrow (`caller ──► callee`) per link; auto-start on first $N$ nodes from `main`; click on a node to reveal all its connected neighbors (callers and callees) or filter only paths to `main` (shortest path if multiple paths exceed limit).
+- Inspector: read-only `QPlainTextEdit` + per-language `QSyntaxHighlighter` (rules provided by adapter; for keyword profile, keywords highlighted). If `SourceExcerpt.stale` is true: banner "This file has changed since analysis" and "Re-analyze" button.
+- Path view: each step displays its type (call, bridge, dispatch); dispatch steps are flagged "possible".
+- Background tasks: `QThreadPool` for queries; `QProcess` for inventory, analysis, and AI.
+- Settings: `QSettings` in INI format, in the data folder (§3.14).
 
-**Parcours à l'ouverture d'un dossier :** inventaire → affichage des langages et de leur couverture → si des éléments manquent et que l'IA est disponible, proposition « Compléter avec l'IA » → analyse → recherche d'une routine → panneau Appelants rempli automatiquement → clic sur un appelant → inspecteur positionné sur la ligne de l'appel → « Ouvrir dans le TreeGraph ».
+**Workflow when opening a folder:** inventory → display languages and their coverage → if elements are missing and AI is available, prompt "Complete with AI" → analysis → auto-detection of `main` and display of first $N$ nodes in `Functions TreeGraph` and `Files TreeGraph` → click on node → open connected nodes (or path to `main`) and position inspector.
 
-### 3.12. Stratégies d'allègement graphique (CPU seul)
+### 3.12. Graphical performance strategies (CPU only)
 
-1. **Jamais le graphe entier dans l'interface :** uniquement ce qui est affiché, demandé à la base.
-2. **Précalculs pendant l'analyse :** nombres d'appelants et d'appelés (bruts et filtrés), taille d'impact, liens entre fichiers et entre répertoires (`file_edges`, `dir_edges`).
-3. **Pagination :** 50 enfants par dépliage ; au-delà, un nœud « +N autres » qui se déplie à la demande.
-4. **Plafond de nœuds dessinés** (300 par défaut) : au-delà, l'application propose de passer au niveau fichier ou répertoire.
-5. **Niveaux d'agrégation :** répertoire → fichier → routine ; on descend d'un niveau par double-clic.
-6. **Hubs et familles de données masqués par défaut** dans les TreeGraph, avec badge « +N ».
-7. **Mise en page en arbre** (algorithme linéaire, déterministe), calculée dans un thread et mise en cache ; les nœuds déjà placés ne bougent pas lors d'un dépliage.
-8. **Niveau de détail selon le zoom :** sous un seuil, les étiquettes ne sont plus dessinées et les nœuds deviennent de simples rectangles.
-9. **Rendu sobre sur les grandes vues :** pas d'anticrénelage au-delà de 200 éléments, arêtes en segments droits, cache de rendu des éléments (`ItemCoordinateCache`).
-10. **Analyse discrète :** processus d'analyse en priorité basse, nombre de processus de travail = cœurs − 1, faits écrits dans la base au fil de l'eau.
-11. **Analyse partielle :** possibilité de limiter l'analyse détaillée à certains répertoires (§3.3).
+1. **Never the whole graph in UI:** only what is displayed, fetched from database.
+2. **Precomputations during analysis:** caller/callee counts (raw and filtered), impact size, file and directory links (`file_edges`, `dir_edges`).
+3. **Pagination:** 50 children per expansion; beyond that, a "+N more" node expanding on demand.
+4. **Rendered node ceiling** (300 by default): beyond that, UI proposes switching to file or directory level.
+5. **Aggregation levels:** directory → file → routine; step down one level via double-click.
+6. **Hubs and data families hidden by default** in TreeGraphs, with "+N" badge.
+7. **Tree layout** (linear, deterministic algorithm), computed in a thread and cached; existing nodes do not move upon expansion.
+8. **Level of detail based on zoom:** below a threshold, labels are omitted and nodes become simple rectangles.
+9. **Lightweight rendering on large views:** no antialiasing beyond 200 items, straight segment edges, element render cache (`ItemCoordinateCache`).
+10. **Unobtrusive analysis:** analysis process at low priority, worker count = cores − 1, facts streamed to database.
+11. **Partial analysis:** ability to restrict detailed analysis to specific directories (§3.3).
 
-### 3.13. IA locale (extension Pro)
+### 3.13. Local AI (Pro extension)
 
-**Exécution :** sous-processus `cgs ai-worker` qui charge un modèle GGUF avec `llama-cpp-python`, sur CPU (threads = cœurs − 1), avec un contexte de 4 à 8 k tokens. Dialogue en JSON sur l'entrée et la sortie standard ; réponses envoyées au fil de l'eau ; température nulle et graine fixe. La bibliothèque d'inférence choisit au démarrage les instructions disponibles sur le processeur (§2.2).
+**Execution:** `cgs ai-worker` subprocess loading a GGUF model with `llama-cpp-python`, on CPU (threads = cores − 1), with 4 to 8k token context. JSON communication over stdin/stdout; streamed responses; zero temperature and fixed seed. Inference library selects CPU instruction set dynamically at startup (§2.2).
 
-**Modèles :** uniquement sous licence Apache 2.0 ou MIT, listés dans `models.lock` (fichier, empreinte SHA-256, licence). Candidats de départ pour CPU : Qwen2.5-Coder-1.5B-Instruct (Apache 2.0) et Phi-4-mini-instruct (MIT), quantifiés en Q4. Le choix final se fait sur le banc d'évaluation du lot 13.
+**Models:** strictly Apache 2.0 or MIT licensed, listed in `models.lock` (file, SHA-256, license). Initial CPU candidates: Qwen2.5-Coder-1.5B-Instruct (Apache 2.0) and Phi-4-mini-instruct (MIT), Q4 quantized. Final choice decided on Lot 13 benchmark.
 
-**Rôle 1 — Identifier les langages inconnus (lot 13)**
+**Role 1 — Identify unknown languages (Lot 13)**
 
-- Entrée, par groupe de fichiers non reconnus : extension, nombre de fichiers, début de trois fichiers, liste des langages déjà couverts.
-- Sortie (contrainte par le schéma) : nom du langage, adaptateur existant à utiliser, ou demande de profil de mots-clés ; justification courte.
-- Contrôle automatique : si un adaptateur existant est proposé, il doit lire les fichiers d'exemple sans erreur et y trouver des définitions.
+- Input, per group of unrecognized files: extension, file count, start of three sample files, list of already covered languages.
+- Output (schema-constrained): language name, existing adapter to use, or keyword profile request; short rationale.
+- Automated check: if an existing adapter is proposed, it must parse sample files without error and find definitions.
 
-**Rôle 2 — Définir les mots-clés manquants (lot 13)**
+**Role 2 — Define missing keywords (Lot 13)**
 
-La boucle de complétion :
+The completion loop:
 
-1. Une première analyse est faite avec le profil courant.
-2. Le diagnostic (`GraphQuery.unresolved`, `scan_health`) résume ce qui manque, de façon déterministe : langages sans adaptateur ; sites non résolus regroupés par motif (même préfixe, même langage source, mêmes fichiers), avec quelques lignes de code d'exemple ; fichiers sans aucune définition trouvée.
-3. L'IA reçoit ce résumé (et, s'il existe, le document technique fourni par l'utilisateur) et remplit un gabarit : profil de langage par mots-clés (§3.9) ou règle de liaison (format `bridges`, §3.8).
-4. **Contrôles automatiques**, en rejouant les étapes Link à Index sur les faits déjà extraits (rapide) :
+1. Initial analysis performed with current profile.
+2. Diagnostic (`GraphQuery.unresolved`, `scan_health`) deterministically summarizes gaps: languages without adapter; unresolved sites grouped by pattern (same prefix, same source language, same files), with sample code lines; files with zero definitions found.
+3. AI receives this summary (and user-provided technical document if present) and fills a template: keyword language profile (§3.9) or bridge rule (`bridges` format, §3.8).
+4. **Automated checks**, replaying Link through Index steps on already-extracted facts (fast):
 
-| Contrôle | Seuil (réglable) |
+| Check | Threshold (configurable) |
 | :--- | :--- |
-| Fichier conforme au schéma | Obligatoire |
-| Gain : sites non résolus du groupe visé désormais résolus | ≥ 50 % |
-| Pas d'explosion : nouveaux sites par ligne de code | Sous un plafond fixé |
-| Pas de régression : arêtes existantes inchangées, fixtures toujours au vert | Obligatoire |
-| Cibles plausibles : nouveaux sites vers des définitions existantes | ≥ 90 % |
-| Stabilité : mêmes taux sur un second échantillon de fichiers | Écart < 10 points |
-| Tests négatifs : la règle ne s'applique pas aux exemples qui ressemblent au motif sans en être | Obligatoire |
+| File conforms to schema | Mandatory |
+| Gain: targeted unresolved sites now resolved | ≥ 50% |
+| No explosion: new sites per line of code | Below fixed ceiling |
+| No regression: existing edges unchanged, fixtures stay green | Mandatory |
+| Plausible targets: new sites point to existing definitions | ≥ 90% |
+| Stability: similar rates on a second file sample | Difference < 10 points |
+| Negative tests: rule does not match examples resembling pattern without being it | Mandatory |
 
 5. **Adoption**
-   - **Mode par défaut — validation en un clic :** l'interface montre l'aperçu des changements (nombre de liens ajoutés et retirés, avec quelques exemples dans le code) ; l'utilisateur approuve ou refuse.
-   - **Mode automatique**, activable par projet : adoption dès que les contrôles passent, liens marqués « IA ».
-   - Le mode automatique ne devient le réglage par défaut que si le banc d'évaluation montre, sur des corpus de référence, une précision des règles adoptées d'au moins 98 % (borne basse ≥ 95 %).
-   - Une proposition qui échoue aux contrôles est **rejetée**, avec la raison affichée.
-6. Au plus 3 itérations ; la boucle s'arrête aussi quand plus rien ne progresse.
-7. L'analyse finale est relancée avec le profil validé : elle est déterministe.
+   - **Default mode — one-click validation:** UI presents a change preview (count of added/removed links, with code excerpts); user approves or rejects.
+   - **Automatic mode**, configurable per project: adoption upon passing checks, links tagged "AI".
+   - Automatic mode only becomes default if benchmark demonstrates, on reference corpora, adopted rule precision of at least 98% (lower bound ≥ 95%).
+   - A proposal failing checks is **rejected**, with failure reason displayed.
+6. At most 3 iterations; loop terminates when progress halts.
+7. Final analysis runs with validated profile: it is deterministic.
 
-**Rôle 3 — Expliquer (lot 15)**
+**Role 3 — Explain (Lot 15)**
 
-- Contexte assemblé de façon déterministe, dans un budget de tokens : code de la routine, liste des appelants, résumés des appelés, données lues ou écrites, glossaire du pack.
-- Citations obligatoires (`[f:assemble_matrix L120]`) ; l'interface vérifie que chaque identifiant cité existe et signale ceux qui n'existent pas.
-- Les chiffres (nombre d'appelants, impact) viennent toujours des requêtes, jamais du modèle.
-- Résumés précalculés des feuilles vers la racine, en tâche de fond, mis en cache par empreinte du code.
+- Deterministically assembled context within token budget: routine code, callers list, callee summaries, read/written data, pack glossary.
+- Mandatory citations (`[f:assemble_matrix L120]`); UI verifies that every cited identifier exists and flags invalid citations.
+- Numbers (caller count, impact) always come from queries, never from the model.
+- Precomputed summaries bottom-up from leaves to root in background, cached by code fingerprint.
 
-**Tests :** un **modèle factice** (réponses enregistrées) permet de tester toute la chaîne en intégration continue, de façon déterministe ; le vrai modèle est testé sur la machine de développement, sur le banc d'évaluation.
+**Tests:** a **mock model** (recorded responses) tests the full pipeline in CI deterministically; real model runs on development machines for benchmarking.
 
-### 3.14. Version portable (clé USB)
+### 3.14. Portable version (USB drive)
 
 ```text
-CodeGraph-Sci-1.0-linux-x86_64/          (ou -windows-x64)
-├── CodeGraph-Sci                         application de bureau (CodeGraph-Sci.exe sous Windows)
-├── cgs                                   ligne de commande (cgs.exe sous Windows)
-├── _internal/                            Python embarqué, Qt, bibliothèques
-├── packs/                                packs installés (rules.yaml)
-├── models/                               édition IA : modèle .gguf + sa licence + provenance.json
-├── licenses/                             licences et avis de tous les composants, offre de sources LGPL
-├── data/                                 projets et réglages (mode portable)
-└── LISEZ-MOI.txt
+CodeGraph-Sci-1.0-linux-x86_64/          (or -windows-x64)
+├── CodeGraph-Sci                         desktop application (CodeGraph-Sci.exe on Windows)
+├── cgs                                   CLI (cgs.exe on Windows)
+├── _internal/                            embedded Python, Qt, libraries
+├── packs/                                installed packs (rules.yaml)
+├── models/                               AI edition: .gguf model + license + provenance.json
+├── licenses/                             licenses & notices of all components, LGPL source offer
+├── data/                                 projects and settings (portable mode)
+└── README.txt
 ```
 
-- **Deux éditions :** sans IA (environ 300 Mo, à mesurer au lot 0) et avec IA (1 à 3 Go de plus selon le modèle).
-- **Deux exécutables** partageant le même dossier `_internal/`, produits par une seule spécification PyInstaller : l'application de bureau et la ligne de commande.
-- **Emplacement des données :** par défaut sur le disque local (`~/.codegraph-sci/` sous Linux, `%LOCALAPPDATA%\CodeGraph-Sci\` sous Windows), car une base SQLite est lente sur clé USB. Option « mode portable » qui écrit dans `data/`, à côté de l'application.
-- **Construction :** `tools/build_portable.py` (PyInstaller) produit le dossier, une archive et son empreinte SHA-256. Linux : conteneur à glibc 2.28 (§2.2) ; Windows : machine Windows de l'intégration continue. Le réseau n'est utilisé qu'au moment de la construction ; le dossier final ne fait aucun accès réseau.
-- **Modèle inclus :** l'édition IA contient le fichier du modèle et le texte de sa licence, comme l'exigent Apache 2.0 et MIT (§7).
+- **Two editions:** without AI (~300 MB, measured in Lot 0) and with AI (1 to 3 GB additional depending on model).
+- **Two executables** sharing the same `_internal/` directory, produced by a single PyInstaller spec: desktop app and CLI.
+- **Data location:** default on local disk (`~/.codegraph-sci/` on Linux, `%LOCALAPPDATA%\CodeGraph-Sci\` on Windows) because SQLite is slow on USB drives. "Portable mode" option writes to `data/` next to the app.
+- **Build:** `tools/build_portable.py` (PyInstaller) produces the directory, archive, and SHA-256 hash. Linux: glibc 2.28 container (§2.2); Windows: CI Windows runner. Network is only used at build time; finished folder makes zero network access.
+- **Bundled model:** AI edition contains model file and license text, as required by Apache 2.0 and MIT (§7).
 
-### 3.15. Choix techniques et dépendances
+### 3.15. Technical choices and dependencies
 
-| Composant | Usage | Licence |
+| Component | Usage | License |
 | :--- | :--- | :--- |
-| Python 3.12 | Langage unique de l'application | PSF |
-| PySide6 (Qt 6) | Interface de bureau | LGPL-3.0 (obligations détaillées au §7) |
-| py-tree-sitter + grammaires Fortran, C, C++, Python | Parseurs (Python 2 : repli sur la grammaire tree-sitter) | MIT (roue `tree-sitter-fortran` à vérifier ; sinon `tree-sitter-language-pack` ou compilation à la construction) |
-| `ast` (bibliothèque standard) | Parseur Python 3 | PSF |
-| sqlite3 + FTS5, `zlib`, `json` (bibliothèque standard) | Base du projet, recherche plein texte, cache compressé | Domaine public / PSF |
-| Algorithmes de graphe maison (`algo/`) | Tarjan itératif, condensation, ensembles de bits, parcours bornés | — (code du projet ; NetworkX n'est plus nécessaire) |
-| PyYAML (`safe_load` uniquement), jsonschema | Profils, packs et leur validation stricte | MIT |
-| fparser, LFortran *(candidats du banc Fortran, lot 4)* | Parseurs Fortran alternatifs | BSD-3 |
-| fxtran *(hors distribution par défaut)* | Parseur Fortran, seulement en outil externe après revue de licence | GPL-3.0 |
-| PyInstaller | Construction du dossier portable | GPL-2.0 avec exception autorisant la distribution d'applications propriétaires |
-| llama-cpp-python *(lot 13)* | Exécution du modèle sur CPU | MIT |
-| pypdf *(lot 13)* | Lecture des documents techniques fournis | BSD-3 |
-| cryptography *(lot 16)* | Clés de licence Ed25519 | Apache-2.0 / BSD |
-| pytest, pytest-qt, pytest-socket, hypothesis, ruff, mypy, import-linter | Développement et tests | MIT / BSD / MPL-2.0 (hypothesis) |
+| Python 3.12 | Sole application language | PSF |
+| PySide6 (Qt 6) | Desktop UI | LGPL-3.0 (obligations detailed in §7) |
+| py-tree-sitter + Fortran, C, C++, Python grammars | Parsers (Python 2: fallback to tree-sitter grammar) | MIT (`tree-sitter-fortran` wheel verified; otherwise `tree-sitter-language-pack` or build at packaging) |
+| `ast` (standard library) | Python 3 parser | PSF |
+| sqlite3 + FTS5, `zlib`, `json` (standard library) | Project DB, full-text search, compressed cache | Public domain / PSF |
+| In-house graph algorithms (`algo/`) | Iterative Tarjan, condensation, bitsets, bounded traversals | — (project code; NetworkX no longer needed) |
+| PyYAML (`safe_load` only), jsonschema | Profiles, packs, and strict validation | MIT |
+| fparser, LFortran *(Fortran benchmark candidates, Lot 4)* | Alternative Fortran parsers | BSD-3 |
+| fxtran *(excluded from default distribution)* | Fortran parser, external tool only after license review | GPL-3.0 |
+| PyInstaller | Portable folder bundling | GPL-2.0 with exception allowing proprietary distribution |
+| llama-cpp-python *(Lot 13)* | CPU model execution | MIT |
+| pypdf *(Lot 13)* | Parsing user-supplied technical docs | BSD-3 |
+| cryptography *(Lot 16)* | Ed25519 license keys | Apache-2.0 / BSD |
+| pytest, pytest-qt, pytest-socket, hypothesis, ruff, mypy, import-linter | Development and testing | MIT / BSD / MPL-2.0 (hypothesis) |
 
-Toute nouvelle dépendance passe par cette liste et par le contrôle de licences (lot 16).
+Every new dependency must be vetted through this list and through license audit (Lot 16).
 
-### 3.16. Structure du dépôt
+### 3.16. Repository structure
 
 ```text
-codegraph-sci/                         dépôt de développement (privé jusqu'à la publication)
-├── AGENTS.md                          consignes pour l'agent (Annexe C)
+codegraph-sci/                         development repo (private until release)
+├── AGENTS.md                          agent guidelines (Appendix C)
 ├── CHANGELOG.md
 ├── pyproject.toml
-├── requirements.lock                  dépendances épinglées avec empreintes
-├── models.lock                        modèles autorisés (Apache 2.0 / MIT)
+├── requirements.lock                  pinned dependencies with hashes
+├── models.lock                        approved models (Apache 2.0 / MIT)
 ├── docs/
-│   ├── architecture.md                ce document
+│   ├── architecture.md                this document
 │   ├── strategie_licence.md
-│   └── packs/<code>.md                un fichier par code analysé
+│   └── packs/<code>.md                one file per analyzed codebase
 ├── src/
-│   ├── codegraph_sci/                 cœur (publié sous PolyForm NC)
+│   ├── codegraph_sci/                 core (released under PolyForm NC)
 │   │   ├── core/
 │   │   ├── algo/                      tarjan.py, closure.py, paths.py
-│   │   ├── inventory/                 extensions.yaml, signatures, contexte, profil
+│   │   ├── inventory/                 extensions.yaml, signatures, context, profile
 │   │   ├── extract/                   fortran/  python/  c/  cpp/  keywords/
 │   │   ├── link/                      symbols.py, bridges/
-│   │   ├── enrich/                    moteur de packs, schemas/, generic_noise/, generic_fortran/
+│   │   ├── enrich/                    pack engine, schemas/, generic_noise/, generic_fortran/
 │   │   ├── store/                     schema.sql, writer.py, reader.py, cache.py
 │   │   ├── query/
 │   │   ├── layout/
@@ -827,21 +839,21 @@ codegraph-sci/                         dépôt de développement (privé jusqu'�
 │   │   ├── scan.py
 │   │   ├── cli.py
 │   │   └── ui/                        app.py, main_window.py, models/, views/, workers.py
-│   └── codegraph_sci_pro/             extensions Pro (dépôt privé à terme)
+│   └── codegraph_sci_pro/             Pro extensions (eventually private repo)
 │       ├── packs/<code>/
 │       ├── ai/                        worker.py, identify.py, complete.py, explain.py, prompts/
 │       └── license/
 ├── tests/
 │   ├── unit/
-│   ├── fixtures/<nom>/                src/ + expected_inventory.json + expected_graph.json
+│   ├── fixtures/<name>/               src/ + expected_inventory.json + expected_graph.json
 │   ├── synthetic/generate.py
 │   ├── corpus/<code>/                 manifest.yaml + expectations.yaml + reference_sample.yaml
-│   ├── ai/                            réponses enregistrées du modèle factice
-│   ├── robustness/                    fichiers malformés, chemins difficiles, fuzzing
+│   ├── ai/                            recorded mock model responses
+│   ├── robustness/                    malformed files, difficult paths, fuzzing
 │   ├── ui/                            pytest-qt
-│   └── portable/                      contrôles du dossier portable (réseau, ports, glibc)
+│   └── portable/                      portable folder checks (network, ports, glibc)
 ├── tools/
-│   ├── check.py                       ruff + mypy + import-linter + pytest (réseau bloqué)
+│   ├── check.py                       ruff + mypy + import-linter + pytest (network blocked)
 │   └── build_portable.py
 └── packaging/
     ├── codegraph_sci.spec
@@ -851,222 +863,222 @@ codegraph-sci/                         dépôt de développement (privé jusqu'�
 
 ---
 
-## 4. Plan de réalisation par lots
+## 4. Implementation plan by lots
 
-### 4.0. Mode d'emploi
+### 4.0. Usage instructions
 
-**Règles communes à tous les lots (« définition de terminé »)**
+**Rules common to all lots ("Definition of Done")**
 
-- Les tests du lot passent, ainsi que `python tools/check.py` (ruff, mypy strict, import-linter, pytest avec réseau bloqué par pytest-socket).
-- Aucune dépendance hors de la liste du §3.15 ; aucun accès réseau ; aucun identifiant propre à un code analysé dans le cœur.
-- Si un contrat (§3.5 à §3.10) change, ce document est mis à jour dans le même lot.
-- Une ligne est ajoutée au `CHANGELOG.md`.
+- Lot tests pass, as does `python tools/check.py` (ruff, mypy strict, import-linter, pytest with network blocked via pytest-socket).
+- No dependencies outside §3.15 list; no network access; no codebase-specific identifiers in core.
+- If a contract (§3.5 to §3.10) changes, this document is updated in the same lot.
+- An entry is added to `CHANGELOG.md`.
 
-**Consigne type à donner à l'agent de développement**
+**Standard prompt to give to developer agent**
 
 ```text
-Lis AGENTS.md, puis docs/architecture.md (§3 et le lot N du §4).
-Réalise uniquement le lot N « <titre> ».
-Respecte les contrats des §3.5 à §3.10 et les règles de dépendance du §3.4.
-Le lot est terminé quand ses tests de validation et `python tools/check.py` passent.
-Ne commence pas le lot suivant.
+Read AGENTS.md, then docs/architecture.md (§3 and Lot N in §4).
+Implement only Lot N "<title>".
+Respect contracts from §3.5 to §3.10 and dependency rules from §3.4.
+The lot is done when its validation tests and python tools/check.py pass.
+Do not start the next lot.
 ```
 
-### Lot 0 — Squelette portable
+### Lot 0 — Portable skeleton
 
-- **Objectif :** lever le verrou V2 avant toute fonctionnalité.
-- **À produire :** structure du dépôt (§3.16), `pyproject.toml`, `tools/check.py`, contrats `import-linter` ; commandes `cgs --version` et `cgs selftest` ; fenêtre PySide6 vide avec « À propos » ; `tools/build_portable.py`, spécification PyInstaller à deux exécutables, conteneur de construction Linux à glibc 2.28 ; intégration continue Linux + Windows.
-- **`cgs selftest` vérifie :** chargement de Qt, d'une grammaire tree-sitter, de SQLite avec FTS5 ; écriture dans le dossier de données ; jeux d'instructions du processeur ; absence de tout accès réseau.
-- **Tests de validation :** `tools/check.py` passe ; le dossier construit, copié sur une clé USB, démarre sur une machine (ou machine virtuelle) **sans réseau** sous Ubuntu 22.04, Ubuntu 24.04 et Windows 10/11 (et, si possible, Rocky Linux 8) ; `cgs selftest` passe dans tous les cas ; sous Linux, l'application démarre dans un espace de noms sans réseau (`unshare -n`).
-- **Dépend de :** —.
+- **Objective:** resolve Bottleneck V2 before any functional feature.
+- **Deliverables:** repo structure (§3.16), `pyproject.toml`, `tools/check.py`, `import-linter` contracts; `cgs --version` and `cgs selftest` commands; blank PySide6 window with "About"; `tools/build_portable.py`, two-executable PyInstaller spec, glibc 2.28 Linux build container; Linux + Windows CI.
+- **`cgs selftest` verifies:** loading Qt, a tree-sitter grammar, SQLite with FTS5; writing into data folder; CPU instruction sets; absence of any network access.
+- **Validation tests:** `tools/check.py` passes; built folder, copied to USB drive, boots on a clean machine (or VM) **without network** on Ubuntu 22.04, Ubuntu 24.04, and Windows 10/11 (and Rocky Linux 8 if available); `cgs selftest` passes in all environments; on Linux, app runs in a networkless namespace (`unshare -n`).
+- **Depends on:** —.
 
-### Lot 1 — Modèle de données et stockage
+### Lot 1 — Data model and storage
 
-- **Objectif :** le format commun à tout le reste.
-- **À produire :** `core/` (identités du §3.5, faits du §3.7, type du profil d'analyse, numéros de version) ; `store/` (schéma du §3.6 avec `call_sites`, écriture groupée dans un fichier temporaire puis remplacement atomique, index créés à la fin, mode WAL pour l'incrémental, cache JSON compressé) ; export canonique en JSON trié (`cgs export json`).
-- **Tests de validation :** aller-retour faits → base → export sans perte ; deux écritures des mêmes faits donnent un export identique ; une analyse interrompue ne laisse jamais une base à moitié écrite ; refus propre d'une base de version inconnue ; écriture d'un million de sites synthétiques dans le temps cible (mesuré et consigné).
-- **Dépend de :** lot 0.
+- **Objective:** shared format for all subsequent work.
+- **Deliverables:** `core/` (identities from §3.5, facts from §3.7, analysis profile type, version numbers); `store/` (§3.6 schema with `call_sites`, bulk inserts to temp file followed by atomic rename, deferred index creation, WAL mode for incremental, compressed JSON cache); canonical sorted JSON export (`cgs export json`).
+- **Validation tests:** lossless roundtrip facts → DB → export; two writes of identical facts produce identical export; interrupted analysis leaves no half-written DB; clean rejection of unknown DB version; writing 1 million synthetic sites within target time (measured and logged).
+- **Depends on:** Lot 0.
 
-### Lot 2 — Inventaire des langages et profil d'analyse
+### Lot 2 — Language inventory and analysis profile
 
-- **Objectif :** savoir, avant toute analyse, quels langages contient le dépôt et lesquels sont couverts.
-- **À produire :** `inventory/` (§3.2) : parcours du dépôt, détection des binaires, table des extensions configurable, signatures de contenu, règles de contexte (`.h`, `.inc`), chemins d'inclusion, regroupement des fichiers non reconnus, rapport de couverture ; lecture et écriture de `analysis_profile.yaml` (chargement sûr, schéma strict) ; commande `cgs inventory <dossier>` (tableau ou JSON) ; fixture `inventory_mixed` (§5.2).
-- **Tests de validation :** sur `inventory_mixed`, chaque fichier reçoit exactement le langage et la variante attendus (y compris `.h` en C et en C++, `.inc` Fortran, fichier sans extension avec ligne `#!`, fichier binaire ignoré, extension inconnue regroupée, lien symbolique en boucle signalé) ; deux inventaires du même dépôt donnent le même profil ; inventaire du dépôt synthétique (§5.3) en moins d'une minute.
-- **Dépend de :** lot 1.
+- **Objective:** determine, prior to analysis, languages present in repo and which are covered.
+- **Deliverables:** `inventory/` (§3.2): repo traversal, binary detection, configurable extension table, content signatures, context rules (`.h`, `.inc`), include paths, unrecognized file grouping, coverage report; `analysis_profile.yaml` read/write (safe loading, strict schema); `cgs inventory <folder>` command (table or JSON); `inventory_mixed` fixture (§5.2).
+- **Validation tests:** on `inventory_mixed`, every file receives expected language and variant (including `.h` in C and C++, Fortran `.inc`, extensionless file with `#!`, ignored binary file, grouped unknown extension, flagged symlink loop); two inventories of same repo produce identical profile; inventory of synthetic repo (§5.3) runs in under 1 minute.
+- **Depends on:** Lot 1.
 
-### Lot 3 — Mini-codes de référence (avant les extracteurs)
+### Lot 3 — Reference mini-codebases (before extractors)
 
-- **Objectif :** écrire les réponses attendues avant le code qui doit les trouver, pour les quatre langages et leur mélange.
-- **À produire :** les fixtures du §5.2 marquées « lot 3 », chacune avec `src/`, `expected_inventory.json` et `expected_graph.json` (sites d'appel compris) écrits à la main ; générateur de dépôt synthétique multi-langages (§5.3).
-- **Tests de validation :** chaque fichier attendu respecte son schéma ; l'inventaire (lot 2) de chaque fixture correspond à `expected_inventory.json` ; le générateur produit le même dépôt pour la même graine.
-- **Dépend de :** lot 2.
+- **Objective:** author expected answers before writing code that extracts them, for all four languages and their combinations.
+- **Deliverables:** fixtures from §5.2 marked "Lot 3", each with hand-written `src/`, `expected_inventory.json`, and `expected_graph.json` (including call sites); multi-language synthetic repo generator (§5.3).
+- **Validation tests:** every expected file complies with its schema; inventory (Lot 2) of each fixture matches `expected_inventory.json`; generator outputs identical repo for identical seed.
+- **Depends on:** Lot 2.
 
-### Lot 4 — Adaptateur Fortran
+### Lot 4 — Fortran adapter
 
-- **Objectif :** produire les faits d'un fichier Fortran.
-- **À produire :**
-  - d'abord un **banc comparatif** des parseurs Fortran sous licence permissive (tree-sitter-fortran, fparser, LFortran) sur les fixtures et sur un échantillon de fichiers réels du cas de test (format fixe, préprocesseur compris) : taux d'échec, temps, exactitude des définitions et des sites ; le parseur principal est choisi d'après ce banc et le choix consigné au §8 ;
-  - puis `extract/fortran/` : décodage (UTF-8, sinon Latin-1, consigné) ; formats fixe et libre ; préprocesseur (branches `#ifdef` conservées avec leur condition, `#include` résolus par les chemins d'inclusion) ; **symboles locaux** de chaque routine (tableaux, arguments, `EXTERNAL`, `COMMON`, déclarations des fichiers inclus) ; règle `nom(...)` du §3.7 avec la liste des fonctions intrinsèques ; **extracteur à motifs indépendant**, utilisé en repli et pour la double extraction ; délai maximal par fichier.
-- **Tests de validation :** pour chaque fixture Fortran, les faits produits correspondent exactement aux attendus (définitions, symboles locaux, sites, lignes, colonnes, conditions) ; dans `fortran_arrays_includes`, aucun tableau déclaré dans un fichier inclus ou un `COMMON` ne produit de site d'appel, et les intrinsèques sont classées `external` ; un fichier volontairement illisible bascule sur le repli sans interrompre l'analyse ; le rapport du banc est consigné.
-- **Dépend de :** lot 3.
+- **Objective:** produce facts for a Fortran file.
+- **Deliverables:**
+  - first, a **comparative benchmark** of permissive-license Fortran parsers (tree-sitter-fortran, fparser, LFortran) on fixtures and sample real files from test case (fixed-form, preprocessor included): failure rate, runtime, definition and site accuracy; main parser selected based on benchmark, recorded in §8;
+  - then `extract/fortran/`: decoding (UTF-8, fallback Latin-1, logged); fixed and free formats; preprocessor (`#ifdef` branches kept with conditions, `#include` resolved via include paths); **local symbols** of each routine (arrays, arguments, `EXTERNAL`, `COMMON`, included file declarations); `name(...)` rule from §3.7 with intrinsic function list; **independent pattern extractor**, used for fallback and dual extraction; per-file timeout.
+- **Validation tests:** for each Fortran fixture, produced facts exactly match expected (definitions, local symbols, sites, lines, columns, conditions); in `fortran_arrays_includes`, no array declared in an include file or `COMMON` yields a call site, and intrinsics are marked `external`; intentionally unreadable file triggers fallback without interrupting analysis; benchmark report recorded.
+- **Depends on:** Lot 3.
 
-### Lot 5 — Adaptateurs Python, C et C++
+### Lot 5 — Python, C, and C++ adapters
 
-- **Objectif :** couvrir les autres langages du premier cas de test.
-- **À produire :** `extract/python/` (`ast` pour Python 3, repli tree-sitter pour Python 2 ou les fichiers invalides) ; `extract/c/` et `extract/cpp/` (tree-sitter, expansion partielle des macros, extracteur à motifs de repli) ; identités du §3.5 (signatures C++, fonctions `static` qualifiées par fichier) ; candidats multiples pour les appels de surcharges non tranchables.
-- **Tests de validation :** pour chaque fixture Python, C et C++, les faits produits correspondent exactement aux attendus ; dans `cpp_overloads`, deux surcharges ont deux identités distinctes et un appel non tranchable produit un site `ambiguous` avec ses deux candidats ; deux fonctions `static` homonymes restent distinctes ; un fichier Python 2 est lu par le repli et signalé.
-- **Dépend de :** lot 3.
+- **Objective:** cover remaining languages of initial test case.
+- **Deliverables:** `extract/python/` (`ast` for Python 3, tree-sitter fallback for Python 2 or invalid files); `extract/c/` and `extract/cpp/` (tree-sitter, partial macro expansion, fallback pattern extractor); identities from §3.5 (C++ signatures, file-qualified `static` functions); multiple candidates for indistinguishable overload calls.
+- **Validation tests:** for each Python, C, and C++ fixture, produced facts match expected exactly; in `cpp_overloads`, two overloads have distinct identities and an ambiguous call yields an `ambiguous` site with both candidates; homonymous `static` functions remain distinct; a Python 2 file parses via fallback and is flagged.
+- **Depends on:** Lot 3.
 
-### Lot 6 — Link, Index et commande `cgs scan`
+### Lot 6 — Link, Index, and `cgs scan` command
 
-- **Objectif :** passer d'un dossier de code multi-langages à une base complète.
-- **À produire :** `link/` (table de symboles par langage — insensible à la casse pour le Fortran —, résolution des sites, tranchage des `maybe_call`, interfaces génériques, symboles externes et intrinsèques, index léger des définitions hors périmètre et état `out_of_scope`) ; `algo/` (Tarjan itératif, condensation, taille d'impact par ensembles de bits, parcours bornés) ; étape Index (arêtes agrégées, `node_stats`, `file_edges`, `dir_edges`, FTS5) ; `scan.py` (lecture du profil, parallélisme, délai par fichier, cache avec clé incluant les fichiers inclus, progression en JSON) ; commande `cgs scan <dossier>`.
-- **Tests de validation :** chaque fixture, y compris `mini_hybrid` sans les ponts, donne un graphe et des sites exactement égaux à son `expected_graph.json` ; deux analyses successives donnent un export identique ; une ré-analyse sans modification ne ré-extrait aucun fichier ; modifier un fichier n'en fait ré-extraire qu'un, **modifier un fichier inclus fait ré-extraire tous ceux qui l'incluent** ; `partial_scope` : les appels vers l'extérieur du périmètre sont `out_of_scope`, pas `unresolved` ; `robustness` : aucun fichier ne bloque l'analyse ; le dépôt synthétique est analysé dans le temps cible (§1.3), et la taille d'impact calculée sur 15 000 routines dans un temps et une mémoire consignés.
-- **Dépend de :** lots 4 et 5.
+- **Objective:** transform a multi-language codebase folder into a complete database.
+- **Deliverables:** `link/` (per-language symbol table — case-insensitive for Fortran —, site resolution, `maybe_call` decision, generic interfaces, external and intrinsic symbols, lightweight out-of-scope definition index and `out_of_scope` state); `algo/` (iterative Tarjan, condensation, bitset impact size, bounded traversals); Index step (aggregated edges, `node_stats`, `file_edges`, `dir_edges`, FTS5); `scan.py` (profile reading, parallelism, per-file timeout, cache key incorporating included files, JSON progress); `cgs scan <folder>` command.
+- **Validation tests:** each fixture, including `mini_hybrid` without bridges, produces a graph and sites identical to `expected_graph.json`; consecutive runs produce identical export; re-analysis without changes re-extracts zero files; modifying one file re-extracts only that file, **modifying an included file re-extracts all files including it**; `partial_scope`: calls outside scope become `out_of_scope`, not `unresolved`; `robustness`: no file stalls analysis; synthetic repo analyzes within target time (§1.3), and impact size computed across 15,000 routines within logged time and memory.
+- **Depends on:** Lots 4 and 5.
 
-### Lot 7 — Validation sur un code réel (verrou V1, point d'arrêt)
+### Lot 7 — Validation on a real codebase (Bottleneck V1, stop point)
 
-- **Objectif :** prouver, sans compilateur, que l'inventaire et le graphe de chaque langage sont justes à l'échelle d'un code réel.
-- **À produire :** `audit/` et les commandes `cgs audit inventory` (cohérence de l'inventaire), `cgs audit baseline` (référence textuelle), `cgs audit diff` (double extraction), `cgs audit sample` (échantillon de précision stratifié, fiche à vérifier, une touche par lien), `cgs audit recall-sample` (échantillon de rappel), `cgs audit invariants`, `cgs audit report` (métriques du §2.1 avec bornes de confiance) ; enregistrement des vérifications dans `reference_sample.yaml` et rejeu automatique ; manifeste et attentes du **corpus de démarrage** n°1 (§5.4).
-- **Tests de validation :** les critères du §2.1 sont atteints sur le corpus de démarrage n°1, pour chacun de ses langages ; le rejeu de `reference_sample.yaml` passe automatiquement. Sinon : plan B (§2.1), puis nouvelle mesure.
-- **Point d'arrêt :** tant que ces critères ne sont pas atteints, on ne commence pas les lots d'interface (10 et suivants).
-- **Dépend de :** lot 6.
+- **Objective:** prove, without a compiler, that inventory and graph for each language are accurate at scale on real code.
+- **Deliverables:** `audit/` and commands `cgs audit inventory` (inventory consistency), `cgs audit baseline` (textual baseline), `cgs audit diff` (dual extraction), `cgs audit sample` (stratified precision sample, review sheet, one key per link), `cgs audit recall-sample` (recall sample), `cgs audit invariants`, `cgs audit report` (§2.1 metrics with confidence intervals); review storage in `reference_sample.yaml` and auto-replay; manifest and expectations for **starter corpus** #1 (§5.4).
+- **Validation tests:** §2.1 criteria met on starter corpus #1 for each language; replay of `reference_sample.yaml` passes automatically. Otherwise: Plan B (§2.1), then re-measure.
+- **Stop point:** until these criteria are satisfied, UI lots (10 and beyond) do not start.
+- **Depends on:** Lot 6.
 
-### Lot 8 — Ponts inter-langages
+### Lot 8 — Cross-language bridges
 
-- **Objectif :** suivre un appel d'un langage à l'autre.
-- **À produire :** ponts `python_extension`, `pybind11`, `fortran_c` (décoration des noms, `BIND(C)`), `prefix_calls` (préfixes du plus long au plus court, `name_transform` explicite, déclarations distinctes des appels, §3.8), `external_symbols` ; fixtures `bridge_pybind11`, `bridge_fortran_c` et `bridge_prefix_negative` ; groupe « ponts » ajouté à l'échantillon de précision.
-- **Tests de validation :** chaque fixture de pont donne ses sites attendus ; `bridge_prefix_negative` ne produit aucun faux lien ; une macro de déclaration crée un nœud `binding` et aucun site d'appel ; dans `mini_hybrid`, le chemin Python → C++ → C → Fortran est retrouvé et les sites non résolus tombent à zéro ; précision des ponts conforme au §2.1 sur le corpus de démarrage.
-- **Dépend de :** lot 6.
+- **Objective:** trace calls across language boundaries.
+- **Deliverables:** bridges `python_extension`, `pybind11`, `fortran_c` (name mangling, `BIND(C)`), `prefix_calls` (longest-to-shortest prefixes, explicit `name_transform`, declarations distinct from calls, §3.8), `external_symbols`; fixtures `bridge_pybind11`, `bridge_fortran_c`, and `bridge_prefix_negative`; "bridges" group added to precision sample.
+- **Validation tests:** each bridge fixture yields expected sites; `bridge_prefix_negative` produces zero false links; declaration macro creates a `binding` node and no call site; in `mini_hybrid`, the path Python → C++ → C → Fortran is recovered and unresolved sites drop to zero; bridge precision satisfies §2.1 on starter corpus.
+- **Depends on:** Lot 6.
 
-### Lot 9 — API de requêtes et ligne de commande
+### Lot 9 — Query API and command line
 
-- **Objectif :** répondre aux questions du §1.1 sans interface.
-- **À produire :** `query/` (§3.10, avec types d'arêtes explicites, chemins détaillés, contrôle de fraîcheur des sources) ; commandes `cgs callers <routine>` (question par défaut : nombre + liste avec fichiers et lignes), `cgs callees`, `cgs file-links`, `cgs path`, `cgs impact`, `cgs find`, `cgs data`, `cgs unresolved`, `cgs health` ; sorties en tableau ou en JSON.
-- **Tests de validation :** réponses exactes sur toutes les fixtures ; un chemin traversant un aiguillage marque l'étape « possible » ; un fichier modifié après l'analyse est signalé périmé par `source` ; temps conformes au §1.3 sur le corpus de démarrage et sur le dépôt synthétique ; `paths` et `impact` s'arrêtent proprement à leurs bornes.
-- **Dépend de :** lots 7 et 8.
+- **Objective:** answer §1.1 questions headlessly.
+- **Deliverables:** `query/` (§3.10, explicit edge kinds, detailed paths, source freshness verification); commands `cgs callers <routine>` (default question: count + list with files and lines), `cgs callees`, `cgs file-links`, `cgs path`, `cgs impact`, `cgs find`, `cgs data`, `cgs unresolved`, `cgs health`; table or JSON output.
+- **Validation tests:** exact answers on all fixtures; path crossing dispatch marks step "possible"; file modified after analysis flagged stale by `source`; execution times comply with §1.3 on starter corpus and synthetic repo; `paths` and `impact` stop cleanly at bounds.
+- **Depends on:** Lots 7 and 8.
 
-### Lot 10 — Application de bureau : inventaire, recherche, appelants, inspecteur
+### Lot 10 — Desktop application: inventory, search, callers, inspector
 
-- **Objectif :** la question par défaut, dans une fenêtre, sur un dépôt multi-langages.
-- **À produire :** fenêtre principale (§3.11) ; création d'un projet, inventaire et analyse en sous-processus, avec progression et annulation ; vue Inventaire (avec forçage d'un langage et exclusion d'un groupe de fichiers, enregistrés dans le profil) ; recherche ; panneau Appelants / Appelés ; inspecteur de code avec bandeau « fichier modifié » ; explorateur de fichiers ; liste arborescente paresseuse ; panneau Santé de l'analyse (avec les métriques du lot 7).
-- **Tests de validation :** tests pytest-qt des modèles ; scénarios S1, S2, S7, S8 et S10 du §5.6 ; l'interface reste réactive pendant l'analyse du corpus de démarrage.
-- **Dépend de :** lot 9.
+- **Objective:** default question presented in a GUI window over a multi-language repo.
+- **Deliverables:** main window (§3.11); project creation, subprocess inventory and analysis with progress and cancellation; Inventory view (language override and file group exclusion saved to profile); search; Callers / Callees panel; code inspector with "modified file" banner; file explorer; lazy tree list; Analysis Health panel (with Lot 7 metrics).
+- **Validation tests:** pytest-qt model tests; user scenarios S1, S2, S7, S8, S10 (§5.6); interface remains responsive during starter corpus analysis.
+- **Depends on:** Lot 9.
 
-### Lot 11 — TreeGraph fichiers et fonctions
+### Lot 11 — Files and functions TreeGraph
 
-- **Objectif :** les deux vues dessinées.
-- **À produire :** `layout/tree.py` (mise en page en arbre, déterministe) ; vue TreeGraph (`QGraphicsView`) dans les deux sens (appelés, appelants) et aux niveaux routine, fichier et répertoire ; couleur par langage ; pagination « +N », marques « ↺ déjà vu », hubs et familles de données masqués par défaut, niveaux de détail, cache de mise en page.
-- **Tests de validation :** la même entrée donne les mêmes positions ; dépliage < 200 ms ; 300 nœuds affichés de façon fluide sur la machine de référence ; scénarios S3, S4 et S5.
-- **Dépend de :** lot 10.
+- **Objective:** two visual graph views.
+- **Deliverables:** `layout/tree.py` (deterministic tree layout); TreeGraph view (`QGraphicsView`) in both directions (callees, callers) and routine, file, directory levels; color per language; "+N" pagination, "↺ already shown" marks, hubs and data families hidden by default, level of detail, layout cache.
+- **Validation tests:** identical input produces identical coordinates; expansion < 200 ms; 300 nodes rendered smoothly on reference machine; scenarios S3, S4, S5.
+- **Depends on:** Lot 10.
 
-### Lot 12 — Packs, profils de langage par mots-clés, filtrage du bruit
+### Lot 12 — Packs, keyword-based language profiles, noise filtering
 
-- **Objectif :** accueillir la connaissance propre à chaque code et les langages sans adaptateur natif.
-- **À produire :** `enrich/` : schémas JSON du §3.8 (pack, règle de liaison, profil de langage, profil d'analyse), chargement sûr et messages d'erreur précis ; pack `generic_noise` (détection des hubs) ; pack `generic_fortran` (COMMON, variables de module, `INTENT`) ; accès aux données à trois niveaux (§3.5) ; `extract/keywords/` : adaptateur par mots-clés avec mesure de couverture (§3.9) ; badge « +N utilitaires masqués » et filtre « liens issus de l'IA » dans l'interface ; test d'isolation (§6.4).
-- **Tests de validation :** la fixture `pack_acme` donne les accès aux données (avec leur niveau) et les aiguillages attendus ; un pack contenant une clé inconnue, un mauvais type ou une balise YAML d'objet Python est refusé avec un message précis ; la fixture `keywords_language`, avec un profil écrit à la main, donne son graphe attendu et sa couverture mesurée ; sur le corpus de démarrage, les utilitaires connus sont proposés comme hubs ; test d'isolation au vert.
-- **Dépend de :** lot 11.
+- **Objective:** host codebase-specific domain knowledge and languages without a native adapter.
+- **Deliverables:** `enrich/`: JSON schemas from §3.8 (pack, bridge rule, language profile, analysis profile), safe loading and precise error messages; `generic_noise` pack (hub detection); `generic_fortran` pack (COMMON, module variables, `INTENT`); three-tier data accesses (§3.5); `extract/keywords/`: keyword adapter with coverage measurement (§3.9); "+N hidden utilities" badge and "AI links" filter in UI; isolation test (§6.4).
+- **Validation tests:** `pack_acme` fixture yields expected data accesses (with levels) and dispatches; pack with unknown key, invalid type, or Python object YAML tag is rejected with precise message; `keywords_language` fixture with hand-written profile yields expected graph and measured coverage; on starter corpus, known utilities suggested as hubs; isolation test passes.
+- **Depends on:** Lot 11.
 
-### Lot 13 — IA : identification des langages et complétion des mots-clés
+### Lot 13 — AI: language identification and keyword completion
 
-- **Objectif :** que l'IA identifie ce que l'inventaire ne reconnaît pas et définisse elle-même les mots-clés manquants, sans casser le déterminisme ni la justesse.
-- **À produire :** `cgs ai-worker` (sous-processus, JSON sur entrée/sortie standard, génération contrainte par le schéma, choix des instructions CPU au démarrage) ; rôle 1 (identification) et rôle 2 (boucle de complétion) du §3.13, avec leurs contrôles automatiques, l'aperçu des changements, la validation en un clic, le mode automatique optionnel et l'écriture dans le profil ; lecture des documents techniques fournis (texte, Markdown, PDF) ; vue « Propositions de l'IA » ; commande `cgs complete` ; modèle factice et réponses enregistrées pour les tests ; banc d'évaluation des modèles candidats, qui mesure aussi la précision des règles adoptées.
-- **Tests de validation :**
-  - avec le modèle factice (intégration continue) : la chaîne complète produit exactement le profil attendu ; une proposition qui échoue à un contrôle, y compris aux tests négatifs, est rejetée ; l'aperçu montre exactement les liens ajoutés et retirés ; deux analyses avec le même profil donnent le même graphe ; aucun port réseau ouvert ;
-  - avec le vrai modèle (machine de développement) : sur `unknown_extension`, le langage est identifié ; sur `keywords_language` sans profil, le profil proposé reproduit au moins 90 % des arêtes attendues ; sur `bridge_unknown_prefix`, le préfixe de liaison est trouvé et les sites non résolus baissent d'au moins 80 % ; chaque appel au modèle prend moins de 60 s sur la machine de référence ; l'IA démarre sur un processeur sans AVX2.
-- **Dépend de :** lot 12.
+- **Objective:** AI identifies unrecognized languages and derives missing keywords without compromising determinism or correctness.
+- **Deliverables:** `cgs ai-worker` (subprocess, JSON over stdin/stdout, schema-constrained generation, runtime CPU instruction selection); Role 1 (identification) and Role 2 (completion loop) from §3.13, with automated checks, change preview, one-click validation, optional automatic mode, and profile writing; reading user-provided docs (text, Markdown, PDF); "AI Proposals" view; `cgs complete` command; mock model and recorded responses for tests; model benchmark measuring adopted rule precision.
+- **Validation tests:**
+  - with mock model (CI): full pipeline produces expected profile; proposal failing any check (including negative tests) is rejected; preview displays exact added/removed links; consecutive runs with same profile produce identical graph; zero network ports open;
+  - with real model (dev machine): on `unknown_extension`, language is identified; on `keywords_language` without profile, proposed profile reproduces ≥ 90% of expected edges; on `bridge_unknown_prefix`, bridge prefix is found and unresolved sites drop by ≥ 80%; each model call < 60 s on reference machine; AI boots on CPU without AVX2.
+- **Depends on:** Lot 12.
 
-### Lot 14 — Pack du cas de test n°1
+### Lot 14 — Test case #1 Pack
 
-- **Objectif :** valider le cœur sur un code réel complet.
-- **À produire :** le pack décrit dans `docs/packs/<code>.md` (règles, éventuel `enrich.py`) ; attentes du **corpus complet** n°1 (§5.4) ; comparaison entre les règles de liaison écrites à la main et celles proposées par l'IA (lot 13) sur ce code.
-- **Tests de validation :** toutes les attentes des corpus de démarrage et complet passent ; aucune régression sur les fixtures ; test d'isolation au vert ; rapport de comparaison IA / main consigné.
-- **Dépend de :** lot 13.
+- **Objective:** validate core on complete real codebase.
+- **Deliverables:** pack described in `docs/packs/<code>.md` (rules, optional `enrich.py`); expectations for **full corpus** #1 (§5.4); comparison between hand-crafted and AI-proposed bridge rules (Lot 13) on this codebase.
+- **Validation tests:** all expectations for starter and full corpora pass; zero regressions on fixtures; isolation test passes; AI vs manual comparison report recorded.
+- **Depends on:** Lot 13.
 
-### Lot 15 — IA : explications
+### Lot 15 — AI: explanations
 
-- **À produire :** assemblage du contexte (§3.13, rôle 3) ; vérification des citations ; résumés en tâche de fond ; panneau IA dans l'interface ; extension du banc d'évaluation (30 à 50 routines annotées).
-- **Tests de validation :** 100 % des identifiants cités vérifiés ; premiers mots en moins de 15 s et réponse complète en moins de 60 s sur la machine de référence ; scores du banc consignés pour chaque modèle candidat.
-- **Dépend de :** lot 13.
+- **Deliverables:** context assembly (§3.13, Role 3); citation verification; background summaries; AI panel in UI; benchmark extension (30 to 50 annotated routines).
+- **Validation tests:** 100% of cited identifiers verified; initial tokens in < 15 s, complete response in < 60 s on reference machine; benchmark scores recorded for candidate models.
+- **Depends on:** Lot 13.
 
-### Lot 16 — Édition Pro, conformité des licences et version finale
+### Lot 16 — Pro Edition, license compliance, and final release
 
-- **À produire :**
-  - séparation du paquet `codegraph_sci_pro` (dépôt privé, code compilé) ; clé de licence Ed25519 (voir `docs/strategie_licence.md`) ;
-  - **conformité, comme tâche explicite** : contrôle automatique des licences des dépendances ; inventaire des composants (SBOM) ; dossier `licenses/` complet (textes de licence et avis de chaque composant embarqué, `NOTICE` des composants Apache 2.0, licence du modèle) ; obligations LGPL de Qt/PySide6 (§7) ; vérification qu'aucun outil GPL n'est embarqué par défaut ; revue des extraits de codes analysés présents dans les démonstrations ;
-  - éditions portables avec et sans IA ; signature des exécutables Windows.
-- **Tests de validation :** installation sur machines vierges sans réseau (Ubuntu 22.04 et 24.04, Windows 10 et 11, et si possible Rocky Linux 8) ; aucun trafic réseau ni port à l'écoute pendant l'analyse, l'utilisation de l'interface et l'exécution du modèle, vérifié sur l'application distribuée ; l'absence ou l'expiration de la licence ne bloque jamais le cœur ; liste de conformité entièrement cochée.
-- **Dépend de :** lots 14 et 15.
+- **Deliverables:**
+  - separation of `codegraph_sci_pro` package (private repo, compiled distribution); Ed25519 license key (see `docs/strategie_licence.md`);
+  - **compliance as explicit task**: automated dependency license audit; Software Bill of Materials (SBOM); comprehensive `licenses/` directory (license texts and notices for every embedded component, Apache 2.0 `NOTICE` files, model license); Qt/PySide6 LGPL obligations (§7); verification that no GPL tool is bundled by default; review of analyzed code snippets in demos;
+  - portable editions with and without AI; Windows binary code signing.
+- **Validation tests:** installation on clean networkless machines (Ubuntu 22.04 & 24.04, Windows 10 & 11, Rocky Linux 8 if available); zero network traffic or listening ports during analysis, UI navigation, and model inference, verified on distributed package; missing or expired license never blocks core functionality; compliance checklist fully verified.
+- **Depends on:** Lots 14 and 15.
 
 ---
 
-## 5. Stratégie de test
+## 5. Testing strategy
 
-### 5.1. Niveaux de tests
+### 5.1. Test levels
 
-| Niveau | Contenu | Quand |
+| Level | Content | When |
 | :--- | :--- | :--- |
-| Unitaires | Fonctions isolées (détection de langage, normalisation des noms, décodage, algorithmes de graphe, mise en page…) | À chaque modification |
-| Fixtures | Mini-dépôts à inventaire, graphe et sites attendus exacts (§5.2) | À chaque modification |
-| Robustesse | Fichiers malformés, très volumineux, chemins difficiles, données aléatoires (fuzzing) | À chaque modification des adaptateurs |
-| Synthétique | Dépôt multi-langages généré de grande taille (§5.3) | Tests de performance, à chaque lot concerné |
-| IA (modèle factice) | Chaîne d'identification et de complétion avec réponses enregistrées | À chaque modification des lots 13 et 15 |
-| IA (vrai modèle) | Banc d'évaluation et fixtures IA | Sur la machine de développement, à chaque changement de modèle ou de gabarit |
-| Corpus réels | Cas de test, attentes partielles et échantillons de référence (§5.4) | Régulièrement, et à la fin des lots 7, 8, 14 et 16 |
-| Interface | Modèles Qt et scénarios utilisateur (§5.6) | À chaque lot d'interface |
-| Application distribuée | Dossier construit, sur machines vierges sans réseau, contrôle du réseau et des ports | Lots 0 et 16, puis à chaque version |
+| Unit | Isolated functions (language detection, name normalization, decoding, graph algorithms, layout…) | On every commit |
+| Fixtures | Mini-repos with exact expected inventory, graph, and sites (§5.2) | On every commit |
+| Robustness | Malformed files, huge files, tricky paths, random data (hypothesis fuzzing) | On every adapter change |
+| Synthetic | Generated large-scale multi-language repo (§5.3) | Performance benchmarks, relevant lots |
+| AI (mock model) | Identification and completion pipeline with recorded responses | On every change in Lots 13 & 15 |
+| AI (real model) | Evaluation benchmark and AI fixtures | On dev machine, upon model or prompt change |
+| Real corpora | Test cases, partial expectations, and reference samples (§5.4) | Regularly, and at end of Lots 7, 8, 14, 16 |
+| Interface | Qt models and user scenarios (§5.6) | On every UI lot |
+| Distributed app | Built package on clean offline machines, network and port audit | Lots 0 & 16, and on releases |
 
-### 5.2. Catalogue des fixtures
+### 5.2. Fixtures catalog
 
-| Fixture | Ce qu'elle vérifie | Lot |
+| Fixture | What it tests | Lot |
 | :--- | :--- | :--- |
-| `inventory_mixed` | `.f`, `.f90`, `.F90`, `.py`, `.c`, `.cpp`, `.h` (C et C++), `.inc` (Fortran), fichier sans extension avec `#!`, fichier binaire, extension inconnue, lien symbolique en boucle | 2 |
+| `inventory_mixed` | `.f`, `.f90`, `.F90`, `.py`, `.c`, `.cpp`, `.h` (C and C++), `.inc` (Fortran), extensionless file with `#!`, binary file, unknown extension, symlink loop | 2 |
 | `fortran_basic` | `SUBROUTINE`, `FUNCTION`, `MODULE`, `PROGRAM`, `CALL`, `USE` | 3 |
-| `fortran_fixed_form` | Format fixe F77 : colonnes, continuation en colonne 6, commentaires `C` et `*` | 3 |
-| `fortran_preproc` | `#ifdef` / `#else`, `#include`, macros ; conditions portées par les sites ; même routine dans deux branches | 3 |
-| `fortran_ambiguity` | `f(i)` fonction ou tableau, `EXTERNAL`, interfaces explicites | 3 |
-| `fortran_arrays_includes` | Tableaux déclarés dans un fichier inclus et dans un `COMMON`, fonctions intrinsèques, `known_arrays` | 3 |
-| `fortran_advanced` | Interfaces génériques, procédures liées à un type, pointeurs de procédure, `RECURSIVE` | 3 |
-| `fortran_data` | `COMMON`, variables de module, `INTENT` | 3 |
-| `fortran_traps` | « call x » dans un commentaire ou une chaîne, majuscules et minuscules, Latin-1, fins de ligne Windows | 3 |
-| `python_basic` | Imports relatifs, classes, méthodes, décorateurs, appels dynamiques (`heuristic`), un fichier Python 2 | 3 |
-| `c_basic` | Fonctions, macros, deux fonctions `static` homonymes dans deux fichiers | 3 |
-| `cpp_basic`, `cpp_overloads` | Classes, macros ; surcharges distinctes, appel non tranchable → site ambigu | 3 |
-| `mini_hybrid` | Dépôt Python + C++ + C + Fortran : inventaire, graphes par langage, puis chaîne complète avec les ponts | 3, 8 |
-| `partial_scope` | Analyse limitée à un répertoire : appels vers l'extérieur `out_of_scope` | 3 |
-| `robustness` | Fichier malformé, fichier très volumineux, chemins avec espaces, accents ou > 260 caractères, fichier illisible | 3 |
-| `bridge_pybind11` | Module pybind11 et son appel depuis Python | 8 |
-| `bridge_fortran_c` | `BIND(C)`, décoration des noms | 8 |
-| `bridge_prefix_negative` | Identifiants qui ressemblent à un préfixe de liaison sans en être ; macros de déclaration | 8 |
-| `pack_acme` | Gestionnaire mémoire (trois niveaux de clés), aiguillage, catalogue, points d'entrée avec cible de repli | 12 |
-| `keywords_language` | Langage fictif + document technique décrivant ses mots-clés ; profil écrit à la main (lot 12), puis proposé par l'IA (lot 13) | 12, 13 |
-| `unknown_extension` | Fichiers d'un langage connu sous une extension inhabituelle | 13 |
-| `bridge_unknown_prefix` | Appels C++ → Fortran par un préfixe de macro non déclaré | 13 |
+| `fortran_fixed_form` | F77 fixed-form: column rules, column 6 continuation, `C` and `*` comments | 3 |
+| `fortran_preproc` | `#ifdef` / `#else`, `#include`, macros; site-attached conditions; same routine across two branches | 3 |
+| `fortran_ambiguity` | `f(i)` function vs array, `EXTERNAL`, explicit interfaces | 3 |
+| `fortran_arrays_includes` | Arrays declared in include files and `COMMON`, intrinsic functions, `known_arrays` | 3 |
+| `fortran_advanced` | Generic interfaces, type-bound procedures, procedure pointers, `RECURSIVE` | 3 |
+| `fortran_data` | `COMMON`, module variables, `INTENT` | 3 |
+| `fortran_traps` | "call x" in comment or string, mixed casing, Latin-1, Windows line endings | 3 |
+| `python_basic` | Relative imports, classes, methods, decorators, dynamic calls (`heuristic`), Python 2 file | 3 |
+| `c_basic` | Functions, macros, two homonymous `static` functions across two files | 3 |
+| `cpp_basic`, `cpp_overloads` | Classes, macros; distinct overloads, ambiguous call → ambiguous site | 3 |
+| `mini_hybrid` | Python + C++ + C + Fortran repo: inventory, per-language graphs, full chain with bridges | 3, 8 |
+| `partial_scope` | Analysis restricted to subfolder: calls outside become `out_of_scope` | 3 |
+| `robustness` | Malformed file, huge file, paths with spaces/accents/> 260 chars, unreadable file | 3 |
+| `bridge_pybind11` | pybind11 module and its invocation from Python | 8 |
+| `bridge_fortran_c` | `BIND(C)`, name mangling | 8 |
+| `bridge_prefix_negative` | Identifiers resembling bridge prefix without matching; declaration macros | 8 |
+| `pack_acme` | Memory manager (3 key levels), dispatch, catalog, entry points with fallback | 12 |
+| `keywords_language` | Fictional language + technical manual; hand-written profile (Lot 12), AI-proposed (Lot 13) | 12, 13 |
+| `unknown_extension` | Files of known language under unusual extension | 13 |
+| `bridge_unknown_prefix` | C++ → Fortran calls via undeclared macro prefix | 13 |
 
-Chaque fixture contient `src/` (quelques fichiers aux noms neutres), `expected_inventory.json` et `expected_graph.json` (nœuds, sites et arêtes attendus, avec lignes, colonnes, confiance et origine), écrits à la main.
+Each fixture contains `src/` (sample files with neutral names), `expected_inventory.json`, and `expected_graph.json` (expected nodes, sites, and edges with lines, columns, confidence, and origin), authored by hand.
 
-### 5.3. Dépôt synthétique
+### 5.3. Synthetic repository
 
-`tests/synthetic/generate.py --routines 15000 --files 3000 --langs fortran,python,cpp,c --seed 42` génère un dépôt multi-langages, avec des appels entre langages et des routines très appelées (hubs), dont l'inventaire et le graphe sont connus par construction ; mêmes paramètres, même dépôt. Il sert aux tests de performance (§1.3), y compris l'écriture d'environ un million de sites, sans dépendre d'un code réel, et vérifie que le graphe extrait est exactement celui qui a été généré.
+`tests/synthetic/generate.py --routines 15000 --files 3000 --langs fortran,python,cpp,c --seed 42` generates a deterministic multi-language codebase with cross-language calls and high-fan-in routines (hubs). Its inventory and graph are known by construction; same arguments yield identical codebases. Used for performance tests (§1.3), including writing ~1 million sites without relying on proprietary code, verifying that extracted graph exactly matches generated ground truth.
 
-### 5.4. Corpus réels
+### 5.4. Real-world corpora
 
-Chaque code réel donne **deux corpus** :
+Each analyzed codebase yields **two corpora**:
 
-- un **corpus de démarrage**, à périmètre réduit, dont les attentes ne portent que sur ce que le périmètre contient (lot 7) ;
-- un **corpus complet**, qui inclut toutes les définitions, catalogues et cibles nécessaires aux parcours de bout en bout (lot 14).
+- a **starter corpus**, scoped to a subset of directories, whose expectations test only within-scope definitions (Lot 7);
+- a **full corpus**, covering all definitions, catalogs, and targets needed for end-to-end traversal (Lot 14).
 
 ```yaml
 # tests/corpus/<code>_start/manifest.yaml
 corpus: <code>_start
-source: { path: "<emplacement local du code>", revision: "<tag ou commit exact>" }
-license: "<licence du code analysé>"
-packs: [<nom_du_pack>]
-scope: ["<sous-répertoires analysés en détail>"]   # le reste du dépôt est indexé (définitions seulement)
+source: { path: "<local path to code>", revision: "<exact tag or commit>" }
+license: "<license of analyzed code>"
+packs: [<pack_name>]
+scope: ["<subdirectories analyzed in detail>"]   # rest of repo is indexed (definitions only)
 ```
 
 ```yaml
-# tests/corpus/<code>_start/expectations.yaml — exemple fictif
+# tests/corpus/<code>_start/expectations.yaml — fictional example
 inventory:
   languages: { fortran: { min_files: 100 }, python: { min_files: 10 }, cpp: { min_files: 10 } }
   max_unknown_rate: 0.01
@@ -1075,180 +1087,201 @@ expect:
   - callers_count: { node: "f:assemble_matrix", min: 10, max: 15 }
   - edge: { src: "py:solver.api.run", dst: "cpp:Solver::run()", kind: binds }
   - path: { from: "entry:RUN", to: "f:assemble_matrix", max_len: 12, edge_kinds: call_path }
-  - no_call_to: ["f:rbuf"]                         # tableaux, jamais des appels
+  - no_call_to: ["f:rbuf"]                         # arrays, never calls
   - hidden: "f:log_msg"
   - writes: { routine: "f:update_state", data: "data:mem:*.VALUES", key_kind: family }
 metrics:
   min_recall_definitions: 0.99
-  min_recall_call_sites: 0.97                       # échantillon de rappel
-  min_precision_resolved: 0.98                      # échantillon de précision, par langage
+  min_recall_call_sites: 0.97                       # recall sample
+  min_precision_resolved: 0.98                      # precision sample, per language
   min_precision_lower_bound: 0.95
   max_unresolved_rate: 0.02
   max_parse_failure_rate: 0.02
 ```
 
-- `reference_sample.yaml` enregistre les liens et emplacements vérifiés à la main (avec la révision du code) ; ils sont rejoués automatiquement.
-- Les sources des corpus ne sont jamais versionnées dans le dépôt ; le manifeste indique où les trouver localement, avec la révision exacte. Tous les corpus sont relancés régulièrement : l'ajout d'un nouveau code ne doit en dégrader aucun.
+- `reference_sample.yaml` stores manually checked links and locations (tagged with code revision); replayed automatically.
+- Codebase sources are never tracked in Git; manifest specifies local location and exact commit. All corpora run regularly: adding a new codebase must not break existing ones.
 
-### 5.5. Tests transverses
+### 5.5. Cross-cutting tests
 
-| Test | Principe |
+| Test | Principle |
 | :--- | :--- |
-| Déterminisme | Même dépôt + même profil → exports canoniques identiques, sous Linux comme sous Windows |
-| IA hors de l'analyse | `cgs scan` ne lance jamais le processus IA (vérifié) |
-| Hors ligne, au niveau du code | Toute la suite tourne avec le réseau bloqué (pytest-socket) |
-| Hors ligne, au niveau de l'application distribuée | Sous Linux, l'application démarre et fonctionne dans un espace de noms sans réseau (`unshare -n`) ; sous Linux et Windows, aucun port n'est à l'écoute pendant l'analyse, l'utilisation de l'interface et l'exécution du modèle |
-| Chargement sûr | `yaml.safe_load` uniquement ; un fichier YAML contenant une balise d'objet Python est refusé ; schémas stricts ; aucun `pickle` |
-| Robustesse | Sources malformées, fichiers très volumineux (au-delà d'un seuil, analyse limitée et signalée), chemins difficiles, liens symboliques en boucle, fichiers illisibles, délai dépassé ; données aléatoires envoyées aux adaptateurs (fuzzing avec hypothesis) sans plantage |
-| Cohérence de l'inspecteur | Un fichier modifié après l'analyse est signalé « périmé » |
-| Cache | Modifier un fichier inclus invalide les fichiers qui l'incluent |
-| Isolation | Aucun identifiant déclaré par un pack dans le cœur (§6.4) |
-| Dépendances entre paquets | Règles du §3.4 vérifiées par import-linter |
-| Performance | Cibles du §1.3 mesurées sur le dépôt synthétique et sur le corpus de démarrage |
-| Licences | Toutes les dépendances dans la liste du §3.15 (contrôle automatique au lot 16) |
+| Determinism | Same repo + same profile → identical canonical exports on Linux and Windows |
+| AI outside analysis | `cgs scan` never spawns AI process (verified) |
+| Offline code level | Entire test suite runs with network socket blocked (pytest-socket) |
+| Offline distributed app | On Linux, app launches and functions in network namespace (`unshare -n`); on Linux and Windows, zero listening ports during analysis, UI navigation, and inference |
+| Safe loading | `yaml.safe_load` exclusively; YAML files with Python object tags rejected; strict schemas; zero `pickle` |
+| Robustness | Malformed sources, very large files (beyond limit, analysis truncated and logged), tricky paths, symlink loops, unreadable files, timeouts; random data sent to adapters (hypothesis fuzzing) without crashing |
+| Inspector consistency | File modified after analysis flagged "stale" |
+| Cache | Modifying an included file invalidates files that include it |
+| Isolation | Zero pack-declared identifiers in core (§6.4) |
+| Package dependencies | §3.4 rules enforced by import-linter |
+| Performance | §1.3 targets measured on synthetic repo and starter corpus |
+| Licensing | All dependencies tracked in §3.15 list (automated audit in Lot 16) |
 
-### 5.6. Scénarios utilisateur
+### 5.6. User scenarios
 
-| # | Scénario | Résultat attendu |
+| # | Scenario | Expected outcome |
 | :--- | :--- | :--- |
-| S1 | Ouvrir un dossier multi-langages, lancer l'inventaire puis l'analyse, annuler, relancer | Langages affichés avec leur couverture ; progression visible ; annulation propre ; interface réactive |
-| S2 | Rechercher une routine | « Appelée par N routines dans M fichiers » ; double-clic → code à la ligne de l'appel |
-| S3 | TreeGraph fonctions sur 4 niveaux d'appelés | Dépliages en moins de 200 ms, cycles marqués « ↺ » |
-| S4 | TreeGraph fichiers d'un fichier, puis descente au niveau des routines | Liens pondérés, couleur par langage, détail des appels sur double-clic |
-| S5 | Masquer puis réafficher les utilitaires | Badge « +N », graphe allégé |
-| S6 | Chemin entre deux routines de langages différents | Chemin affiché et surligné, type de chaque étape visible, aiguillages marqués « possible » |
-| S7 | Modifier un fichier, ré-analyser | Ré-analyse en moins de 30 s, vues mises à jour |
-| S8 | Lancer l'application depuis la clé USB, réseau coupé | Démarrage et fonctionnement complets |
-| S9 | Dépôt contenant un langage inconnu ; « Compléter avec l'IA » | Langage identifié, profil de mots-clés proposé avec l'aperçu de ses effets ; approuvé ou refusé ; liens marqués « IA » |
-| S10 | Modifier un fichier sans ré-analyser, puis l'ouvrir dans l'inspecteur | Bandeau « Ce fichier a changé depuis l'analyse » et bouton « Ré-analyser » |
+| S1 | Open multi-language folder, run inventory then analysis, cancel, re-run | Languages displayed with coverage; progress visible; clean cancellation; responsive UI |
+| S2 | Search routine | "Called by N routines across M files"; double-click → code at call line |
+| S3 | Functions TreeGraph across 4 callee levels | Expansions in < 200 ms, cycles marked "↺" |
+| S4 | Files TreeGraph of a file, then dive into routines | Weighted links, language colors, detailed calls on double-click |
+| S5 | Hide then reveal utilities | "+N" badge, decluttered graph |
+| S6 | Path between two routines in different languages | Path displayed and highlighted, step types visible, dispatches marked "possible" |
+| S7 | Modify file, re-analyze | Re-analysis in < 30 s, views updated |
+| S8 | Run application from USB drive with network disconnected | Boots and functions completely |
+| S9 | Repository with unknown language; "Complete with AI" | Language identified, keyword profile proposed with effect preview; approved/rejected; links marked "AI" |
+| S10 | Modify file without re-analyzing, open in inspector | Banner "This file has changed since analysis" and "Re-analyze" button |
 
 ---
 
-## 6. Extensibilité
+## 6. Extensibility
 
-### 6.1. Ajouter un langage
+### 6.1. Adding a language
 
-1. **Par l'IA (le plus rapide) :** l'inventaire signale le langage inconnu ; la boucle de complétion propose un profil de mots-clés (§3.9), contrôlé, montré, puis approuvé. Fournir un document technique sur le langage améliore la proposition. La couverture du profil est mesurée avant qu'on s'y fie.
-2. **À la main :** écrire le profil de mots-clés soi-même.
-3. **Adaptateur natif** (meilleure précision), s'il existe une grammaire tree-sitter sous licence permissive : créer `extract/<langage>/` implémentant `LanguageAdapter`, ajouter le langage à la table des extensions, créer la fixture `tests/fixtures/<langage>/`, déclarer les sous-types, la couleur et la coloration syntaxique.
+1. **Via AI (fastest):** inventory flags unknown language; completion loop proposes keyword profile (§3.9), checked, previewed, and approved. Providing a technical document improves the proposal. Profile coverage is measured before reliance.
+2. **Manually:** author keyword profile directly.
+3. **Native adapter** (highest precision), if a permissive tree-sitter grammar exists: create `extract/<language>/` implementing `LanguageAdapter`, add extension mapping, create `tests/fixtures/<language>/`, declare subtypes, color, and syntax highlighting.
 
-### 6.2. Ajouter un pont
+### 6.2. Adding a bridge
 
-- Le plus souvent, une entrée `bridges` par préfixes et transformation de nom suffit (§3.8) : écrite à la main ou proposée par l'IA, toujours avec des tests positifs et négatifs.
-- Sinon, créer `link/bridges/<pont>/` implémentant `Bridge`, avec une fixture à deux langages ; chaque site produit porte `origin = "bridge:<pont>"`.
+- Usually, a `bridges` entry with prefixes and name transforms suffices (§3.8): hand-crafted or AI-proposed, always with positive and negative tests.
+- Otherwise, create `link/bridges/<bridge>/` implementing `Bridge`, with a two-language fixture; each produced site carries `origin = "bridge:<bridge>"`.
 
-### 6.3. Ajouter un code
+### 6.3. Adding a codebase
 
-1. Rédiger `docs/packs/<code>.md` : architecture du code, conventions, règles, points à valider, licence.
-2. Lancer l'inventaire, puis la boucle de complétion IA ; reprendre ses propositions dans `rules.yaml` (§3.8) ; n'ajouter `enrich.py` que si nécessaire.
-3. Déclarer les deux corpus (démarrage et complet) avec leurs attentes, puis constituer l'échantillon de référence.
-4. **Critère d'acceptation :** attentes au vert, métriques du §2.1 atteintes, aucune régression, cœur inchangé — ou étendu de façon générique et documentée ici.
+1. Author `docs/packs/<code>.md`: codebase architecture, conventions, rules, validation targets, license.
+2. Run inventory, then AI completion loop; incorporate proposals into `rules.yaml` (§3.8); only add `enrich.py` if needed.
+3. Declare both corpora (starter and full) with expectations, then assemble reference sample.
+4. **Acceptance criteria:** expectations green, §2.1 metrics satisfied, zero regressions, core unchanged — or extended generically and documented here.
 
-### 6.4. Règle d'isolation
+### 6.4. Isolation rule
 
-Le cœur (`src/codegraph_sci/`, hors packs génériques) ne contient aucun identifiant propre à un code analysé. Chaque pack déclare ses identifiants (`identifiers`) ; un test fait échouer la construction s'ils apparaissent dans le cœur. Les fixtures utilisent des noms neutres. Les règles proposées par l'IA pour un projet vivent dans le dossier de ce projet, jamais dans le cœur.
-
----
-
-## 7. Contraintes de licence qui touchent le code
-
-- **Code public sous PolyForm Noncommercial 1.0.0**, présenté comme « code source public (source-available) sous licence non commerciale, avec licence commerciale distincte », jamais comme « open source ». Les extensions Pro vivent dans `codegraph_sci_pro`, que le cœur n'importe jamais.
-- **Dépendances :** uniquement celles du §3.15, ou des licences équivalentes (MIT, BSD, Apache 2.0, ISC, PSF, MPL-2.0 pour les outils de test, LGPL avec bibliothèques séparées) ; jamais de GPL ou d'AGPL importée par le code ni embarquée par défaut. fxtran (GPL-3.0) ne peut être utilisé qu'en outil externe installé séparément, après revue de licence.
-- **PySide6 et Qt (LGPL-3.0) :** garder les bibliothèques Qt en fichiers séparés et remplaçables dans `_internal/` (aucune liaison statique) ; fournir le texte de la LGPL et les avis de Qt dans `licenses/` ; fournir les sources de Qt et de PySide6 utilisées, ou une offre écrite de les fournir ; ne pas interdire leur remplacement par l'utilisateur. Ce découpage est nécessaire mais ne suffit pas à lui seul : la liste complète des obligations est vérifiée au lot 16.
-- **Modèles IA :** uniquement Apache 2.0 ou MIT. L'édition IA contient le fichier du modèle **et le texte de sa licence** (ainsi que le fichier `NOTICE` s'il existe) : c'est la condition de redistribution de ces licences.
-- **Codes analysés :** la révision exacte et la provenance de tout extrait utilisé dans une démonstration sont enregistrées, avec la notice de licence du code ; aucun code source d'un code analysé n'est intégré à une distribution commerciale sans revue préalable.
-- **Documents techniques fournis par l'utilisateur :** lus localement, jamais copiés dans les règles au-delà de courts extraits de justification.
-- **Contributions externes :** accord de contribution (CLA) signé avant toute intégration.
-- **Clé de licence :** elle ne bloque jamais le cœur ni les données (lot 16).
-- Détails commerciaux et juridiques : `docs/strategie_licence.md`.
+The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifiers specific to an analyzed codebase. Each pack declares its `identifiers`; a test fails the build if they appear in core. Fixtures use neutral names. AI-proposed rules for a project reside in that project's folder, never in core.
 
 ---
 
-## 8. Décisions et questions ouvertes
+## 7. Licensing constraints affecting code
 
-### 8.1. Décisions prises (16 octobre 2026)
+- **Public code under PolyForm Noncommercial 1.0.0**, described as "source-available under a noncommercial license, with commercial licensing available separately", never as "open source". Pro extensions reside in `codegraph_sci_pro`, which core never imports.
+- **Dependencies:** strictly those in §3.15 or equivalent licenses (MIT, BSD, Apache 2.0, ISC, PSF, MPL-2.0 for test tools, LGPL with dynamically linked libraries); never GPL or AGPL imported by code or bundled by default. fxtran (GPL-3.0) can only be used as a separately installed external tool after license review.
+- **PySide6 and Qt (LGPL-3.0):** keep Qt libraries as separate, replaceable files in `_internal/` (no static linking); provide LGPL text and Qt notices in `licenses/`; provide Qt and PySide6 sources used or written offer to provide them; do not restrict user replacement. This modularity is necessary but not sufficient: full checklist is audited in Lot 16.
+- **AI models:** strictly Apache 2.0 or MIT. AI edition bundles model file **and license text** (along with `NOTICE` file if present): redistribution requirement of these licenses.
+- **Analyzed codebases:** exact revision and origin of any snippet in demos are recorded, with code license notice; no source code from analyzed codebases is bundled into commercial distribution without prior review.
+- **User-supplied technical documents:** read locally, never copied into rules beyond brief rationale snippets.
+- **External contributions:** Contributor License Agreement (CLA) signed prior to integration.
+- **License key:** never locks core functionality or data (Lot 16).
+- Commercial and legal details: `docs/strategie_licence.md`.
 
-| # | Décision |
+---
+
+## 8. Decisions and open questions
+
+### 8.1. Decisions made (October 16, 2026)
+
+| # | Decision |
 | :--- | :--- |
-| D1 | Application de bureau Python + Qt (PySide6) ; pas d'application web |
-| D2 | Systèmes : Linux x86_64 (cible : Ubuntu) et Windows x64 |
-| D3 | Fonctionnement 100 % hors ligne ; version complète transférable sur clé USB |
-| D4 | Machines modestes, CPU seul : allègement graphique obligatoire |
-| D5 | Graphe déterministe pour un profil d'analyse donné ; l'IA prépare le profil, elle n'intervient jamais pendant l'analyse |
-| D6 | Question par défaut : combien de routines appellent une routine, et lesquelles |
-| D7 | Deux vues TreeGraph : fichiers et fonctions |
-| D8 | Pas de compilateur : validation sans compilation, par échantillons vérifiés (§2.1) |
-| D9 | Double licence PolyForm NC + licence commerciale |
-| D10 | L'édition IA de la version portable inclut le modèle et sa licence — *hypothèse à confirmer* |
-| D11 | Le premier cas de test mélange Fortran, Python et C ou C++ : inventaire des langages et quatre adaptateurs dès les lots 2 à 5 |
-| D12 | *(modifiée en v7, à confirmer)* L'IA identifie les langages non reconnus et définit elle-même les mots-clés manquants ; par défaut, l'utilisateur valide en un clic après l'aperçu des liens ajoutés et retirés ; un mode d'adoption automatique est activable par projet |
-| D13 | Le plan ne comporte que des lots et leurs dépendances, sans jalons ni durées |
-| D14 | Chaque appel constaté est conservé comme un site d'appel (une ligne en base) ; les arêtes sont des agrégats de sites |
-| D15 | Construction Linux sur une base glibc 2.28 : compatible Ubuntu 20.04+ et RHEL/Rocky 8+ |
-| D16 | Algorithmes de graphe écrits dans le projet (Tarjan itératif, ensembles de bits) ; NetworkX retiré |
-| D17 | Parseur Fortran choisi par un banc comparatif sur fichiers réels, parmi des candidats sous licence permissive ; fxtran (GPL-3.0) exclu de la distribution par défaut |
+| D1 | Desktop application Python + Qt (PySide6); no web application |
+| D2 | Operating systems: Linux x86_64 (target: Ubuntu) and Windows x64 |
+| D3 | 100% offline operation; full version transferable on USB drive |
+| D4 | Modest machines, CPU only: graphical lightweighting mandatory |
+| D5 | Deterministic graph for a given analysis profile; AI prepares profile, never intervenes during analysis |
+| D6 | Default question: how many routines call a routine, and which ones |
+| D7 | Two TreeGraph views: files and functions |
+| D8 | No compiler: validation without compilation, via verified samples (§2.1) |
+| D9 | Dual license: PolyForm NC + commercial license |
+| D10 | AI edition of portable version includes model and its license — *hypothesis to confirm* |
+| D11 | First test case mixes Fortran, Python, and C/C++: language inventory and four adapters starting in Lots 2–5 |
+| D12 | *(updated in v7, to confirm)* AI identifies unrecognized languages and defines missing keywords; by default, user validates in one click after link preview; automatic adoption mode enabled per project |
+| D13 | Plan contains only lots and dependencies, without milestones or calendar durations |
+| D14 | Every observed call is preserved as a call site (one row in DB); edges aggregate sites |
+| D15 | Linux build on glibc 2.28 base: compatible with Ubuntu 20.04+ and RHEL/Rocky 8+ |
+| D16 | Graph algorithms written in-house (iterative Tarjan, bitsets); NetworkX removed |
+| D17 | Fortran parser chosen via comparative benchmark on real files, among permissive candidates; fxtran (GPL-3.0) excluded from default distribution |
+| D18 | *(Lot 4)* Main Fortran parser: **in-house logical statement analyzer** (fixed and free form, continuations, preprocessor branches preserved, exact positions). Benchmark on fixtures (`docs/bench/fortran_parsers.md`): only candidate with 100% recall and precision; tree-sitter-fortran fails on fixed form (text past col 72, `C`/`*` comments) and loses `#ifdef` branches; fparser fails on 4/23 files and is 25x slower; LFortran not evaluated (binary missing). Fallback and dual extraction: independent pattern extractor. **To confirm on real sample files from test case #1** (`python tools/bench_fortran.py <folder>`) |
+| D19 | *(Lot 0)* Tree-sitter grammars: standalone wheels `tree-sitter-fortran`, `-python`, `-c`, `-cpp`; `tree-sitter-language-pack` ≥ 1.0 excluded because it downloads grammars at runtime (violates C2) |
 
-### 8.2. Questions ouvertes
+### 8.2. Open questions
 
-1. Confirmer D10, ou préférer que le client ajoute lui-même le modèle dans `models/`.
-2. Confirmer D12 (validation en un clic par défaut, adoption automatique en option).
-3. Pack `generic_fortran` : dans le cœur (attractivité) ou dans Pro (valeur) ?
-4. Identification et complétion par l'IA : dans Pro seulement (choix actuel), ou une version limitée dans le cœur ?
-5. Prise en charge officielle de RHEL/Rocky 8, ou seulement Ubuntu (la construction permet les deux) ?
-6. Cas de test n°2 : quel code, et quel nouvel axe doit-il solliciter ?
-7. Une machine Windows est-elle disponible pour les tests du lot 0, ou faut-il une machine virtuelle ?
-8. Disponibilité du nom « CodeGraph-Sci » (marque, nom de domaine, PyPI).
+1. Confirm D10, or prefer that customer places model in `models/` themselves.
+2. Confirm D12 (one-click validation by default, automatic adoption as option).
+3. `generic_fortran` pack: in core (adoption appeal) or in Pro (commercial value)?
+4. AI identification and completion: Pro only (current choice), or basic version in core?
+5. Official support for RHEL/Rocky 8, or Ubuntu only (build supports both)?
+6. Test case #2: which codebase, and what new challenge should it exercise?
+7. Is a Windows runner available for Lot 0 tests, or is a virtual machine required?
+8. Trademark and name availability for "CodeGraph-Sci" (trademark, domain name, PyPI).
 
 ---
 
-## Annexe A — Historique des versions
+## Appendix A — Version history
 
-| Version | Contenu |
+| Version | Content |
 | :--- | :--- |
-| v1 | Architecture initiale autour du premier cas de test |
-| v2 | Modèle de données, pipeline, sécurité, licence, tests, feuille de route |
-| v3 | Double licence ; installation par l'utilisateur ; modèles Apache 2.0 / MIT |
-| v4 | Document générique : extensions (langages, ponts, packs) ; cas de test séparés |
-| v5 | Document d'exécution : application de bureau PySide6, hors ligne, portable ; verrous ; validation sans compilateur ; plan en lots |
-| v6 | Inventaire des langages et profil d'analyse ; dépôts multi-langages dès le départ ; IA qui identifie les langages et définit les mots-clés manquants ; profils par mots-clés ; plan en 17 lots sans jalons |
-| **v7** | **Intégration de deux revues externes :** sites d'appel comme vérité de base et identité des symboles (signatures C++, fonctions `static`, variantes) ; écriture SQLite groupée, index en fin, remplacement atomique, WAL en incrémental ; cache JSON compressé tenant compte des fichiers inclus ; symboles locaux et règle Fortran `nom(...)` (tableaux des fichiers inclus et des `COMMON`, intrinsèques) ; données à trois niveaux de précision ; spécification stricte du format de pack et chargement sûr ; sémantique explicite des préfixes de liaison et tests négatifs ; analyse partielle avec état `out_of_scope` ; métriques séparées et échantillons stratifiés avec bornes de confiance, échantillon de référence rejoué ; point d'arrêt au lot 7 ; banc comparatif des parseurs Fortran sous licence permissive, fxtran (GPL-3.0) exclu par défaut ; construction Linux sur glibc 2.28 et IA compatible avec les processeurs anciens ; NetworkX remplacé par des algorithmes maison ; types d'arêtes explicites pour les chemins ; contrôle de fraîcheur dans l'inspecteur ; validation en un clic des propositions de l'IA par défaut ; tests de robustesse, de chargement sûr et de réseau sur l'application distribuée ; conformité des licences comme tâche explicite du lot 16 |
+| v1 | Initial architecture centered on first test case |
+| v2 | Data model, pipeline, security, licensing, testing, roadmap |
+| v3 | Dual licensing; user installation; Apache 2.0 / MIT models |
+| v4 | Generic document: extensions (languages, bridges, packs); separate test cases |
+| v5 | Execution document: PySide6 desktop app, offline, portable; bottlenecks; validation without compiler; lot-based plan |
+| v6 | Language inventory and analysis profile; multi-language repos from start; AI identifying languages and defining missing keywords; keyword profiles; 17 lots without calendar milestones |
+| **v7** | **Integration of two external reviews:** call sites as ground truth and symbol identity (C++ signatures, `static` functions, variants); SQLite bulk writes, deferred indexing, atomic replacement, WAL for incremental; compressed JSON cache factoring in included files; local symbols and Fortran `name(...)` rule (included file and `COMMON` arrays, intrinsics); data at three precision levels; strict pack format spec and safe loading; explicit bridge prefix semantics and negative tests; partial analysis with `out_of_scope` state; separated metrics and stratified samples with confidence intervals, replayed reference sample; stop point at Lot 7; comparative benchmark of permissive Fortran parsers, fxtran (GPL-3.0) excluded by default; Linux build on glibc 2.28 and CPU AI compatible with older processors; NetworkX replaced by in-house algorithms; explicit edge kinds for paths; freshness check in inspector; one-click AI proposal validation by default; robustness, safe-loading, and network tests on distributed package; license compliance as explicit Lot 16 task |
 
-## Annexe B — Glossaire
+## Appendix B — Glossary
 
-- **Inventaire :** détection du langage de chaque fichier du dépôt et rapport de couverture.
-- **Profil d'analyse :** fichier du projet qui fixe le périmètre, les langages, les adaptateurs, les chemins d'inclusion, les packs et les règles utilisés ; l'analyse ne lit que lui.
-- **Site d'appel :** un appel ou un usage constaté à un endroit précis du code (fichier, ligne, colonne), avec sa condition, son origine et son état de résolution.
-- **Arête :** agrégation des sites d'appel de même appelant, même appelé et même type.
-- **Hors périmètre (`out_of_scope`) :** cible définie dans le dépôt mais en dehors des répertoires analysés en détail.
-- **Adaptateur de langage :** plugin qui lit les fichiers d'un langage et produit des faits ; natif (parseur) ou par mots-clés.
-- **Profil de langage par mots-clés :** description d'un langage par ses mots-clés de définition, d'appel, d'inclusion et ses marqueurs ; extraction heuristique, à couverture mesurée.
-- **Pont :** règle ou plugin qui relie un symbole d'un langage à sa cible dans un autre.
-- **Boucle de complétion :** analyse → diagnostic → propositions de l'IA → contrôles automatiques → aperçu et validation → profil mis à jour → nouvelle analyse.
-- **Domain Pack :** règles, surtout déclaratives, qui décrivent les conventions d'un code.
-- **Faits :** ce qu'on extrait d'un fichier avant de relier les fichiers entre eux.
-- **Fixture :** mini-dépôt de test dont l'inventaire et le graphe attendus sont écrits à la main.
-- **Corpus de démarrage / complet :** code réel utilisé comme cas de test, d'abord à périmètre réduit, puis en entier.
-- **Échantillon de référence :** liens et emplacements vérifiés à la main, enregistrés et rejoués automatiquement.
-- **Hub :** routine (ou famille de données) reliée à un très grand nombre d'autres, typiquement un utilitaire.
-- **TreeGraph :** vue en arbre dessiné, dépliable nœud par nœud, au niveau des fonctions ou des fichiers.
-- **Dossier portable :** dossier autonome (Python embarqué compris) qui fonctionne copié n'importe où, y compris sur une clé USB.
-- **Modèle factice :** remplaçant du modèle IA qui renvoie des réponses enregistrées, pour tester sans modèle.
-- **GGUF :** format de fichier des modèles exécutés par llama.cpp.
+- **Inventory:** detection of language of each file in repo and coverage report.
+- **Analysis profile:** project file specifying scope, languages, adapters, include paths, packs, and rules; analysis reads only this file.
+- **Call site:** an observed call or usage at an exact code location (file, line, column), with condition, origin, and resolution state.
+- **Edge:** aggregation of call sites sharing caller, callee, and type.
+- **Out of scope (`out_of_scope`):** target defined in repo but outside detailed analysis scope.
+- **Language adapter:** plugin reading files of a language and producing facts; native (parser) or keyword-based.
+- **Keyword-based language profile:** language specification via definition, call, include keywords and syntax markers; heuristic extraction with measured coverage.
+- **Bridge:** rule or plugin connecting a symbol in one language to its target in another.
+- **Completion loop:** analysis → diagnostic → AI proposals → automated checks → preview & validation → updated profile → re-analysis.
+- **Domain Pack:** declarative rules capturing codebase-specific conventions.
+- **Facts:** data extracted from a file prior to cross-file linking.
+- **Fixture:** mini test repository with hand-crafted expected inventory and graph.
+- **Starter / Full corpus:** real codebase used as test case, first on reduced scope, then in full.
+- **Reference sample:** manually verified links and locations, recorded and replayed automatically.
+- **Hub:** routine (or data family) connected to a very high number of routines, typically a utility.
+- **TreeGraph:** visual expandable tree view, node by node, at function or file level.
+- **Portable folder:** standalone folder (including embedded Python) functioning when copied anywhere, including a USB drive.
+- **Mock model:** AI replacement returning recorded responses for deterministic testing without inference engine.
+- **GGUF:** model file format executed by llama.cpp.
 
-## Annexe C — Consignes pour l'agent de développement (à copier dans `AGENTS.md`)
+## Appendix C — Developer agent guidelines (to copy into `AGENTS.md`)
 
-1. Lire `docs/architecture.md` (§3 et le lot demandé) avant de coder. Ne lire un `docs/packs/<code>.md` que pour travailler sur ce pack.
-2. Ne réaliser **qu'un lot à la fois** ; s'arrêter quand ses tests de validation passent. Ne pas commencer les lots d'interface tant que le lot 7 n'est pas validé.
-3. Respecter les contrats (§3.5 à §3.10) et les dépendances entre paquets (§3.4). Tout changement de contrat est reporté dans `docs/architecture.md`.
-4. Écrire ou compléter les tests **avant** le code qui doit les faire passer.
-5. Aucun accès réseau ni port ouvert, dans le code comme dans les tests.
-6. Aucune dépendance hors de la liste du §3.15.
-7. Aucun identifiant propre à un code analysé dans `src/codegraph_sci/`.
-8. Déterminisme : trier toute collection avant de l'écrire ; pas d'horodatage dans les faits ; chemins relatifs avec `/` ; l'analyse ne lit que le profil d'analyse et n'appelle jamais l'IA.
-9. Le langage d'un fichier vient de l'inventaire ; aucun adaptateur ne le devine.
-10. Chaque appel constaté devient un site d'appel avec fichier, ligne, colonne, condition et origine ; ne jamais fusionner deux sites en perdant ces informations.
-11. Fichiers de configuration : `yaml.safe_load` et validation par schéma uniquement ; jamais `pickle`.
-12. Chaque fichier analysé a un délai maximal ; un échec est consigné, jamais bloquant.
-13. L'interface n'accède aux données que par `GraphQuery` ; aucune requête longue dans le thread principal.
-14. Toute fonction IA doit être testable avec le modèle factice.
-15. Python 3.12 typé (mypy strict), formaté avec ruff ; identifiants, code et commentaires en anglais.
+(Copy of Appendix C from `docs/architecture.md`.)
+
+1. Read `docs/architecture.md` (§3 and the requested lot) before coding. Only read a `docs/packs/<code>.md` file when working on that specific pack.
+2. Implement **only one lot at a time**; stop when its validation tests pass. Do not start UI lots until Lot 7 is validated.
+3. Respect the contracts (§3.5 to §3.10) and package dependencies (§3.4). Any contract change must be recorded in `docs/architecture.md`.
+4. Write or update tests **before** writing the code that makes them pass.
+5. No network access and no open ports, in both production code and tests.
+6. No dependencies outside the list in §3.15.
+7. No identifier specific to an analyzed codebase inside `src/codegraph_sci/`.
+8. Determinism: sort every collection before writing it; no timestamps in facts; relative paths using `/`; analysis reads only the analysis profile and never calls AI.
+9. A file's language comes from the inventory; no adapter guesses it.
+10. Every observed call becomes a call site with file, line, column, condition, and origin; never merge two call sites in a way that loses this information.
+11. Configuration files: `yaml.safe_load` and schema validation only; never `pickle`.
+12. Every analyzed file has a maximum timeout; a failure is logged, never blocking.
+13. The UI accesses data only through `GraphQuery`; no long-running query on the main thread.
+14. Every AI feature must be testable with the mock model.
+15. Typed Python 3.12 (`mypy` strict), formatted with `ruff`; identifiers, code, UI, comments, and documentation in English.
+
+## Appendix D — Specified extraction conventions (Lot 3)
+
+These conventions supplement §3.5 and §3.7; expected fixture graphs (`tests/fixtures/*/expected_graph.json`) follow them.
+
+- **Additional identities:** Fortran module `fmod:<module>` (distinct from procedures, which may share name); derived type, generic interface, and internal procedure `f:<host>::<name>`; Python method `py:<module>.<Class>.<method>`, nested function `py:<module>.<func>.<inner>`; externals `ext:intrinsic:<name>`, `ext:libc:<name>`, `ext:python:<module>[.<name>]`, `ext:mpi:<name>`, `ext:blas:<name>`.
+- **Nodes:** each source file has a `file:<path>` node; declarations (C/C++ prototypes, explicit/abstract `INTERFACE` blocks, pure virtual functions) do not create a definition. A file-level macro block (e.g. `PYBIND11_MODULE(...) { }`) is not a function: its calls have the file node as source.
+- **Site location:** line and column (1-based) of the start of the target text as written (`target_text`): `ELEMK`, `c%area`, `self.check`, `ops::scale`. For a macro-hidden call, macro position and `target_text` = expanded called function. For an include, position of included filename; source is the file node.
+- **Confidence:** `exact` = single target found by name; `resolved` = target selected by rule (receiver type, arity/argument types, `maybe_call` decided by Link, macro, preprocessor variants); `heuristic` = dynamic call (variable, `getattr`) or unresolved site; `ambiguous` = multiple candidates.
+- **Preprocessor variants:** a call toward a routine defined across multiple variants (`f:x`, `f:x#2`) is `resolved` to the first, with all variants as candidates; an edge is created to each variant.
+- **Conditions:** `#ifdef X` → `defined(X)`, `#ifndef X` / `#else` → `!defined(X)`, `#if E` → `E` (normalized spacing); nested conditions joined by ` && `.
+- **Calls without static target:** procedure received as argument, procedure pointer, Python variable → `dynamic_call`, `unresolved` (or `resolved`/`heuristic` if simple propagation finds target, e.g. `h = getattr(m, "f")`).
+- **Libraries:** Python call to module outside repo → `external` to `ext:python:…`; method call on unknown receiver with no method of that name in repo → `external` without target node.
+- **Edges:** `calls` (`call`, `maybe_call`, `dynamic_call` sites having a target, including `external`, `out_of_scope`, and each candidate of ambiguous site), `uses` (`use`, `include`), `inherits`, `implements` (generic interface → specific procedures, without site), `contains` (structure).
+- **Bridges (Lot 8):** `binding` nodes extracted from sources — `bind:pybind11:<module>[.<name>]` (`PYBIND11_MODULE`, `m.def`), `bind:pyext:<module>[.<name>]` (Python C-API: `PyInit_<module>`, `PyMethodDef` tables), `bind:decl:<name>@<file>` (rule declaration patterns). A site resolved by a bridge preserves its `ref_kind` and takes origin `bridge:<bridge>` (`bridge:prefix_calls@<rule>` for profile rule) and `resolved` confidence; its edge is `binds` for `pybind11` and `python_extension` (Python → compiled code), `bridges` for `fortran_c`, `c_cpp`, and `prefix_calls`. A structural `binds` edge links each `binding` node to its implementation. Native bridges (`pybind11`, `python_extension`, `c_cpp`, `fortran_c`) are active by default; they act only on unresolved or external sites.
+- **Packs (Lot 12):** additional format key `data: {fortran_common, fortran_module_variables}` (generic pack `generic_fortran`). New profiles enable `generic_noise` and `generic_fortran`. Rule templates: `catalogs[].entry`/`target` and `entry_points[].target`/`fallback_target` are `str.format` templates (entry fields, named regex groups, `{file_stem}`). Memory keys: literal object `data:mem:<name>`, local object `data:mem:<routine>:<name>` (`local_prefix_pattern`, priority over `literal`), symbolic `data:mem:<routine>:<expression>`, family `data:mem:*<suffix>` (hidden by default). An ambiguous site with > 8 candidates retains zero candidates (no edge).
+- **Keyword languages:** profiles `rules/languages/<language>.yaml` (schema `extract/keywords/language.schema.json`), identities `kw:<language>:<name>`, origin `keywords:<language>`.

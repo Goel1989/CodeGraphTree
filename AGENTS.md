@@ -1,24 +1,24 @@
-# AGENTS.md — Consignes pour l'agent de développement
+# AGENTS.md — Developer Agent Guidelines
 
-(Copie de l'Annexe C de docs/architecture.md.)
+(Copy of Appendix C from `docs/architecture.md`.)
 
-1. Lire `docs/architecture.md` (§3 et le lot demandé) avant de coder. Ne lire un `docs/packs/<code>.md` que pour travailler sur ce pack.
-2. Ne réaliser **qu'un lot à la fois** ; s'arrêter quand ses tests de validation passent. Ne pas commencer les lots d'interface tant que le lot 7 n'est pas validé.
-3. Respecter les contrats (§3.5 à §3.10) et les dépendances entre paquets (§3.4). Tout changement de contrat est reporté dans `docs/architecture.md`.
-4. Écrire ou compléter les tests **avant** le code qui doit les faire passer.
-5. Aucun accès réseau ni port ouvert, dans le code comme dans les tests.
-6. Aucune dépendance hors de la liste du §3.15.
-7. Aucun identifiant propre à un code analysé dans `src/codegraph_sci/`.
-8. Déterminisme : trier toute collection avant de l'écrire ; pas d'horodatage dans les faits ; chemins relatifs avec `/` ; l'analyse ne lit que le profil d'analyse et n'appelle jamais l'IA.
-9. Le langage d'un fichier vient de l'inventaire ; aucun adaptateur ne le devine.
-10. Chaque appel constaté devient un site d'appel avec fichier, ligne, colonne, condition et origine ; ne jamais fusionner deux sites en perdant ces informations.
-11. Fichiers de configuration : `yaml.safe_load` et validation par schéma uniquement ; jamais `pickle`.
-12. Chaque fichier analysé a un délai maximal ; un échec est consigné, jamais bloquant.
-13. L'interface n'accède aux données que par `GraphQuery` ; aucune requête longue dans le thread principal.
-14. Toute fonction IA doit être testable avec le modèle factice.
-15. Python 3.12 typé (mypy strict), formaté avec ruff ; identifiants, code et commentaires en anglais.
+1. Read `docs/architecture.md` (§3 and the requested lot) before coding. Only read a `docs/packs/<code>.md` file when working on that specific pack.
+2. Implement **only one lot at a time**; stop when its validation tests pass. Do not start UI lots until Lot 7 is validated.
+3. Respect the contracts (§3.5 to §3.10) and package dependencies (§3.4). Any contract change must be recorded in `docs/architecture.md`.
+4. Write or update tests **before** writing the code that makes them pass.
+5. No network access and no open ports, in both production code and tests.
+6. No dependencies outside the list in §3.15.
+7. No identifier specific to an analyzed codebase inside `src/codegraph_sci/`.
+8. Determinism: sort every collection before writing it; no timestamps in facts; relative paths using `/`; analysis reads only the analysis profile and never calls AI.
+9. A file's language comes from the inventory; no adapter guesses it.
+10. Every observed call becomes a call site with file, line, column, condition, and origin; never merge two call sites in a way that loses this information.
+11. Configuration files: `yaml.safe_load` and schema validation only; never `pickle`.
+12. Every analyzed file has a maximum timeout; a failure is logged, never blocking.
+13. The UI accesses data only through `GraphQuery`; no long-running query on the main thread.
+14. Every AI feature must be testable with the mock model.
+15. Typed Python 3.12 (`mypy` strict), formatted with `ruff`; identifiers, code, UI, comments, and documentation in English.
 
-## Environnement
+## Environment
 
-- Python 3.12 dans `.venv` : `.venv/Scripts/python tools/check.py` (Windows) ou `.venv/bin/python tools/check.py`.
-- Grammaires tree-sitter : roues individuelles (`tree-sitter-fortran`, `-python`, `-c`, `-cpp`). Ne pas utiliser `tree-sitter-language-pack` ≥ 1.0 : il télécharge les grammaires à l'exécution.
+- Python 3.12 in `.venv`: `.venv/Scripts/python tools/check.py` (Windows) or `.venv/bin/python tools/check.py`.
+- Tree-sitter grammars: individual wheels (`tree-sitter-fortran`, `-python`, `-c`, `-cpp`). Do not use `tree-sitter-language-pack` ≥ 1.0: it downloads grammars at runtime.

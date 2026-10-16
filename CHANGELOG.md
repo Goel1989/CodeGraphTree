@@ -1,99 +1,102 @@
 # Changelog
 
-## Lot 0 — Squelette portable
-- Structure du dépôt (§3.16), `pyproject.toml`, contrats import-linter (§3.4), `tools/check.py`.
-- `cgs --version`, `cgs selftest` (Qt, grammaires tree-sitter, SQLite FTS5, dossier de données, jeux d'instructions CPU, garde réseau).
-- Garde réseau (`core/netguard.py`) installée au démarrage de `cgs` et de l'application.
-- Fenêtre PySide6 vide avec « À propos ».
-- `tools/build_portable.py` + spécification PyInstaller à deux exécutables (mode dossier), conteneur Linux glibc 2.28, intégration continue Linux + Windows.
-- Mesure : dossier portable Windows sans IA = 129 Mo.
+## Lot 0 — Portable Skeleton
+- Repository layout (§3.16), `pyproject.toml`, import-linter contracts (§3.4), `tools/check.py`.
+- `cgs --version`, `cgs selftest` (Qt, tree-sitter grammars, SQLite FTS5, data directory, CPU instruction sets, network guard).
+- Network guard (`core/netguard.py`) installed on startup of `cgs` and the desktop application.
+- Empty PySide6 main window with "About" dialog.
+- `tools/build_portable.py` + two-executable PyInstaller spec (folder mode), Linux glibc 2.28 container, Linux + Windows CI.
+- Measurement: portable Windows folder without AI = 129 MB.
 
-## Lot 1 — Modèle de données et stockage
-- `core/` : vocabulaire du modèle (§3.5), identités (`ids.py`), faits (§3.7) avec JSON canonique compressé, enregistrements du graphe, types du profil d'analyse.
-- `store/` : schéma SQLite (§3.6) versionné, écriture groupée dans un fichier temporaire puis remplacement atomique, index en fin, mode WAL en incrémental (une transaction), cache des faits ; refus d'une version de schéma inconnue.
-- `cgs export json` : export canonique trié.
-- Mesure : 1 000 000 de sites d'appel écrits en 5,4 s (Windows, SSD).
+## Lot 1 — Data Model and Storage
+- `core/`: model vocabulary (§3.5), identities (`ids.py`), facts (§3.7) with compressed canonical JSON, graph records, analysis profile types.
+- `store/`: versioned SQLite schema (§3.6), bulk write to a temporary file followed by atomic replacement, indexes created at the end, WAL mode for incremental updates (single transaction), facts cache; rejects unknown schema versions.
+- `cgs export json`: sorted canonical export.
+- Measurement: 1,000,000 call sites written in 5.4 s (Windows, SSD).
 
-## Lot 2 — Inventaire des langages et profil d'analyse
-- `inventory/` : parcours (`.gitignore`, répertoires exclus, liens symboliques en boucle, fichiers illisibles), table des extensions configurable (`extensions.yaml`), binaires, signatures de contenu (`#!`, lignes de mode, mots-clés pondérés), contexte du dépôt (`.h` C/C++, `.inc` Fortran), chemins d'inclusion, variantes (fixe/libre, préprocesseur, Python 2), rapport de couverture.
-- `analysis_profile.yaml` : chargement sûr (`yaml.safe_load`) et schéma JSON strict ; version incrémentée seulement si le contenu change.
-- `cgs inventory <dossier>` (tableau ou `--json`) ; dossier de projet hors du dépôt (`core/project.py`).
-- Fixture `inventory_mixed`.
-- Mesure : inventaire de 15 000 fichiers en 13,9 s (Windows).
+## Lot 2 — Language Inventory and Analysis Profile
+- `inventory/`: directory traversal (`.gitignore`, excluded directories, symlink loops, unreadable files), configurable extension table (`extensions.yaml`), binary detection, content signatures (`#!`, mode lines, weighted keywords), repository context (`.h` C/C++, `.inc` Fortran), include paths, dialect variants (fixed/free form, preprocessor, Python 2), coverage report.
+- `analysis_profile.yaml`: safe loading (`yaml.safe_load`) and strict JSON schema; version incremented only when content changes.
+- `cgs inventory <folder>` (table or `--json`); project directory outside the repository (`core/project.py`).
+- `inventory_mixed` fixture.
+- Measurement: inventory of 15,000 files in 13.9 s (Windows).
 
-## Lot 3 — Mini-codes de référence
-- 15 fixtures (Fortran x8, Python, C, C++ x2, mini_hybrid, partial_scope, robustness) avec `src/`, `expected_inventory.json` et `expected_graph.json` écrits à la main ; schémas JSON des fichiers attendus.
-- Générateur de dépôt synthétique multi-langages déterministe (`tests/synthetic/generate.py`).
-- Inventaire : un `.h` inclus uniquement par du Fortran est du Fortran.
-- Annexe D de l'architecture : conventions d'extraction précisées.
+## Lot 3 — Reference Mini-Codebases
+- 15 fixtures (Fortran x8, Python, C, C++ x2, mini_hybrid, partial_scope, robustness) with `src/`, hand-written `expected_inventory.json` and `expected_graph.json`; JSON schemas for expected files.
+- Deterministic multi-language synthetic repository generator (`tests/synthetic/generate.py`).
+- Inventory: a `.h` included only by Fortran is classified as Fortran.
+- Architecture Appendix D: extraction conventions specified.
 
-## Lot 4 — Adaptateur Fortran
-- Banc comparatif des parseurs (`tools/bench_fortran.py`, rapport `docs/bench/fortran_parsers.md`) ; décision D18 : analyseur d'instructions logiques du projet.
-- `extract/fortran/` : préparation (formats fixe/libre, colonnes 1-72, continuations, `;`, chaînes masquées, branches `#if` conservées avec leurs conditions, `#include`/`INCLUDE` résolus), unités de programme (modules, procédures internes, interfaces génériques, types et procédures liées, variantes `#2`), symboles locaux (arguments, tableaux, `EXTERNAL`, `COMMON`, déclarations des fichiers inclus), règle `nom(...)` du §3.7, fonctions intrinsèques.
-- Extracteur à motifs indépendant (repli et double extraction) ; test de fuzzing (hypothesis).
-- Les 9 fixtures Fortran donnent exactement les faits attendus.
+## Lot 4 — Fortran Adapter
+- Parser benchmark suite (`tools/bench_fortran.py`, report `docs/bench/fortran_parsers.md`); decision D18: custom logical statement parser.
+- `extract/fortran/`: preprocessing (fixed/free form, columns 1–72, continuations, `;`, masked strings, `#if` branches preserved with conditions, `#include`/`INCLUDE` resolved), program units (modules, internal procedures, generic interfaces, derived types and type-bound procedures, `#2` variants), local symbols (arguments, arrays, `EXTERNAL`, `COMMON`, declarations from included files), `name(...)` rule from §3.7, intrinsic functions.
+- Independent pattern extractor (fallback and dual extraction); fuzzing test (Hypothesis).
+- All 9 Fortran fixtures produce the exact expected facts.
 
-## Lot 5 — Adaptateurs Python, C et C++
-- `extract/python/` : module `ast` (portées locales/englobantes/module/builtins, imports relatifs, décorateurs, héritage, propagation simple `x = Classe()` et `h = getattr(m, "f")`), repli tree-sitter pour Python 2 et fichiers invalides.
-- `extract/cfamily.py` (C et C++, tree-sitter) : définitions avec identités du §3.5 (signatures C++ normalisées, `static` qualifiées par fichier, méthodes hors classe), héritage, expansion partielle des macros (fichier et en-têtes inclus), conditions du préprocesseur, types des arguments pour le choix des surcharges, blocs de macros (`PYBIND11_MODULE`) ; extracteur à motifs de repli.
-- `extract/preproc.py` : conditions du préprocesseur partagées.
-- Les fixtures Python, C, C++ et mini_hybrid donnent exactement les faits attendus ; fuzzing des adaptateurs.
+## Lot 5 — Python, C, and C++ Adapters
+- `extract/python/`: `ast` module (local/enclosing/module/builtin scopes, relative imports, decorators, inheritance, simple propagation `x = Class()` and `h = getattr(m, "f")`), tree-sitter fallback for Python 2 and invalid files.
+- `extract/cfamily.py` (C and C++, tree-sitter): definitions with §3.5 identities (normalized C++ signatures, file-qualified `static`, out-of-class methods), inheritance, partial macro expansion (file and included headers), preprocessor conditions, argument types for overload resolution, macro blocks (`PYBIND11_MODULE`); fallback pattern extractor.
+- `extract/preproc.py`: shared preprocessor condition tracking.
+- Python, C, C++, and `mini_hybrid` fixtures produce the exact expected facts; adapter fuzzing.
 
-## Lot 6 — Link, Index et commande `cgs scan`
-- `algo/` : Tarjan itératif, condensation, taille d'impact par ensembles de bits, parcours en largeur bornés, k plus courts chemins simples ; étape Index (arêtes agrégées, `node_stats`, `file_edges`, `dir_edges`).
-- `link/` : tables de symboles par langage (Fortran insensible à la casse, portées hôte/module/USE transitif, interfaces génériques, procédures liées à un type, variantes ; Python avec MRO ; C avec `static` par fichier ; C++ avec héritage, appels virtuels, choix des surcharges par arité et types), externes connus (intrinsèques, libc, MPI, BLAS/LAPACK, HDF5), état `out_of_scope`.
-- `scan.py` et `cgs scan` : lecture du profil, inventaire, extraction parallèle avec délai par fichier, fichiers trop volumineux signalés, cache des faits (clé incluant les fichiers inclus), progression JSON, écriture atomique ou incrémentale.
-- Les 15 fixtures donnent exactement leur graphe attendu ; deux analyses donnent un export identique.
-- Mesures (Windows, 8 cœurs) : dépôt synthétique 15 000 routines / 3 000 fichiers / 121 387 sites analysé en 50 s ; ré-analyse après 50 modifications en 16,5 s ; taille d'impact de 15 000 nœuds en 0,06 s.
+## Lot 6 — Link, Index, and `cgs scan` Command
+- `algo/`: iterative Tarjan SCC, condensation DAG, bitset transitive impact size, bounded BFS traversals, k shortest simple paths; Index stage (aggregated edges, `node_stats`, `file_edges`, `dir_edges`).
+- `link/`: per-language symbol tables (case-insensitive Fortran, host/module/transitive `USE` scopes, generic interfaces, type-bound procedures, variants; Python with MRO; C with per-file `static`; C++ with inheritance, virtual calls, overload resolution by arity and types), known externals (intrinsics, libc, MPI, BLAS/LAPACK, HDF5), `out_of_scope` state.
+- `scan.py` and `cgs scan`: profile loading, inventory, parallel extraction with per-file timeout, oversized files reported, facts cache (key includes included headers), JSON progress events, atomic or incremental write.
+- All 15 fixtures produce their exact expected graph; two consecutive scans produce an identical export.
+- Measurements (Windows, 8 cores): synthetic repository with 15,000 routines / 3,000 files / 121,387 call sites scanned in 50 s; incremental re-scan after 50 modifications in 16.5 s; impact size of 15,000 nodes in 0.06 s.
 
-## Lot 7 — Outils de validation sur un code réel (point d'arrêt)
-- `audit/` et `cgs audit` : `inventory` (cohérence), `baseline` (référence textuelle indépendante), `diff` (double extraction par langage), `invariants` (doublons, sites non résolus regroupés par motif, routines jamais appelées, échecs), `sample` / `recall-sample` (échantillons stratifiés à graine fixe), `review` (une touche par entrée), `report` (métriques du §2.1 avec bornes de Wilson), `accept` + `replay` (`reference_sample.yaml` rejoué automatiquement), `corpus` (manifeste + attentes).
-- Gabarits `tests/corpus/code_aster_start` et `code_aster_full` (à compléter : emplacement et révision des sources).
-- **Validation réelle non faite** : elle exige les sources du cas de test n°1 et la vérification manuelle des échantillons.
+## Lot 7 — Validation Tools on Real Codebases (Checkpoint)
+- `audit/` and `cgs audit`: `inventory` (consistency), `baseline` (independent text reference), `diff` (dual extraction per language), `invariants` (duplicates, unresolved sites grouped by pattern, uncalled routines, failures), `sample` / `recall-sample` (fixed-seed stratified samples), `review` (single-keystroke review), `report` (§2.1 metrics with Wilson confidence intervals), `accept` + `replay` (`reference_sample.yaml` replayed automatically), `corpus` (manifest + expectations).
+- Templates `tests/corpus/code_aster_start` and `code_aster_full` (to be filled with local source path and revision).
 
-## Lot 8 — Ponts inter-langages
-- Extraction des liaisons : modules pybind11 (`m.def`), extensions de l'API C de Python, noms `BIND(C, NAME=)` des routines et des interfaces Fortran.
-- `link/bridges/` : ponts natifs `pybind11`, `python_extension`, `c_cpp`, `fortran_c` (souligné final, majuscules, double souligné g77, `BIND(C)`) ; règles `prefix_calls` (préfixes du plus long au plus court, `name_transform` explicite) et `declaration_patterns` (nœuds `binding`, jamais de site d'appel) ; règles approuvées du profil (`rules/r-<n>.yaml`).
-- Arêtes `binds` / `bridges`, nœuds externes devenus inutiles supprimés ; groupe « ponts » dans l'échantillon de précision.
-- Fixtures `bridge_pybind11`, `bridge_fortran_c`, `bridge_prefix_negative` et `mini_hybrid` avec ponts : graphes exacts, chaîne Python → C++ → C → Fortran retrouvée, plus aucun site non résolu.
+## Lot 8 — Cross-Language Bridges
+- Binding extraction: pybind11 modules (`m.def`), Python C-API extensions, `BIND(C, NAME=)` names on Fortran routines and interfaces.
+- `link/bridges/`: native bridges `pybind11`, `python_extension`, `c_cpp`, `fortran_c` (trailing underscore, uppercase, g77 double underscore, `BIND(C)`); `prefix_calls` rules (longest-to-shortest prefix matching, explicit `name_transform`) and `declaration_patterns` (`binding` nodes, never call sites); approved profile rules (`rules/r-<n>.yaml`).
+- `binds` / `bridges` edges, obsolete external nodes pruned; "bridges" stratum in precision sampling.
+- Fixtures `bridge_pybind11`, `bridge_fortran_c`, `bridge_prefix_negative`, and `mini_hybrid` with bridges: exact graphs, full Python → C++ → C → Fortran chain recovered, zero unresolved sites.
 
-## Lot 9 — API de requêtes et ligne de commande
-- `query/` : `GraphQuery` (§3.10) — `inventory`, `find` (recherche floue FTS5 + noms), `resolve`, `node`, `callers` / `callees` (nombre d'appelants distincts, fichiers, sites ligne par ligne, masquage du bruit), `children` (routine, fichier, répertoire ; paginé), `file_links`, `call_sites`, `paths` (k chemins simples bornés, étapes d'aiguillage « possibles »), `impact` (appelants transitifs bornés, points d'entrée), `data_accesses`, `unresolved` (groupes par motif), `scan_health`, `source` (contrôle de fraîcheur : taille/date puis SHA-256).
-- Commandes `cgs callers`, `callees`, `find`, `file-links`, `path`, `impact`, `data`, `unresolved`, `health` (tableau ou `--json`).
-- Index ajoutés : `call_site_candidates(dst_node)`, `nodes(display_name)`.
-- Mesures sur le dépôt synthétique (15 000 routines) : appelants d'un hub 11 ms, dépliage 2 ms, recherche 7 ms, impact à profondeur 3 en 197 ms.
+## Lot 9 — Query API and Command Line
+- `query/`: `GraphQuery` (§3.10) — `inventory`, `find` (FTS5 fuzzy search + names), `resolve`, `node`, `callers` / `callees` (distinct callers, files, line-by-line sites, noise hiding), `children` (routine, file, directory; paginated), `file_links`, `call_sites`, `paths` (bounded k simple paths, dispatch steps marked `possible`), `impact` (bounded transitive callers, entry points), `data_accesses`, `unresolved` (grouped by pattern), `scan_health`, `source` (staleness check: size/mtime then SHA-256).
+- CLI commands `cgs callers`, `callees`, `find`, `file-links`, `path`, `impact`, `data`, `unresolved`, `health` (table or `--json`).
+- Added indexes: `call_site_candidates(dst_node)`, `nodes(display_name)`.
+- Measurements on synthetic repository (15,000 routines): callers of a hub 11 ms, children expansion 2 ms, search 7 ms, depth-3 impact 197 ms.
 
-## Validation Code_Aster (lot 7, en cours) — corrections génériques
-- Corpus `code_aster_start` : Code_Aster 17.5.7, téléchargement partiel (bibfor, bibcxx, bibc, code_aster ; 18 446 fichiers) dans `corpus_src/` (non versionné) ; manifeste adapté (contact v17 : `cont_*`).
-- Inventaire : chemin d'inclusion déduit du texte inclus (`#include "asterfort/x.h"` → `bibfor/include`).
-- Fortran : développement des macros du préprocesseur (fichier et en-têtes inclus, récursivement) dans chaque instruction, position de la macro conservée : types définis par macro, macros-fonctions, macros-instructions.
-- Python : limite de récursion relevée pendant l'extraction ; imports étoilés, réexportations et instances appelables suivis par Link.
-- C/C++ : API C de Python et espaces `py::`, `pybind11::`, `boost::`, `Eigen::` externes ; pointeurs intelligents (`shared_ptr<X>`, `XxxPtr`) ; repli par nom de méthode quand la classe n'est pas trouvée.
+## Code_Aster Validation (Lot 7) — Generic Improvements
+- `code_aster_start` corpus: Code_Aster 17.5.7 partial checkout (`bibfor`, `bibcxx`, `bibc`, `code_aster`; 18,446 files) in `corpus_src/` (unversioned); manifest updated (v17 contact: `cont_*`).
+- Inventory: include path inferred from `#include "asterfort/x.h"` → `bibfor/include`.
+- Fortran: recursive preprocessor macro expansion (file and included headers) within statements while preserving macro source coordinates: macro-defined types, function-like macros, statement macros.
+- Python: raised recursion limit during extraction; star imports, re-exports, and callable instances tracked by Link.
+- C/C++: Python C-API and `py::`, `pybind11::`, `boost::`, `Eigen::` namespaces classified as external; smart pointers (`shared_ptr<X>`, `XxxPtr`); method-name fallback when receiver class is unknown.
 
-## Lot 10 — Application de bureau (premier jet)
-- Fenêtre principale (§3.11) : inventaire (forcer un langage, ignorer une extension → `cgs profile`), recherche, panneau Appelants / Appelés avec sites, inspecteur de code coloré (sites surlignés, double-clic → routine appelée, bandeau « fichier modifié » + Ré-analyser), explorateur de fichiers, liste arborescente paresseuse (pages de 50, « +N autres », « ↺ déjà vu »), santé de l'analyse, filtres (utilitaires, confiance, liens IA, ambigus).
-- Requêtes dans le pool de threads Qt ; inventaire, analyse et profil en sous-processus `cgs` avec progression JSON et annulation.
-- Tests pytest-qt : scénarios S1, S2, S10 et modèles.
+## Lot 10 — Desktop Application (Initial Release)
+- Main window (§3.11): inventory (force language, ignore extension → `cgs profile`), search, Callers / Callees panel with call sites, syntax-highlighted code inspector (highlighted call sites, double-click → called routine, "file changed" banner + Re-analyze), file explorer, lazy tree list (pages of 50, "+N more", "↺ already shown"), analysis health, filters (utilities, confidence, AI links, ambiguous sites).
+- Queries executed in Qt thread pool; inventory, scan, and profile updates run in `cgs` subprocess with JSON progress and cancellation.
+- `pytest-qt` tests: scenarios S1, S2, S10, and models.
 
-## Lot 12 — Packs, profils de langage par mots-clés, filtrage du bruit
-- `enrich/` : schéma strict des packs (§3.8) et chargement sûr ; packs intégrés `generic_noise` (hubs) et `generic_fortran` (COMMON, variables de module) ; moteur de règles : `memory_access` (clés littérales, locales, symboliques et familles, propagation simple des affectations de chaînes), `dispatch` (`SELECT CASE`), `catalogs`, `entry_points` (cible de repli), `tests` ; `noise.hide` / `optional` / `auto_detect_hubs`.
-- `extract/keywords/` : adaptateur par mots-clés (§3.9) et schéma des profils ; fixture `keywords_language` (profil écrit à la main, couverture mesurée 100 %).
-- Fortran : accès aux données (lecture/écriture), branches `SELECT CASE`, interfaces imbriquées dans un corps d'interface.
-- Fixtures `pack_acme` et `fortran_data` (avec pack) exactes ; test d'isolation du cœur (§6.4).
-- Code_Aster 17.5.7 (corpus de démarrage) : 0 échec, rappel des définitions 99,6 %, rappel des `CALL` Fortran 100 %, non-résolus 9,2 % (idiomes Python/C++ relevant du pack).
+## Lot 11 — Interactive TreeGraphs (Functions and Files)
+- Incremental deterministic `TreeLayout` (`place_root`, `place_children`, `place_parents`) where already-placed nodes never move.
+- Automatic detection of `main` (`default_roots`, `initial_subgraph`) displaying the first $N$ nodes on startup, directional arrows (`caller ──► callee`), click-to-expand all connected callers and callees (`connected_neighbors`), and "Paths to main" filter (`paths_from_main`, falling back to the shortest path when multiple paths exceed the threshold).
 
-## Validation Code_Aster — suite
-- C/C++ : vrai développement des macros du préprocesseur (`extract/cmacro.py` : paramètres, `#`, `##`, `__VA_ARGS__`, première définition gagnante) ; fonctions déclarées par macro nommées d'après leur développement (`DEFS(X, x, …)` → `x_`). Effet sur Code_Aster : 720 appels C/C++ → Fortran reliés par le pont `fortran_c` (macros `CALL_*`/`CALLO_*`).
-- Link : au-delà de 8 candidats, un site ambigu ne garde aucun candidat (fin des faux hubs `get`).
-- Mesures (corpus de démarrage 17.5.7, packs génériques) : 0 échec, rappel des définitions 99,2 %, rappel des `CALL` Fortran 100 %, non-résolus 8,5 % ; ré-analyse incrémentale ~50 s. Hubs détectés : `assert`, `utmess`, `jeveuo`, `jemarq`, `jedema`… Fiches de vérification régénérées (`tests/corpus/code_aster_start/review/`).
+## Lot 12 — Packs, Keyword Language Profiles, and Noise Filtering
+- `enrich/`: strict pack schema (§3.8) and safe loader; built-in packs `generic_noise` (hubs) and `generic_fortran` (`COMMON`, module variables); rule engine: `memory_access` (literal, local, symbolic, and family keys, simple string assignment propagation), `dispatch` (`SELECT CASE`), `catalogs`, `entry_points` (fallback target), `tests`; `noise.hide` / `optional` / `auto_detect_hubs`.
+- `extract/keywords/`: keyword-based adapter (§3.9) and profile schema; `keywords_language` fixture (hand-written profile, 100% measured coverage).
+- Fortran: data accesses (read/write), `SELECT CASE` branches, nested interfaces inside interface bodies.
+- `pack_acme` and `fortran_data` (with pack) fixtures exact; core isolation test (§6.4).
+- Code_Aster 17.5.7 (starter corpus): 0 failures, definition recall 99.6%, Fortran `CALL` recall 100%, unresolved rate 9.2% (Python/C++ idioms covered by pack).
 
-## Lot 13 — IA : identification des langages et complétion des mots-clés (modèle factice ; vrai modèle à installer)
-- Extension Pro : commandes `cgs ai-worker` (processus séparé, JSON sur entrée/sortie standard, aucun port), `cgs complete` (rôles 1 et 2), `cgs ai-approve` (validation en un clic), ajoutées à `cgs` par le point d'entrée `codegraph_sci.commands` (le cœur n'importe jamais l'extension).
-- Modèles : factice à réponses enregistrées (`tests/ai/`) et `llama-cpp-python` (GGUF sur CPU, sortie contrainte par schéma JSON, température nulle), chargé seulement s'il est installé.
-- Contrôles automatiques des propositions en rejouant Link sur les faits en cache : gain ≥ 50 %, aucune régression, cibles plausibles ≥ 90 %, stabilité sur deux échantillons, plafond de nouveaux liens ; aperçu des liens ajoutés/retirés ; écriture dans le profil (`proposed`, ou `approved` en mode automatique).
-- Fixtures `unknown_extension`, `bridge_unknown_prefix` ; profil de mots-clés proposé à partir d'un document technique.
+## Code_Aster Validation — Follow-up
+- C/C++: full preprocessor macro expansion (`extract/cmacro.py`: parameters, `#`, `##`, `__VA_ARGS__`, first-definition wins); macro-declared functions named after their expansion (`DEFS(X, x, …)` → `x_`). Effect on Code_Aster: 720 C/C++ → Fortran calls linked via `fortran_c` bridge (`CALL_*`/`CALLO_*` macros).
+- Link: ambiguous call sites with more than 8 candidates drop candidate edges (eliminating false `get` hubs).
+- Measurements (17.5.7 starter corpus, generic packs): 0 failures, definition recall 99.2%, Fortran `CALL` recall 100%, unresolved 8.5%; incremental re-scan ~50 s. Detected hubs: `assert`, `utmess`, `jeveuo`, `jemarq`, `jedema`… Regenerated review sheets (`tests/corpus/code_aster_start/review/`).
 
-## Lot 14 — Pack Code_Aster (corpus de démarrage)
-- Pack `code_aster` (`src/codegraph_sci_pro/packs/`) : bruit, tableaux JEVEUX, accès mémoire (`jeveuo`, `wkvect`, `jecreo`, `jecrec`, `jedetr`), aiguillages `te0000`/`lc0000`, commandes (`OPER`/`MACRO`) ; points « à valider » vérifiés sur 17.5.7 (`docs/packs/code_aster.md` §7) ; glossaire pour l'IA.
-- Découverte des packs : projet, `CGS_PACKS_PATH`, dossier portable, extension Pro (localisée sans import).
-- Corpus de démarrage : 16/16 attentes (265 commandes, `te0000` → 600 routines élémentaires, `lc0000` → 86 lois, 3 528 accès JEVEUX).
+## Lot 13 — AI: Unknown Language Identification and Keyword Completion (Mock Model; Real GGUF Optional)
+- Pro extension: `cgs ai-worker` (separate subprocess, JSON over stdin/stdout, no ports), `cgs complete` (Roles 1 and 2), `cgs ai-approve` (one-click approval), registered via `codegraph_sci.commands` entry point (core never imports Pro).
+- Models: deterministic recorded-response mock (`tests/ai/`) and `llama-cpp-python` (CPU GGUF, JSON-schema constrained output, temperature 0), loaded only when installed.
+- Automated verification gates replaying Link on cached facts: gain ≥ 50%, zero regression, plausible targets ≥ 90%, two-sample stability, new-links ceiling; diff preview of added/removed links; written to profile (`proposed`, or `approved` in automatic mode).
+- Fixtures `unknown_extension`, `bridge_unknown_prefix`; keyword profile proposed from technical documentation.
+
+## Lot 14 — Code_Aster Pack (Starter Corpus)
+- `code_aster` pack (`src/codegraph_sci_pro/packs/`): noise rules, JEVEUX arrays, memory accesses (`jeveuo`, `wkvect`, `jecreo`, `jecrec`, `jedetr`), `te0000`/`lc0000` dispatchers, commands (`OPER`/`MACRO`); items verified against 17.5.7 (`docs/packs/code_aster.md` §7); glossary for local AI.
+- Pack discovery: project folder, `CGS_PACKS_PATH`, portable folder, Pro extension (located without importing).
+- Starter corpus: 16/16 expectations met (265 commands, `te0000` → 600 elementary routines, `lc0000` → 86 constitutive laws, 3,528 JEVEUX accesses).

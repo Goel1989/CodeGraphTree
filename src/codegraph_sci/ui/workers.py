@@ -51,6 +51,9 @@ class QueryRunner(QObject):
         self.generation: dict[str, int] = {}
         self.tasks: set[QueryTask] = set()
 
+    def cancel_all(self) -> None:
+        self.generation.clear()
+
     def submit(self, db: Path, key: str, fn: Callable[[GraphQuery], Any], on_done: Callable[[Any], None],
                on_error: Callable[[str], None] | None = None) -> None:
         gen = self.generation.get(key, 0) + 1
@@ -61,12 +64,18 @@ class QueryRunner(QObject):
         def finished(result: Any) -> None:
             self.tasks.discard(task)
             if self.generation.get(key) == gen:
-                on_done(result)
+                try:
+                    on_done(result)
+                except RuntimeError:
+                    pass
 
         def failed(message: str) -> None:
             self.tasks.discard(task)
             if on_error is not None and self.generation.get(key) == gen:
-                on_error(message)
+                try:
+                    on_error(message)
+                except RuntimeError:
+                    pass
 
         task.signals.done.connect(finished)
         task.signals.failed.connect(failed)

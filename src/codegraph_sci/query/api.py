@@ -22,6 +22,7 @@ from codegraph_sci.query.types import (
     CallerReport,
     CallSite,
     DataAccessView,
+    DefaultRoots,
     Direction,
     FileLink,
     GraphPath,
@@ -30,6 +31,8 @@ from codegraph_sci.query.types import (
     LanguageLine,
     Level,
     LinkItem,
+    MainPathReport,
+    NeighborsReport,
     NodeDetail,
     NodeSummary,
     Page,
@@ -38,6 +41,8 @@ from codegraph_sci.query.types import (
     ScanHealth,
     SiteGroup,
     SourceExcerpt,
+    SubgraphEdge,
+    SubgraphReport,
     TreeItem,
 )
 from codegraph_sci.store.db import open_db
@@ -516,3 +521,289 @@ class GraphQuery:
         start = max(1, start)
         end = min(len(lines), max(start, end))
         return SourceExcerpt(path, start, end, lines[start - 1:end], stale, enc)
+
+    # ---------------------------------------------------- treegraph helpers
+    def default_roots(self, *, hide_noise: bool = True) -> DefaultRoots:
+        """Detect the main starting routine and main starting file of the project deterministically."""
+        rows = self.con.execute(
+            "SELECT n.id, n.uid, n.display_name, n.kind, n.subtype, n.lang, f.path, n.line_start, "
+            "COALESCE(s.fan_in, 0), COALESCE(s.fan_out, 0), COALESCE(s.is_noise, 0), "
+            "COALESCE(s.fan_out_filtered, 0), COALESCE(s.impact_size, 0), COALESCE(n.in_scope, 1) "
+            "FROM nodes n LEFT JOIN files f ON f.id = n.file_id LEFT JOIN node_stats s ON s.node_id = n.id "
+            "WHERE n.kind IN ('routine', 'entry_point')"
+        ).fetchall()
+
+        def rank(row: tuple[Any, ...]) -> tuple[int, int, int, int, int, int, int, str]:
+            uid = str(row[1])
+            name = str(row[2]).lower()
+            kind = str(row[3])
+            subtype = row[4]
+            path = str(row[6] or "")
+            fan_in = int(row[8])
+            fan_out = int(row[9])
+            is_noise = bool(row[10])
+            fan_out_f = int(row[11])
+            impact = int(row[12])
+            in_scope = bool(row[13])
+            base = path.rsplit("/", 1)[-1].lower() if path else ""
+            stem = base.split(".", 1)[0]
+            is_main_sym = (
+                subtype == "f_program"
+                or kind == "entry_point"
+                or name in ("main", "__main__")
+                or uid.lower().endswith((":main", ".main", "::main"))
+            )
+            is_main_file = stem in ("main", "run", "driver", "app", "start", "cli", "init") or base.startswith(
+                ("main_", "run_", "driver_")
+            )
+            if is_main_sym and fan_out > 0:
+                tier = 0
+            elif is_main_sym:
+                tier = 1
+            elif is_main_file and fan_in == 0 and fan_out > 0:
+                tier = 2
+            elif fan_in == 0 and fan_out > 0:
+                tier = 3
+            elif is_main_file and fan_out > 0:
+                tier = 4
+            elif fan_out > 0:
+                tier = 5
+            else:
+                tier = 6
+            return (
+                0 if in_scope else 1,
+                1 if (hide_noise and is_noise) else 0,
+                tier,
+                -fan_out_f,
+                -fan_out,
+                fan_in,
+                -impact,
+                uid,
+            )
+
+        ordered = sorted(rows, key=rank)
+        candidates = [self._summary(r[:11]) for r in ordered[:10]]
+        main_routine = candidates[0] if candidates else None
+        main_file: NodeSummary | None = None
+        if main_routine is not None and main_routine.file:
+            f_uid = f"file:{main_routine.file}"
+            f_row = self.con.execute(_SUMMARY + "WHERE n.uid = ?", (f_uid,)).fetchone()
+            if f_row is not None:
+                main_file = self._summary(f_row)
+            else:
+                main_file = NodeSummary(
+                    f_uid, main_routine.file.rsplit("/", 1)[-1], "file", None,
+                    main_routine.lang, main_routine.file, 1,
+                )
+        if main_file is None:
+            f_rows = self.con.execute(
+                "SELECT f.path, f.lang, COALESCE(sum(e.count), 0) AS out_cnt "
+                "FROM files f LEFT JOIN file_edges e ON e.src_file = f.id "
+                "GROUP BY f.id ORDER BY out_cnt DESC, f.path ASC LIMIT 1"
+            ).fetchone()
+            if f_rows is not None:
+                p, lang, out_cnt = str(f_rows[0]), f_rows[1], int(f_rows[2])
+                main_file = NodeSummary(f"file:{p}", p.rsplit("/", 1)[-1], "file", None, lang, p, 1, 0, out_cnt)
+        return DefaultRoots(main_routine=main_routine, main_file=main_file, routine_candidates=candidates)
+
+    def _tree_item_for(self, uid: str, level: Level) -> TreeItem:
+        if level is Level.DIRECTORY or uid.startswith("dir:"):
+            d = uid[4:] if uid.startswith("dir:") else uid
+            has_c = (
+                self.con.execute("SELECT 1 FROM dir_edges WHERE src_dir = ? OR dst_dir = ? LIMIT 1", (d, d)).fetchone()
+                is not None
+            )
+            norm = f"dir:{d}" if d != "." and not uid.startswith("dir:") else uid
+            return TreeItem(norm, d, "directory", None, None, "root", 0, "exact", False, has_c)
+        if level is Level.FILE or uid.startswith("file:"):
+            path = uid[5:] if uid.startswith("file:") else uid
+            row = self.con.execute("SELECT id, lang FROM files WHERE path = ?", (path,)).fetchone()
+            if row is None:
+                raise QueryError(f"unknown file: {path}")
+            fid, lang = int(row[0]), row[1]
+            has_c = (
+                self.con.execute(
+                    "SELECT 1 FROM file_edges WHERE src_file = ? OR dst_file = ? LIMIT 1", (fid, fid)
+                ).fetchone()
+                is not None
+            )
+            return TreeItem(f"file:{path}", path.rsplit("/", 1)[-1], "file", lang, path, "root", 0, "exact",
+                            False, has_c)
+        row = self.con.execute(_SUMMARY + "WHERE n.uid = ?", (uid,)).fetchone()
+        if row is None:
+            raise QueryError(f"unknown symbol: {uid}")
+        s = self._summary(row)
+        return TreeItem(
+            s.uid, s.display_name, s.kind, s.lang, s.file, "root", 0, "exact",
+            False, (s.fan_in + s.fan_out) > 0, s.is_noise,
+        )
+
+    def initial_subgraph(
+        self,
+        root_uid: str | None = None,
+        *,
+        level: Level = Level.ROUTINE,
+        max_nodes: int = 25,
+        hide_noise: bool = True,
+    ) -> SubgraphReport:
+        """Breadth-first subgraph of the first ``max_nodes`` nodes starting from ``root_uid`` (or ``main``)."""
+        if root_uid is None:
+            roots = self.default_roots(hide_noise=hide_noise)
+            if level is Level.ROUTINE:
+                if roots.main_routine is None:
+                    raise QueryError("no routine in database")
+                root_uid = roots.main_routine.uid
+            elif level is Level.FILE:
+                if roots.main_file is None:
+                    raise QueryError("no file in database")
+                root_uid = roots.main_file.uid
+            else:
+                path = roots.main_file.file if roots.main_file and roots.main_file.file else "."
+                root_uid = path.rsplit("/", 1)[0] if "/" in path else "."
+        root_item = self._tree_item_for(root_uid, level)
+        nodes: dict[str, TreeItem] = {root_item.uid: root_item}
+        edges: list[SubgraphEdge] = []
+        seen_edges: set[tuple[str, str]] = set()
+        queue: deque[str] = deque([root_item.uid])
+        truncated = False
+        hidden_total = 0
+        max_n = max(1, max_nodes)
+        while queue:
+            curr = queue.popleft()
+            page = self.children(
+                curr, direction=Direction.CALLEES, level=level, offset=0, limit=max(50, max_n * 2), hide_noise=hide_noise
+            )
+            hidden_total += page.hidden
+            for child in page.items:
+                if child.uid not in nodes:
+                    if len(nodes) >= max_n:
+                        truncated = True
+                        continue
+                    nodes[child.uid] = child
+                    queue.append(child.uid)
+                if (curr, child.uid) not in seen_edges:
+                    seen_edges.add((curr, child.uid))
+                    edges.append(SubgraphEdge(curr, child.uid, child))
+        return SubgraphReport(
+            root=root_item, nodes=nodes, edges=edges, truncated=truncated, hidden_noise=hidden_total
+        )
+
+    def connected_neighbors(
+        self, uid: str, *, level: Level = Level.ROUTINE, limit: int = 50, hide_noise: bool = True
+    ) -> NeighborsReport:
+        """All direct callers and callees of ``uid`` (routine, file, or directory)."""
+        center = self._tree_item_for(uid, level)
+        callers = self.children(
+            center.uid, direction=Direction.CALLERS, level=level, offset=0, limit=limit, hide_noise=hide_noise
+        )
+        callees = self.children(
+            center.uid, direction=Direction.CALLEES, level=level, offset=0, limit=limit, hide_noise=hide_noise
+        )
+        return NeighborsReport(
+            center=center,
+            callers=callers.items,
+            callees=callees.items,
+            hidden_noise=callers.hidden + callees.hidden,
+        )
+
+    def _file_paths(self, src_uid: str, dst_uid: str, *, k: int = 5, max_len: int = 15) -> PathReport:
+        src_path = src_uid[5:] if src_uid.startswith("file:") else src_uid
+        dst_path = dst_uid[5:] if dst_uid.startswith("file:") else dst_uid
+        s_row = self.con.execute("SELECT id FROM files WHERE path = ?", (src_path,)).fetchone()
+        d_row = self.con.execute("SELECT id FROM files WHERE path = ?", (dst_path,)).fetchone()
+        if s_row is None or d_row is None:
+            raise QueryError(f"unknown file: {src_uid if s_row is None else dst_uid}")
+        src, dst = int(s_row[0]), int(d_row[0])
+        rev_adj: dict[int, list[tuple[int, str]]] = defaultdict(list)
+        fwd_adj: dict[int, list[tuple[int, str]]] = defaultdict(list)
+        for sf, df, kind in self.con.execute("SELECT src_file, dst_file, kind FROM file_edges ORDER BY src_file, dst_file"):
+            fwd_adj[int(sf)].append((int(df), str(kind)))
+            rev_adj[int(df)].append((int(sf), str(kind)))
+        dist = {dst: 0}
+        queue = deque([dst])
+        while queue:
+            v = queue.popleft()
+            if dist[v] >= max_len:
+                continue
+            for w, _kind in rev_adj.get(v, []):
+                if w not in dist:
+                    dist[w] = dist[v] + 1
+                    queue.append(w)
+        if src not in dist:
+            return PathReport([], False)
+        found: list[list[tuple[int, str | None]]] = []
+        frontier: deque[list[tuple[int, str | None]]] = deque([[(src, None)]])
+        while frontier and len(found) < k:
+            path = frontier.popleft()
+            v = path[-1][0]
+            if v == dst:
+                found.append(path)
+                continue
+            for w, kind in fwd_adj.get(v, []):
+                if w not in dist or any(p[0] == w for p in path) or len(path) + dist[w] > max_len + 1:
+                    continue
+                frontier.append(path + [(w, kind)])
+        path_of = dict(self.con.execute("SELECT id, path FROM files").fetchall())
+        out = [
+            GraphPath([PathStep(f"file:{path_of[fid]}", kind, "exact" if kind else None, False) for fid, kind in p])
+            for p in found
+        ]
+        return PathReport(out, bool(frontier) and len(found) >= k)
+
+    def paths_from_main(
+        self,
+        target_uid: str,
+        *,
+        root_uid: str | None = None,
+        level: Level = Level.ROUTINE,
+        max_paths: int = 4,
+        max_len: int = 15,
+    ) -> MainPathReport:
+        """Paths from ``main`` to ``target_uid``; if more than ``max_paths`` exist, returns the shortest path."""
+        is_file = level is Level.FILE or target_uid.startswith("file:")
+        if root_uid is None:
+            roots = self.default_roots()
+            if is_file:
+                root_uid = roots.main_file.uid if roots.main_file else target_uid
+            else:
+                root_uid = roots.main_routine.uid if roots.main_routine else target_uid
+        if is_file and not target_uid.startswith("file:"):
+            target_uid = f"file:{target_uid}"
+        if is_file and not root_uid.startswith("file:"):
+            root_uid = f"file:{root_uid}"
+        if target_uid == root_uid:
+            return MainPathReport(
+                root_uid=root_uid,
+                target_uid=target_uid,
+                paths=[GraphPath([PathStep(target_uid, None, None, False)])],
+                total_found=1,
+                multiple_possible=False,
+                showing_shortest_only=False,
+                truncated=False,
+            )
+        if is_file:
+            rep = self._file_paths(root_uid, target_uid, k=max_paths + 1, max_len=max_len)
+        else:
+            rep = self.paths(root_uid, target_uid, k=max_paths + 1, max_len=max_len)
+            if not rep.paths:
+                imp = self.impact(target_uid, max_depth=max_len)
+                for ep in imp.entry_points:
+                    cand = self.paths(ep, target_uid, k=max_paths + 1, max_len=max_len)
+                    if cand.paths:
+                        root_uid = ep
+                        rep = cand
+                        break
+        total = len(rep.paths)
+        multiple = total > 1 or rep.truncated
+        shortest_only = total > max_paths or (rep.truncated and total > 1)
+        chosen = rep.paths[:1] if shortest_only else rep.paths[:max_paths]
+        return MainPathReport(
+            root_uid=root_uid,
+            target_uid=target_uid,
+            paths=chosen,
+            total_found=total,
+            multiple_possible=multiple,
+            showing_shortest_only=shortest_only,
+            truncated=rep.truncated,
+        )
+

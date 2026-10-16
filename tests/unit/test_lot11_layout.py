@@ -44,3 +44,17 @@ def test_children_centred_on_parent_when_room() -> None:
     pos = lay.place_children("r", ["a", "b", "c"])
     assert pos == {"a": (100, -10), "b": (100, 0), "c": (100, 10)}
     assert lay.place_children("r", ["a"]) == {}
+
+
+def test_place_parents_and_bidirectional_expansion() -> None:
+    lay = TreeLayout(dx=100, dy=10)
+    lay.place_root("mid")
+    parents = lay.place_parents("mid", ["p1", "p2"])
+    children = lay.place_children("mid", ["c1", "c2"])
+    assert parents == {"p1": (-100, -5), "p2": (-100, 5)}
+    assert children == {"c1": (100, -5), "c2": (100, 5)}
+    before = dict(lay.positions)
+    lay.place_parents("p1", ["gp"])
+    assert all(lay.positions[k] == v for k, v in before.items())
+    assert lay.positions["gp"][0] == -200
+

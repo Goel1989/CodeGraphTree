@@ -116,7 +116,7 @@ class CallTreeModel(QAbstractItemModel):
             new.append(child)
         remaining = page.total - offset - len(page.items)
         if remaining > 0:
-            new.append(_Node(f"+more:{node.uid}:{offset + PAGE}", f"+{remaining} autres", node, more=True))
+            new.append(_Node(f"+more:{node.uid}:{offset + PAGE}", f"+{remaining} more", node, more=True))
         start = len(node.children)
         self.beginInsertRows(parent_index, start, start + len(new) - 1) if new else None
         node.children.extend(new)
@@ -145,7 +145,7 @@ class CallTreeModel(QAbstractItemModel):
     # --------------------------------------------------------------- data
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = 0) -> Any:  # noqa: N802
         if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
-            return ("Routine", "Appels", "Fichier")[section]
+            return ("Routine", "Calls", "File")[section]
         return None
 
     def data(self, index: Index, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
@@ -156,7 +156,7 @@ class CallTreeModel(QAbstractItemModel):
             if col == 0:
                 label = node.label
                 if node.seen:
-                    label += "  ↺ déjà vu"
+                    label += "  ↺ already shown"
                 if item is not None and item.possible:
                     label += "  (possible)"
                 return label
@@ -169,7 +169,7 @@ class CallTreeModel(QAbstractItemModel):
                 return QBrush(QColor("#888888"))
             return QBrush(QColor(LANG_COLORS.get(item.lang if item else None, "#222222")))
         if role == Qt.ItemDataRole.ToolTipRole:
-            return node.uid if not node.more else "Double-cliquer pour afficher la suite"
+            return node.uid if not node.more else "Double-click to show more"
         return None
 
 
@@ -180,7 +180,7 @@ class FileTreeModel(QStandardItemModel):
 
     def __init__(self, files: list[dict[str, Any]]) -> None:
         super().__init__()
-        self.setHorizontalHeaderLabels(["Fichier", "Langage", "Routines", "Liens"])
+        self.setHorizontalHeaderLabels(["File", "Language", "Routines", "Links"])
         dirs: dict[str, QStandardItem] = {}
         root = self.invisibleRootItem()
 
@@ -202,9 +202,10 @@ class FileTreeModel(QStandardItemModel):
             name.setData(f["path"], self.PATH_ROLE)
             name.setForeground(QBrush(QColor(LANG_COLORS.get(f["lang"], "#222222"))))
             if f["status"] in ("failed", "fallback"):
-                name.setToolTip(f"Analyse : {f['status']}")
+                name.setToolTip(f"Analysis: {f['status']}")
             row = [name, QStandardItem(f["lang"] or "-"), QStandardItem(str(f["routines"] or "")),
                    QStandardItem(str(f["links"] or ""))]
             for it in row:
                 it.setEditable(False)
             parent.appendRow(row)
+
