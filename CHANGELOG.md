@@ -50,3 +50,9 @@
 - `audit/` et `cgs audit` : `inventory` (cohérence), `baseline` (référence textuelle indépendante), `diff` (double extraction par langage), `invariants` (doublons, sites non résolus regroupés par motif, routines jamais appelées, échecs), `sample` / `recall-sample` (échantillons stratifiés à graine fixe), `review` (une touche par entrée), `report` (métriques du §2.1 avec bornes de Wilson), `accept` + `replay` (`reference_sample.yaml` rejoué automatiquement), `corpus` (manifeste + attentes).
 - Gabarits `tests/corpus/code_aster_start` et `code_aster_full` (à compléter : emplacement et révision des sources).
 - **Validation réelle non faite** : elle exige les sources du cas de test n°1 et la vérification manuelle des échantillons.
+
+## Lot 8 — Ponts inter-langages
+- Extraction des liaisons : modules pybind11 (`m.def`), extensions de l'API C de Python, noms `BIND(C, NAME=)` des routines et des interfaces Fortran.
+- `link/bridges/` : ponts natifs `pybind11`, `python_extension`, `c_cpp`, `fortran_c` (souligné final, majuscules, double souligné g77, `BIND(C)`) ; règles `prefix_calls` (préfixes du plus long au plus court, `name_transform` explicite) et `declaration_patterns` (nœuds `binding`, jamais de site d'appel) ; règles approuvées du profil (`rules/r-<n>.yaml`).
+- Arêtes `binds` / `bridges`, nœuds externes devenus inutiles supprimés ; groupe « ponts » dans l'échantillon de précision.
+- Fixtures `bridge_pybind11`, `bridge_fortran_c`, `bridge_prefix_negative` et `mini_hybrid` avec ponts : graphes exacts, chaîne Python → C++ → C → Fortran retrouvée, plus aucun site non résolu.

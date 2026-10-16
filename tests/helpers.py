@@ -62,14 +62,16 @@ def expected_references(expected: dict[str, Any], files: set[str]) -> list[dict[
                   key=lambda r: (r["file"], r["line"], r["col"], r["target_text"]))
 
 
-def scan_fixture(name: str, folder: Path, root: Path | None = None) -> Any:
+def scan_fixture(name: str, folder: Path, root: Path | None = None, expected_file: str = "expected_graph.json"
+                 ) -> Any:
     """Scan a fixture (or a copy of it at ``root``) into ``folder``; returns the ScanResult."""
     from codegraph_sci.core.profile import Scope
     from codegraph_sci.core.project import open_project
     from codegraph_sci.inventory.profile_io import profile_from_inventory, save_profile
     from codegraph_sci.scan import ScanOptions, scan
 
-    expected = load_expected(name) if (FIXTURES / name / "expected_graph.json").is_file() else {}
+    exp_path = FIXTURES / name / expected_file
+    expected = json.loads(exp_path.read_text(encoding="utf-8")) if exp_path.is_file() else {}
     src = root or FIXTURES / name / "src"
     project = open_project(src, folder)
     if "profile" in expected and not project.profile_path.is_file():
@@ -77,7 +79,9 @@ def scan_fixture(name: str, folder: Path, root: Path | None = None) -> Any:
         profile.scope = Scope(**expected["profile"]["scope"])
         save_profile(project.profile_path, profile)
     arrays = set(expected.get("extract_options", {}).get("known_arrays", []))
-    return scan(project, ScanOptions(extra_known_arrays=arrays))
+    bridges = expected.get("bridges", {})
+    return scan(project, ScanOptions(extra_known_arrays=arrays, native_bridges=bridges.get("native", True),
+                                     bridge_rules=list(bridges.get("rules", []))))
 
 
 def graph_diff(export: dict[str, Any], expected: dict[str, Any]) -> list[str]:

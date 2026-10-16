@@ -1,0 +1,28 @@
+{
+  "description": "pybind11 module and its use from Python: binding nodes, Python calls bound to C++ functions",
+  "nodes": [
+    {"uid": "bind:pybind11:fastmath", "kind": "binding", "subtype": "pybind11_module", "file": "cpp/module.cpp", "line_start": 6, "line_end": 9},
+    {"uid": "bind:pybind11:fastmath.dot", "kind": "binding", "subtype": "pybind11_def", "file": "cpp/module.cpp", "line_start": 7, "line_end": 7},
+    {"uid": "bind:pybind11:fastmath.norm", "kind": "binding", "subtype": "pybind11_def", "file": "cpp/module.cpp", "line_start": 8, "line_end": 8},
+    {"uid": "cpp:fm::dot(int,int)", "kind": "routine", "subtype": "cpp_function", "file": "cpp/module.cpp", "line_start": 2, "line_end": 2},
+    {"uid": "cpp:fm::norm(int)", "kind": "routine", "subtype": "cpp_function", "file": "cpp/module.cpp", "line_start": 3, "line_end": 3},
+    {"uid": "py:py.client", "kind": "module", "subtype": "py_module", "file": "py/client.py", "line_start": 1, "line_end": 6},
+    {"uid": "py:py.client.use", "kind": "routine", "subtype": "py_function", "file": "py/client.py", "line_start": 5, "line_end": 6}
+  ],
+  "call_sites": [
+    {"src": "file:cpp/module.cpp", "file": "cpp/module.cpp", "line": 7, "col": 5, "ref_kind": "call", "target_text": "m.def", "dst": null, "resolution": "external", "confidence": "exact", "origin": "native:cpp"},
+    {"src": "file:cpp/module.cpp", "file": "cpp/module.cpp", "line": 8, "col": 5, "ref_kind": "call", "target_text": "m.def", "dst": null, "resolution": "external", "confidence": "exact", "origin": "native:cpp"},
+    {"src": "py:py.client", "file": "py/client.py", "line": 1, "col": 8, "ref_kind": "use", "target_text": "fastmath", "dst": "bind:pybind11:fastmath", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:pybind11"},
+    {"src": "py:py.client", "file": "py/client.py", "line": 2, "col": 22, "ref_kind": "use", "target_text": "norm", "dst": "bind:pybind11:fastmath.norm", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:pybind11"},
+    {"src": "py:py.client.use", "file": "py/client.py", "line": 6, "col": 12, "ref_kind": "call", "target_text": "fastmath.dot", "dst": "cpp:fm::dot(int,int)", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:pybind11"},
+    {"src": "py:py.client.use", "file": "py/client.py", "line": 6, "col": 33, "ref_kind": "call", "target_text": "norm", "dst": "cpp:fm::norm(int)", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:pybind11"}
+  ],
+  "edges": [
+    {"src": "bind:pybind11:fastmath.dot", "dst": "cpp:fm::dot(int,int)", "kind": "binds", "site_count": 0},
+    {"src": "bind:pybind11:fastmath.norm", "dst": "cpp:fm::norm(int)", "kind": "binds", "site_count": 0},
+    {"src": "py:py.client", "dst": "bind:pybind11:fastmath", "kind": "uses", "site_count": 1},
+    {"src": "py:py.client", "dst": "bind:pybind11:fastmath.norm", "kind": "uses", "site_count": 1},
+    {"src": "py:py.client.use", "dst": "cpp:fm::dot(int,int)", "kind": "binds", "site_count": 1},
+    {"src": "py:py.client.use", "dst": "cpp:fm::norm(int)", "kind": "binds", "site_count": 1}
+  ]
+}

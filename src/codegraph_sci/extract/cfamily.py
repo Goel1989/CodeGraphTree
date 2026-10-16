@@ -143,10 +143,65 @@ class CFamilyExtractor:
             self.pattern_extract()
         else:
             self.visit(tree.root_node, _State(src=self.file_uid))
+        if "PyInit_" in self.text:
+            self._python_capi_bindings()
         return FileFacts(path=self.path, lang=self.lang, encoding=self.encoding, adapter=self.adapter,
                          adapter_version=self.version, definitions=self.definitions, references=self.references,
                          includes=self.includes, directives=self.directives, errors=self.errors,
                          used_fallback=used_fallback).sort()
+
+    # ----------------------------------------------------- Python bindings
+    def _line_of(self, offset: int) -> int:
+        return self.text.count("\n", 0, offset) + 1
+
+    def _python_capi_bindings(self) -> None:
+        """Extension modules written with the Python C API: PyInit_<module> and PyMethodDef tables."""
+        modules = [(m.group(1), self._line_of(m.start())) for m in re.finditer(r"\bPyInit_(\w+)\s*\(", self.text)]
+        if not modules:
+            return
+        module, line = modules[0]
+        module_uid = self.unique(f"bind:pyext:{module}")
+        self.definitions.append(Definition(module_uid, module, "binding", "pyext_module", module, (line, line),
+                                           attrs={"module": module, "bridge": "python_extension"}))
+        for m in re.finditer(r'\{\s*"(\w+)"\s*,\s*(?:\(\s*\w+\s*\)\s*)?&?(\w+)\s*,\s*METH_', self.text):
+            ln = self._line_of(m.start())
+            self.definitions.append(Definition(
+                self.unique(f"bind:pyext:{module}.{m.group(1)}"), m.group(1), "binding", "pyext_def", m.group(1),
+                (ln, ln), parent=module_uid,
+                attrs={"module": module, "py_name": m.group(1), "target": m.group(2), "bridge": "python_extension"}))
+
+    def _pybind11_module(self, node: tree_sitter.Node, params: tree_sitter.Node, body: tree_sitter.Node,
+                         st: _State) -> None:
+        names = [_t(p) for p in params.children if p.type == "parameter_declaration"]
+        if not names:
+            return
+        module = names[0].strip()
+        module_uid = self.unique(f"bind:pybind11:{module}")
+        self.definitions.append(Definition(module_uid, module, "binding", "pybind11_module", module,
+                                           (node.start_point[0] + 1, node.end_point[0] + 1),
+                                           attrs={"module": module, "bridge": "pybind11"}))
+        stack = [body]
+        found: list[tuple[int, str, str]] = []
+        while stack:
+            n = stack.pop()
+            if n.type == "call_expression":
+                fn = n.child_by_field_name("function")
+                args = n.child_by_field_name("arguments")
+                field_node = fn.child_by_field_name("field") if fn is not None and fn.type == "field_expression" \
+                    else None
+                if field_node is not None and _t(field_node) in ("def", "def_static") and args is not None:
+                    items = [a for a in args.children if a.type not in ("(", ")", ",")]
+                    if len(items) >= 2 and items[0].type == "string_literal":
+                        py_name = _t(items[0]).strip('"')
+                        target = _t(items[1]).lstrip("&").replace(" ", "")
+                        found.append((n.start_point[0] + 1, py_name, re.sub(r"<.*>", "", target)))
+            stack.extend(n.children)
+        for line, py_name, target in sorted(found):
+            self.definitions.append(Definition(
+                self.unique(f"bind:pybind11:{module}.{py_name}"), py_name, "binding", "pybind11_def", py_name,
+                (line, line), parent=module_uid,
+                attrs={"module": module, "py_name": py_name, "target": target, "namespaces": list(st.namespaces),
+                       "bridge": "pybind11"}))
 
     def _error_ratio(self, root: tree_sitter.Node) -> float:
         """Share of the code lines covered by tree-sitter ERROR nodes."""
@@ -363,6 +418,8 @@ class CFamilyExtractor:
         if type_node is None and _MACRO_BLOCK.match(raw_name) and params_node is not None and all(
                 p.child_by_field_name("declarator") is None for p in params_node.children
                 if p.type == "parameter_declaration"):
+            if raw_name in ("PYBIND11_MODULE", "PYBIND11_EMBEDDED_MODULE"):
+                self._pybind11_module(node, params_node, body, st)
             for child in body.children:
                 self.visit(child, _State(list(st.namespaces), list(st.classes), self.file_uid, {}, True,
                                          st.anonymous_ns))

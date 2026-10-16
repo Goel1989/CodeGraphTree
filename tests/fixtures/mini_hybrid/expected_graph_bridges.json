@@ -1,0 +1,34 @@
+{
+  "description": "mini_hybrid with the native bridges: Python -> C++ (pybind11) -> C (extern C) -> Fortran (name decoration); no unresolved site left",
+  "nodes": [
+    {"uid": "bind:pybind11:hybrid_ext", "kind": "binding", "subtype": "pybind11_module", "file": "ext/bindings.cpp", "line_start": 9, "line_end": 11},
+    {"uid": "bind:pybind11:hybrid_ext.solve", "kind": "binding", "subtype": "pybind11_def", "file": "ext/bindings.cpp", "line_start": 10, "line_end": 10},
+    {"uid": "c:c_solve", "kind": "routine", "subtype": "c_function", "file": "csrc/solver.c", "line_start": 5, "line_end": 9},
+    {"uid": "cpp:hybrid::solve(int)", "kind": "routine", "subtype": "cpp_function", "file": "ext/bindings.cpp", "line_start": 4, "line_end": 6},
+    {"uid": "ext:intrinsic:dble", "kind": "external", "subtype": "intrinsic", "file": null, "line_start": null, "line_end": null},
+    {"uid": "f:kernel", "kind": "routine", "subtype": "f_subroutine", "file": "fsrc/kernel.f90", "line_start": 1, "line_end": 5},
+    {"uid": "py:app.run", "kind": "module", "subtype": "py_module", "file": "app/run.py", "line_start": 1, "line_end": 5},
+    {"uid": "py:app.run.run_case", "kind": "routine", "subtype": "py_function", "file": "app/run.py", "line_start": 4, "line_end": 5}
+  ],
+  "call_sites": [
+    {"src": "py:app.run", "file": "app/run.py", "line": 1, "col": 8, "ref_kind": "use", "target_text": "hybrid_ext", "dst": "bind:pybind11:hybrid_ext", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:pybind11"},
+    {"src": "py:app.run.run_case", "file": "app/run.py", "line": 5, "col": 12, "ref_kind": "call", "target_text": "hybrid_ext.solve", "dst": "cpp:hybrid::solve(int)", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:pybind11"},
+    {"src": "file:csrc/solver.c", "file": "csrc/solver.c", "line": 1, "col": 11, "ref_kind": "include", "target_text": "solver_api.h", "dst": "file:csrc/solver_api.h", "resolution": "resolved", "confidence": "exact", "origin": "native:c"},
+    {"src": "c:c_solve", "file": "csrc/solver.c", "line": 7, "col": 5, "ref_kind": "call", "target_text": "kernel_", "dst": "f:kernel", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:fortran_c"},
+    {"src": "file:ext/bindings.cpp", "file": "ext/bindings.cpp", "line": 1, "col": 11, "ref_kind": "include", "target_text": "solver_api.h", "dst": "file:csrc/solver_api.h", "resolution": "resolved", "confidence": "exact", "origin": "native:cpp"},
+    {"src": "cpp:hybrid::solve(int)", "file": "ext/bindings.cpp", "line": 5, "col": 12, "ref_kind": "call", "target_text": "c_solve", "dst": "c:c_solve", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:c_cpp"},
+    {"src": "file:ext/bindings.cpp", "file": "ext/bindings.cpp", "line": 10, "col": 5, "ref_kind": "call", "target_text": "m.def", "dst": null, "resolution": "external", "confidence": "exact", "origin": "native:cpp"},
+    {"src": "f:kernel", "file": "fsrc/kernel.f90", "line": 4, "col": 7, "ref_kind": "maybe_call", "target_text": "dble", "dst": "ext:intrinsic:dble", "resolution": "external", "confidence": "exact", "origin": "native:fortran"}
+  ],
+  "edges": [
+    {"src": "bind:pybind11:hybrid_ext.solve", "dst": "cpp:hybrid::solve(int)", "kind": "binds", "site_count": 0},
+    {"src": "c:c_solve", "dst": "f:kernel", "kind": "bridges", "site_count": 1},
+    {"src": "cpp:hybrid::solve(int)", "dst": "c:c_solve", "kind": "bridges", "site_count": 1},
+    {"src": "f:kernel", "dst": "ext:intrinsic:dble", "kind": "calls", "site_count": 1},
+    {"src": "file:csrc/solver.c", "dst": "file:csrc/solver_api.h", "kind": "uses", "site_count": 1},
+    {"src": "file:ext/bindings.cpp", "dst": "file:csrc/solver_api.h", "kind": "uses", "site_count": 1},
+    {"src": "py:app.run", "dst": "bind:pybind11:hybrid_ext", "kind": "uses", "site_count": 1},
+    {"src": "py:app.run.run_case", "dst": "cpp:hybrid::solve(int)", "kind": "binds", "site_count": 1}
+  ],
+  "path": {"from": "py:app.run.run_case", "to": "f:kernel", "via": ["cpp:hybrid::solve(int)", "c:c_solve"]}
+}

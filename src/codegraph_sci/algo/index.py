@@ -14,9 +14,12 @@ SITE_EDGE_KIND = {"call": "calls", "maybe_call": "calls", "dynamic_call": "calls
                   "include": "uses", "inherit": "inherits", "bind": "binds"}
 
 
+BINDING_BRIDGES = ("bridge:pybind11", "bridge:python_extension")
+
+
 def site_edge_kind(site: CallSiteRecord) -> str:
     if site.origin.startswith("bridge:") and site.ref_kind in ("call", "maybe_call", "dynamic_call"):
-        return "bridges"
+        return "binds" if site.origin.startswith(BINDING_BRIDGES) else "bridges"
     return SITE_EDGE_KIND.get(site.ref_kind, "calls")
 
 

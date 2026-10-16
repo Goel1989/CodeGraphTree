@@ -1,6 +1,9 @@
 {
   "description": "Python + C++ + C + Fortran, without bridges: each language graph, cross-language sites unresolved or external",
+  "bridges": {"native": false},
   "nodes": [
+    {"uid": "bind:pybind11:hybrid_ext", "kind": "binding", "subtype": "pybind11_module", "file": "ext/bindings.cpp", "line_start": 9, "line_end": 11},
+    {"uid": "bind:pybind11:hybrid_ext.solve", "kind": "binding", "subtype": "pybind11_def", "file": "ext/bindings.cpp", "line_start": 10, "line_end": 10},
     {"uid": "c:c_solve", "kind": "routine", "subtype": "c_function", "file": "csrc/solver.c", "line_start": 5, "line_end": 9},
     {"uid": "cpp:hybrid::solve(int)", "kind": "routine", "subtype": "cpp_function", "file": "ext/bindings.cpp", "line_start": 4, "line_end": 6},
     {"uid": "ext:intrinsic:dble", "kind": "external", "subtype": "intrinsic", "file": null, "line_start": null, "line_end": null},

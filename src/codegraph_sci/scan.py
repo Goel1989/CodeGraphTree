@@ -61,6 +61,8 @@ class ScanOptions:
     full: bool = False  # ignore the cache
     extra_known_arrays: set[str] = field(default_factory=set)
     cancel: Callable[[], bool] | None = None
+    native_bridges: bool = True
+    bridge_rules: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -110,6 +112,22 @@ def git_revision(root: Path) -> str | None:
         return out.stdout.strip() or None
     except (OSError, subprocess.SubprocessError):
         return None
+
+
+def load_bridge_rules(project: Project, profile: AnalysisProfile) -> list[dict[str, Any]]:
+    """Approved bridge rules of the profile (``rules/r-<n>.yaml``, format of a pack ``bridges[]`` entry)."""
+    from codegraph_sci.inventory.profile_io import safe_load_yaml
+
+    out: list[dict[str, Any]] = []
+    for rule in profile.rules:
+        if rule.kind != "bridge" or rule.status != "approved":
+            continue
+        data = safe_load_yaml(project.folder / rule.file)
+        entries = data if isinstance(data, list) else [data]
+        for entry in entries:
+            if isinstance(entry, dict):
+                out.append({**entry, "id": rule.id})
+    return out
 
 
 # ------------------------------------------------------------- extraction
@@ -292,7 +310,16 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
     full = [f for p, f in sorted(facts_by_path.items()) if in_scope(p, profile)]
     outline = [f for p, f in sorted(facts_by_path.items()) if not in_scope(p, profile)]
     file_info = {e.path: (e.lang, e.lines) for e in inventory.entries if e.status == "source"}
-    link = Linker(full, outline, file_info).run()
+    rules = list(options.bridge_rules) + load_bridge_rules(project, profile)
+
+    def read_text(rel: str) -> str | None:
+        try:
+            return decode_bytes((root / rel).read_bytes())[0]
+        except OSError:
+            return None
+
+    link = Linker(full, outline, file_info, bridge_rules=rules, native_bridges=options.native_bridges,
+                  read_text=read_text).run()
     check_cancel()
 
     # Index.

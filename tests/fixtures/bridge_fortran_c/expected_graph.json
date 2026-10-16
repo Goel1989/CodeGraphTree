@@ -1,0 +1,28 @@
+{
+  "description": "C <-> Fortran: name decoration (trailing underscore, upper case, g77 double underscore) and BIND(C, NAME=...)",
+  "nodes": [
+    {"uid": "c:c_callback_", "kind": "routine", "subtype": "c_function", "file": "csrc/wrap.c", "line_start": 10, "line_end": 12},
+    {"uid": "c:c_entry", "kind": "routine", "subtype": "c_function", "file": "csrc/wrap.c", "line_start": 4, "line_end": 8},
+    {"uid": "c:c_named_impl", "kind": "routine", "subtype": "c_function", "file": "csrc/use.c", "line_start": 3, "line_end": 3},
+    {"uid": "f:compute", "kind": "routine", "subtype": "f_subroutine", "file": "fsrc/f.f90", "line_start": 1, "line_end": 10},
+    {"uid": "f:compute2", "kind": "routine", "subtype": "f_subroutine", "file": "fsrc/f.f90", "line_start": 12, "line_end": 14},
+    {"uid": "f:exported", "kind": "routine", "subtype": "f_subroutine", "file": "fsrc/f.f90", "line_start": 20, "line_end": 22},
+    {"uid": "f:legacy_double", "kind": "routine", "subtype": "f_subroutine", "file": "fsrc/f.f90", "line_start": 16, "line_end": 18}
+  ],
+  "call_sites": [
+    {"src": "c:c_named_impl", "file": "csrc/use.c", "line": 3, "col": 29, "ref_kind": "call", "target_text": "fort_exported", "dst": "f:exported", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:fortran_c"},
+    {"src": "c:c_entry", "file": "csrc/wrap.c", "line": 5, "col": 5, "ref_kind": "call", "target_text": "compute_", "dst": "f:compute", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:fortran_c"},
+    {"src": "c:c_entry", "file": "csrc/wrap.c", "line": 6, "col": 5, "ref_kind": "call", "target_text": "COMPUTE2", "dst": "f:compute2", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:fortran_c"},
+    {"src": "c:c_entry", "file": "csrc/wrap.c", "line": 7, "col": 5, "ref_kind": "call", "target_text": "legacy_double__", "dst": "f:legacy_double", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:fortran_c"},
+    {"src": "f:compute", "file": "fsrc/f.f90", "line": 8, "col": 8, "ref_kind": "call", "target_text": "c_callback", "dst": "c:c_callback_", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:fortran_c"},
+    {"src": "f:compute", "file": "fsrc/f.f90", "line": 9, "col": 8, "ref_kind": "call", "target_text": "c_named", "dst": "c:c_named_impl", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:fortran_c"}
+  ],
+  "edges": [
+    {"src": "c:c_entry", "dst": "f:compute", "kind": "bridges", "site_count": 1},
+    {"src": "c:c_entry", "dst": "f:compute2", "kind": "bridges", "site_count": 1},
+    {"src": "c:c_entry", "dst": "f:legacy_double", "kind": "bridges", "site_count": 1},
+    {"src": "c:c_named_impl", "dst": "f:exported", "kind": "bridges", "site_count": 1},
+    {"src": "f:compute", "dst": "c:c_callback_", "kind": "bridges", "site_count": 1},
+    {"src": "f:compute", "dst": "c:c_named_impl", "kind": "bridges", "site_count": 1}
+  ]
+}

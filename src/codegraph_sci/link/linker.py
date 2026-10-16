@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -16,6 +17,7 @@ from codegraph_sci.core.facts import Definition, FileFacts, Reference
 from codegraph_sci.core.graph import CallSiteRecord, EdgeRecord, NodeRecord
 from codegraph_sci.core.ids import file_uid, variant_uid
 from codegraph_sci.core.model import CONFIDENCE_RANK
+from codegraph_sci.link.bridges import BridgeEngine
 from codegraph_sci.link.externals import external_for
 
 INTRINSIC_MODULES = frozenset({"iso_c_binding", "iso_fortran_env", "ieee_arithmetic", "ieee_exceptions",
@@ -46,7 +48,8 @@ def _base(uid: str) -> str:
 
 class Linker:
     def __init__(self, facts: list[FileFacts], outline: list[FileFacts], file_info: dict[str, tuple[str | None, int]],
-                 origin_prefix: dict[str, str] | None = None) -> None:
+                 origin_prefix: dict[str, str] | None = None, *, bridge_rules: list[dict[str, Any]] | None = None,
+                 native_bridges: bool = True, read_text: Callable[[str], str | None] | None = None) -> None:
         self.facts = sorted(facts, key=lambda f: f.path)
         self.outline = sorted(outline, key=lambda f: f.path)
         self.file_info = dict(file_info)  # path -> (lang, line count)
@@ -55,6 +58,11 @@ class Linker:
         self.defs: dict[str, tuple[Definition, str, str]] = {}  # uid -> (definition, path, lang)
         self.renames: dict[tuple[str, str], str] = {}
         self.sites: list[CallSiteRecord] = []
+        self.site_refs: list[Reference] = []
+        self.bridge_rules = bridge_rules or []
+        self.native_bridges = native_bridges
+        self.read_text = read_text
+        self.binding_targets: dict[str, str] = {}
         self.struct_edges: list[EdgeRecord] = []
         self.variants: dict[str, list[str]] = defaultdict(list)
         self.parent: dict[str, str] = {}
@@ -92,7 +100,11 @@ class Linker:
                     res = self._resolve(facts, ref)
                     if res.dst != _DROP:
                         self._site(facts, ref, res)
+        engine = BridgeEngine(self, self.bridge_rules, self.native_bridges, self.read_text)
+        engine.run()
+        self.binding_targets = engine.binding_targets
         self._structure()
+        self._prune_externals()
         stats = {"nodes": len(self.nodes), "call_sites": len(self.sites)}
         for res_name in ("resolved", "ambiguous", "external", "out_of_scope", "unresolved"):
             stats[res_name] = sum(1 for s in self.sites if s.resolution == res_name)
@@ -180,6 +192,7 @@ class Linker:
         if dst is not None and dst in self.nodes and not self.nodes[dst].in_scope and resolution == "resolved":
             resolution = "out_of_scope"
         origin = self.origin_prefix.get(facts.lang, f"native:{facts.lang}")
+        self.site_refs.append(ref)
         self.sites.append(CallSiteRecord(
             src=self._src(facts, ref.src), file=facts.path, line=ref.line, col=ref.col, ref_kind=ref.kind,
             target_text=ref.target_text, dst=dst, resolution=resolution, confidence=res.confidence, origin=origin,
@@ -590,7 +603,17 @@ class Linker:
                 res = self._f_generic(uid)
                 for target in res.candidates or ([res.dst] if res.dst else []):
                     edges.append(EdgeRecord(uid, target, "implements", 0, "exact", [f"native:{node.lang}"], []))
+        for uid, target in sorted(self.binding_targets.items()):
+            if uid in self.nodes and target in self.nodes:
+                edges.append(EdgeRecord(uid, target, "binds", 0, "resolved", ["bridge"], []))
         self.struct_edges = edges
+
+    def _prune_externals(self) -> None:
+        """External nodes no longer referenced (e.g. replaced by a bridge) are removed."""
+        used = {s.dst for s in self.sites if s.dst} | {c for s in self.sites for c in s.candidates}
+        used |= {e.dst for e in self.struct_edges} | {e.src for e in self.struct_edges}
+        for uid in [u for u, n in self.nodes.items() if n.kind == "external" and u not in used]:
+            del self.nodes[uid]
 
 
 def weakest(values: list[str]) -> str:

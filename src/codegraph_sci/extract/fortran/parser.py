@@ -159,6 +159,13 @@ def _literal(text: str) -> str | int | float | None:
     return None
 
 
+def _bind_name(st: Statement, offset: int, bind: re.Match[str], default: str) -> str:
+    """C name of ``BIND(C, NAME="...")``, read in the original text (strings are masked)."""
+    if bind.group(1) is None:
+        return default
+    return st.orig[offset + bind.start(1):offset + bind.end(1)]
+
+
 class FortranParser:
     def __init__(self, path: str, text: str, fixed_form: bool, ctx: ExtractContext) -> None:
         self.path = path
@@ -288,7 +295,7 @@ class FortranParser:
             sub.attrs["recursive"] = bool(re.match(rf"^(?:{_PREFIX}|{_TYPESPEC})*?recursive\b", low)) or (
                 "recursive" in low[:m.start(1)])
             if bind:
-                sub.attrs["bind_c"] = bind.group(1) if bind.group(1) is not None else name
+                sub.attrs["bind_c"] = _bind_name(st, m.start(3), bind, name)
             for a in args:
                 sub.symbols[a] = LocalSymbol(a, "dummy", "local")
             sub.uid = self._child_uid(scope, name)
@@ -434,6 +441,11 @@ class FortranParser:
                 owner = scope.owner()
                 if owner is not None:
                     self._set_role(owner, name, "external", "local")
+                    bind = _BIND.search(hm.group(3))
+                    if bind:
+                        names = owner.attrs.setdefault("bind_names", {})
+                        assert isinstance(names, dict)
+                        names[name] = _bind_name(st, hm.start(3), bind, name)
             self.stack.append(Scope("ifacebody", name, None, st.line, st.condition, scope))
 
     def _in_type(self, st: Statement, low: str, scope: Scope) -> None:
@@ -737,6 +749,13 @@ class FortranParser:
             sym = self._lookup(owner, name)
             if sym is not None and sym.role in PROCEDURE_ROLES:
                 kind = "dynamic_call"
+            s: Scope | None = owner
+            while s is not None:
+                names = s.attrs.get("bind_names")
+                if isinstance(names, dict) and name in names:
+                    hint = {"bind_c": names[name]}
+                    break
+                s = s.parent
         self.references.append(Reference(src=owner.uid or self.file_uid, target_text=target, kind=kind, line=line,
                                          col=col, args=args, condition=self._cond(st, line), hint=hint))
 

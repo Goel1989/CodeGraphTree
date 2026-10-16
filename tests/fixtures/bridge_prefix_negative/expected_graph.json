@@ -1,0 +1,32 @@
+{
+  "description": "Prefix rule C++ -> Fortran: longest prefix first, explicit name transform, look-alike identifiers never linked, declaration macros create binding nodes and no call site",
+  "bridges": {
+    "rules": [
+      {"from": "cpp", "to": "fortran", "call_prefixes": ["FCALL_", "FCALL_X_"], "name_transform": ["strip_prefix", "lowercase"]},
+      {"from": "cpp", "to": "fortran", "declaration_patterns": ["FDECL\\((?P<name>\\w+)"]}
+    ]
+  },
+  "nodes": [
+    {"uid": "bind:decl:assemble@cpp/calls.cpp", "kind": "binding", "subtype": "macro_declaration", "file": "cpp/calls.cpp", "line_start": 2, "line_end": 2},
+    {"uid": "bind:decl:solve@cpp/calls.cpp", "kind": "binding", "subtype": "macro_declaration", "file": "cpp/calls.cpp", "line_start": 1, "line_end": 1},
+    {"uid": "cpp:FCALL_LOCAL_HELPER(int)", "kind": "routine", "subtype": "cpp_function", "file": "cpp/calls.cpp", "line_start": 4, "line_end": 4},
+    {"uid": "cpp:driver(int)", "kind": "routine", "subtype": "cpp_function", "file": "cpp/calls.cpp", "line_start": 6, "line_end": 13},
+    {"uid": "f:assemble", "kind": "routine", "subtype": "f_subroutine", "file": "f/solvers.f90", "line_start": 5, "line_end": 7},
+    {"uid": "f:solve", "kind": "routine", "subtype": "f_subroutine", "file": "f/solvers.f90", "line_start": 1, "line_end": 3}
+  ],
+  "call_sites": [
+    {"src": "cpp:driver(int)", "file": "cpp/calls.cpp", "line": 7, "col": 5, "ref_kind": "call", "target_text": "FCALL_ASSEMBLE", "dst": "f:assemble", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:prefix_calls"},
+    {"src": "cpp:driver(int)", "file": "cpp/calls.cpp", "line": 8, "col": 5, "ref_kind": "call", "target_text": "FCALL_LOCAL_HELPER", "dst": "cpp:FCALL_LOCAL_HELPER(int)", "resolution": "resolved", "confidence": "exact", "origin": "native:cpp"},
+    {"src": "cpp:driver(int)", "file": "cpp/calls.cpp", "line": 9, "col": 5, "ref_kind": "call", "target_text": "FCALLX", "dst": null, "resolution": "unresolved", "confidence": "heuristic", "origin": "native:cpp"},
+    {"src": "cpp:driver(int)", "file": "cpp/calls.cpp", "line": 10, "col": 5, "ref_kind": "call", "target_text": "MYFCALL_SOLVE", "dst": null, "resolution": "unresolved", "confidence": "heuristic", "origin": "native:cpp"},
+    {"src": "cpp:driver(int)", "file": "cpp/calls.cpp", "line": 11, "col": 5, "ref_kind": "call", "target_text": "FCALL_UNKNOWN", "dst": null, "resolution": "unresolved", "confidence": "heuristic", "origin": "native:cpp"},
+    {"src": "cpp:driver(int)", "file": "cpp/calls.cpp", "line": 12, "col": 5, "ref_kind": "call", "target_text": "FCALL_X_SOLVE", "dst": "f:solve", "resolution": "resolved", "confidence": "resolved", "origin": "bridge:prefix_calls"}
+  ],
+  "edges": [
+    {"src": "bind:decl:assemble@cpp/calls.cpp", "dst": "f:assemble", "kind": "binds", "site_count": 0},
+    {"src": "bind:decl:solve@cpp/calls.cpp", "dst": "f:solve", "kind": "binds", "site_count": 0},
+    {"src": "cpp:driver(int)", "dst": "cpp:FCALL_LOCAL_HELPER(int)", "kind": "calls", "site_count": 1},
+    {"src": "cpp:driver(int)", "dst": "f:assemble", "kind": "bridges", "site_count": 1},
+    {"src": "cpp:driver(int)", "dst": "f:solve", "kind": "bridges", "site_count": 1}
+  ]
+}
