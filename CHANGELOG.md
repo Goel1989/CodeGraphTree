@@ -32,3 +32,9 @@
 - `extract/fortran/` : préparation (formats fixe/libre, colonnes 1-72, continuations, `;`, chaînes masquées, branches `#if` conservées avec leurs conditions, `#include`/`INCLUDE` résolus), unités de programme (modules, procédures internes, interfaces génériques, types et procédures liées, variantes `#2`), symboles locaux (arguments, tableaux, `EXTERNAL`, `COMMON`, déclarations des fichiers inclus), règle `nom(...)` du §3.7, fonctions intrinsèques.
 - Extracteur à motifs indépendant (repli et double extraction) ; test de fuzzing (hypothesis).
 - Les 9 fixtures Fortran donnent exactement les faits attendus.
+
+## Lot 5 — Adaptateurs Python, C et C++
+- `extract/python/` : module `ast` (portées locales/englobantes/module/builtins, imports relatifs, décorateurs, héritage, propagation simple `x = Classe()` et `h = getattr(m, "f")`), repli tree-sitter pour Python 2 et fichiers invalides.
+- `extract/cfamily.py` (C et C++, tree-sitter) : définitions avec identités du §3.5 (signatures C++ normalisées, `static` qualifiées par fichier, méthodes hors classe), héritage, expansion partielle des macros (fichier et en-têtes inclus), conditions du préprocesseur, types des arguments pour le choix des surcharges, blocs de macros (`PYBIND11_MODULE`) ; extracteur à motifs de repli.
+- `extract/preproc.py` : conditions du préprocesseur partagées.
+- Les fixtures Python, C, C++ et mini_hybrid donnent exactement les faits attendus ; fuzzing des adaptateurs.

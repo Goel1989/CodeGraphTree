@@ -10,9 +10,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from codegraph_sci.extract.preproc import CondStack
+
 _DIRECTIVE = re.compile(r"^\s*#\s*(\w+)\s*(.*)$")
 _INCLUDE_TARGET = re.compile(r'^\s*#\s*include\s*(["<])([^">]+)[">]')
-_WS = re.compile(r"\s+")
 
 
 @dataclass
@@ -60,61 +61,6 @@ class PreparedSource:
     includes: list[PPInclude] = field(default_factory=list)
     line_conditions: list[str | None] = field(default_factory=list)  # index = line - 1
     errors: list[tuple[int, str]] = field(default_factory=list)
-
-
-def _norm_expr(expr: str) -> str:
-    expr = expr.split("//", 1)[0]
-    expr = re.sub(r"/\*.*?\*/", "", expr)
-    return _WS.sub(" ", expr).strip()
-
-
-def _atomic(cond: str) -> bool:
-    return re.fullmatch(r"!?[\w()]+", cond) is not None
-
-
-def negate(cond: str) -> str:
-    if cond.startswith("!") and _atomic(cond[1:]) and cond.count("(") <= 1:
-        return cond[1:]
-    return f"!{cond}" if _atomic(cond) else f"!({cond})"
-
-
-def _join(parts: list[str]) -> str | None:
-    kept = [p if ("&&" not in p and "||" not in p) or len(parts) == 1 else f"({p})" for p in parts if p]
-    return " && ".join(kept) if kept else None
-
-
-class _CondStack:
-    """Conditions of nested #if blocks; all branches are kept (keep_all_branches)."""
-
-    def __init__(self) -> None:
-        # Each frame: (conditions of previous branches, condition of current branch)
-        self.frames: list[tuple[list[str], str]] = []
-
-    def current(self) -> str | None:
-        return _join([frame[1] for frame in self.frames])
-
-    def directive(self, kind: str, arg: str) -> None:
-        if kind == "ifdef":
-            self.frames.append(([], f"defined({arg.split()[0] if arg.split() else ''})"))
-        elif kind == "ifndef":
-            self.frames.append(([], f"!defined({arg.split()[0] if arg.split() else ''})"))
-        elif kind == "if":
-            self.frames.append(([], _norm_expr(arg)))
-        elif kind == "elif" and self.frames:
-            previous, cur = self.frames[-1]
-            previous = previous + [cur]
-            parts = [negate(p) for p in previous] + [_norm_expr(arg)]
-            self.frames[-1] = (previous, " && ".join(parts))
-        elif kind == "else" and self.frames:
-            previous, cur = self.frames[-1]
-            previous = previous + [cur]
-            if len(previous) == 1:
-                cond = negate(previous[0])
-            else:
-                cond = " && ".join(negate(p) for p in previous)
-            self.frames[-1] = (previous, cond)
-        elif kind == "endif" and self.frames:
-            self.frames.pop()
 
 
 def _is_fixed_comment(line: str) -> bool:
@@ -214,7 +160,7 @@ def prepare(text: str, fixed_form: bool) -> PreparedSource:
     lines = text.split("\n")
     if lines and lines[-1] == "":
         lines.pop()
-    conds = _CondStack()
+    conds = CondStack()
     result = PreparedSource(statements=[])
     builder = _Builder()
     continuing = False
