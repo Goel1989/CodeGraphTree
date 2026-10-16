@@ -1,7 +1,10 @@
 # tests/corpus/code_aster_start/manifest.yaml
 corpus: code_aster_start
-source: { path: "<emplacement local des sources>", revision: "<tag exact de la version de référence>" }
+# Sources: sparse checkout of gitlab.com/codeaster/src (bibfor/, bibcxx/, bibc/, code_aster/ only), never versioned here.
+source: { path: "C:/CodeGraphTree/corpus_src/code_aster", revision: "17.5.7" }
 license: GPL-3.0
 packs: [code_aster]
-scope: ["code_aster/", "bibcxx/", "bibc/", "bibfor/nonlinear/", "bibfor/contact/"]
-# le reste du dépôt est indexé (définitions seulement) : les appels vers l'extérieur sont out_of_scope
+# In v17 the contact code is split into cont_algo, cont_elem, cont_pair and cont_defi (no bibfor/contact/).
+scope: ["code_aster/", "bibcxx/", "bibc/", "bibfor/nonlinear/", "bibfor/cont_algo/", "bibfor/cont_elem/",
+        "bibfor/cont_pair/", "bibfor/cont_defi/"]
+# The rest of bibfor/ is indexed (definitions only): calls to it are out_of_scope.

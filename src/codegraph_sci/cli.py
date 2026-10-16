@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -133,6 +134,35 @@ def _cmd_audit_corpus(args: argparse.Namespace) -> int:
     return 0 if not failed else 1
 
 
+def _cmd_profile(args: argparse.Namespace) -> int:
+    """Changes of the analysis profile made by the user (each one creates a new profile version)."""
+    from codegraph_sci.core.profile import FileOverride, HistoryEntry, IgnoredGroup
+    from codegraph_sci.core.project import open_project
+    from codegraph_sci.inventory.profile_io import load_profile, profile_from_inventory, save_profile
+    from codegraph_sci.inventory.run import run_inventory
+
+    project = open_project(args.root, args.project)
+    profile = load_profile(project.profile_path) if project.profile_path.is_file() else profile_from_inventory(
+        run_inventory(project.root))
+    if args.action == "set-language":
+        profile.file_overrides = [o for o in profile.file_overrides if o.glob != args.glob]
+        profile.file_overrides.append(FileOverride(args.glob, args.language, args.reason or "forced by the user"))
+        change = f"language of {args.glob} forced to {args.language}"
+    elif args.action == "ignore":
+        ext = args.glob if args.glob.startswith(".") else f".{args.glob}"
+        profile.ignored = [g for g in profile.ignored if g.ext != ext]
+        profile.ignored.append(IgnoredGroup(ext, 0, args.reason or "ignored by the user"))
+        change = f"extension {ext} ignored"
+    else:
+        print(json.dumps(profile.to_dict(), indent=1, ensure_ascii=False))
+        return 0
+    profile.profile_version += 1
+    profile.history.append(HistoryEntry(profile.profile_version, change, "user"))
+    save_profile(project.profile_path, profile)
+    print(f"profile v{profile.profile_version}: {change}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cgs", description="CodeGraph-Sci command line.")
     parser.add_argument("--version", action="version", version=f"CodeGraph-Sci {APP_VERSION}")
@@ -156,6 +186,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--full", action="store_true", help="ignore the facts cache")
     p.add_argument("--progress", choices=["text", "json"], default="text", help="progress format")
     p.set_defaults(func=_cmd_scan)
+
+    p = sub.add_parser("profile", help="show or change the analysis profile")
+    p.add_argument("action", choices=["show", "set-language", "ignore"])
+    p.add_argument("root", help="repository folder")
+    p.add_argument("glob", nargs="?", default="", help="file glob (set-language) or extension (ignore)")
+    p.add_argument("language", nargs="?", default="", help="language (set-language)")
+    p.add_argument("--project", help="project folder")
+    p.add_argument("--reason", help="reason recorded in the profile")
+    p.set_defaults(func=_cmd_profile)
 
     p = sub.add_parser("export", help="canonical export of a project database")
     p.add_argument("format", choices=["json"])

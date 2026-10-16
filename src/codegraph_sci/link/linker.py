@@ -366,8 +366,12 @@ class Linker:
                 return found
         return None
 
-    def _py_find(self, dotted: str) -> tuple[str | None, str]:
-        """Resolve an absolute dotted name. Status: repo, repo_missing or external."""
+    def _py_find(self, dotted: str, depth: int = 0) -> tuple[str | None, str]:
+        """Resolve an absolute dotted name. Status: repo, repo_missing or external.
+
+        Follows what a module re-exports: its own imports (``from x import y``), its star imports
+        (``from x import *``) and callable module-level instances (``tr = Translation()`` -> ``__call__``).
+        """
         if f"py:{dotted}" in self.defs:
             return f"py:{dotted}", "repo"
         parts = dotted.split(".")
@@ -380,8 +384,31 @@ class Linker:
                     m = self._py_method(prefix, rest[0])
                     if m:
                         return m, "repo"
+                if d.kind == "module" and depth < 8:
+                    found = self._py_reexport(d, rest, depth)
+                    if found is not None:
+                        return found
                 return None, "repo_missing"
         return None, "external"
+
+    def _py_reexport(self, module: Definition, rest: list[str], depth: int) -> tuple[str | None, str] | None:
+        imports = module.attrs.get("imports", {})
+        if isinstance(imports, dict) and rest[0] in imports:
+            uid, status = self._py_find(".".join([str(imports[rest[0]]), *rest[1:]]), depth + 1)
+            if uid is not None or status == "external":
+                return uid, status
+        instances = module.attrs.get("instances", {})
+        if isinstance(instances, dict) and rest[0] in instances and len(rest) == 1:
+            cls, _status = self._py_bind_uid(dict(instances[rest[0]]))
+            if cls is not None and cls in self.defs and self.defs[cls][0].kind == "type":
+                call = self._py_method(cls, "__call__")
+                if call:
+                    return call, "repo"
+        for star in module.attrs.get("star_imports", []) or []:
+            uid, _status = self._py_find(".".join([str(star), *rest]), depth + 1)
+            if uid is not None:
+                return uid, "repo"
+        return None
 
     def _py_bind_uid(self, bind: dict[str, Any]) -> tuple[str | None, str]:
         kind = bind.get("kind")
@@ -434,6 +461,16 @@ class Linker:
             return Resolution(None, "unresolved", "heuristic")
         if kind in ("variable", "expression", "instance") and attrs:
             return self._py_method_by_name(attrs[-1])
+        if kind == "unknown":
+            # Not bound in the file: maybe provided by a star import of the module.
+            module = next((d for d in facts.definitions if d.subtype == "py_module"), None)
+            if module is not None and module.attrs.get("star_imports"):
+                found = self._py_reexport(module, [ref.target_text.split(".")[0], *attrs], 0)
+                if found is not None and found[0] is not None:
+                    return Resolution(found[0], "resolved", "resolved")
+                if found is not None and found[1] == "external":
+                    dotted = ".".join([ref.target_text.split(".")[0], *attrs])
+                    return Resolution(self._ext(f"ext:python:{dotted}", "python", dotted), "external", "exact")
         return Resolution(None, "unresolved", "heuristic")
 
     def _py_method_by_name(self, name: str) -> Resolution:
@@ -469,11 +506,24 @@ class Linker:
 
     # -------------------------------------------------------------- C++
     def _cpp_class(self, name: str, namespaces: list[str]) -> str | None:
+        smart = re.match(r"^(?:std::|boost::)?(?:shared_ptr|unique_ptr|weak_ptr)\s*<\s*(.+?)\s*>$", name.strip())
+        if smart:
+            name = smart.group(1)
         name = re.sub(r"<.*>", "", name).strip()
-        for i in range(len(namespaces), -1, -1):
-            q = "::".join([*namespaces[:i], name])
-            if q in self.cpp_classes:
-                return q
+        candidates = [name] + ([name[:-3]] if name.endswith("Ptr") and len(name) > 3 else [])
+        for cand in candidates:  # ``XxxPtr`` is the usual typedef of a smart pointer to ``Xxx``
+            for i in range(len(namespaces), -1, -1):
+                q = "::".join([*namespaces[:i], cand])
+                if q in self.cpp_classes:
+                    return q
+        return None
+
+    def _cpp_method_by_name(self, method: str) -> Resolution | None:
+        cands = sorted(self.cpp_methods_by_name.get(method, []))
+        if len(cands) == 1:
+            return Resolution(cands[0], "resolved", "heuristic")
+        if cands:
+            return Resolution(None, "ambiguous", "ambiguous", cands)
         return None
 
     def _cpp_methods(self, cls: str, name: str, seen: set[str] | None = None) -> list[str]:
@@ -560,7 +610,7 @@ class Linker:
                     uids = self._cpp_methods(cls, method) or self._cpp_derived_methods(cls, method)
                     if uids:
                         return self._select_overload(uids, arg_types, "resolved")
-                return Resolution(None, "unresolved", "heuristic")
+                    return Resolution(None, "unresolved", "heuristic")
             cands = sorted(self.cpp_methods_by_name.get(method, []))
             if len(cands) == 1:
                 return Resolution(cands[0], "resolved", "heuristic")
@@ -586,6 +636,10 @@ class Linker:
         ext = external_for("cpp", name)
         if ext:
             return Resolution(self._ext(ext, ext.split(":")[1], name), "external", "exact")
+        if cls_ctx and "::" not in name:  # method inherited through a base the analysis could not follow
+            by_name = self._cpp_method_by_name(name)
+            if by_name is not None:
+                return by_name
         return Resolution(None, "unresolved", "heuristic")
 
     # ------------------------------------------------------------ structure

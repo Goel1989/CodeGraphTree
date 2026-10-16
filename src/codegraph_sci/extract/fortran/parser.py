@@ -25,7 +25,7 @@ from codegraph_sci.extract.fortran.intrinsics import INTRINSICS
 from codegraph_sci.extract.fortran.source import PreparedSource, Statement, prepare
 
 ADAPTER = "fortran"
-VERSION = "1.0"
+VERSION = "1.1"
 
 
 class HardParseError(Exception):
@@ -159,6 +159,142 @@ def _literal(text: str) -> str | int | float | None:
     return None
 
 
+_DEFINE_RX = re.compile(r"^\s*#\s*define\s+([A-Za-z_]\w*)(\(([^)]*)\))?[ \t]*(.*)$")
+_PP_INCLUDE_RX = re.compile(r'(?m)^\s*#\s*include\s*["<]([^">]+)[">]')
+_MACRO_FILE_CACHE: dict[str, tuple[dict[str, str], dict[str, tuple[list[str], str]], list[str]]] = {}
+
+
+def _mask_strings(text: str) -> str:
+    out, quote = [], None
+    for ch in text:
+        if quote:
+            out.append(ch if ch == quote else "_")
+            if ch == quote:
+                quote = None
+        else:
+            out.append(ch)
+            if ch in "'\"":
+                quote = ch
+    return "".join(out)
+
+
+class MacroTable:
+    """C preprocessor macros visible in a Fortran file (its own ``#define`` and those of included headers).
+
+    Each statement is expanded like ``cpp`` would do; the expanded text keeps the position of the
+    macro invocation, so sites found in an expansion point at the macro in the source.
+    """
+
+    def __init__(self) -> None:
+        self.objects: dict[str, str] = {}
+        self.functions: dict[str, tuple[list[str], str]] = {}
+        self.rx: re.Pattern[str] | None = None
+
+    @staticmethod
+    def _parse(text: str) -> tuple[dict[str, str], dict[str, tuple[list[str], str]], list[str]]:
+        objects: dict[str, str] = {}
+        functions: dict[str, tuple[list[str], str]] = {}
+        lines = text.replace("\r\n", "\n").split("\n")
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            while line.rstrip().endswith("\\") and i + 1 < len(lines):
+                i += 1
+                line = line.rstrip()[:-1] + " " + lines[i]
+            m = _DEFINE_RX.match(line)
+            if m:
+                body = m.group(4).split("//")[0].strip()
+                if m.group(2) is not None:
+                    params = [p.strip() for p in m.group(3).split(",") if p.strip()]
+                    functions[m.group(1)] = (params, body)
+                else:
+                    objects[m.group(1)] = body
+            i += 1
+        return objects, functions, _PP_INCLUDE_RX.findall(text)
+
+    def harvest(self, text: str, path: str, ctx: ExtractContext, seen: set[str], depth: int = 0,
+                cache_key: str | None = None) -> None:
+        if path in seen or depth > 8:
+            return
+        seen.add(path)
+        key = f"{path}:{cache_key}" if cache_key else None
+        parsed = _MACRO_FILE_CACHE.get(key) if key else None
+        if parsed is None:
+            parsed = self._parse(text)
+            if key:
+                if len(_MACRO_FILE_CACHE) > 20000:
+                    _MACRO_FILE_CACHE.clear()
+                _MACRO_FILE_CACHE[key] = parsed
+        objects, functions, nested = parsed
+        for name, body in objects.items():
+            self.objects.setdefault(name, body)
+        for name, spec in functions.items():
+            self.functions.setdefault(name, spec)
+        if ctx.resolve_include is None:
+            return
+        for target in nested:
+            inc = ctx.resolve_include(target, path)
+            if inc is not None:
+                self.harvest(inc.text, inc.path, ctx, seen, depth + 1, inc.sha256)
+
+    def compile(self) -> None:
+        names = [n for n in list(self.objects) + list(self.functions) if not n.endswith("_H_") and n != "__FILE__"]
+        self.rx = re.compile(r"(?<![\w%])(" + "|".join(sorted(map(re.escape, names), key=len, reverse=True)) +
+                             r")(?!\w)") if names else None
+
+    def expand(self, st: Statement, depth: int = 0) -> Statement:
+        if self.rx is None or depth > 5 or not self.rx.search(st.orig):
+            return st
+        orig, masked, pos = st.orig, st.masked, st.pos
+        out_o: list[str] = []
+        out_m: list[str] = []
+        out_p: list[tuple[int, int]] = []
+        i = 0
+        changed = False
+        for m in self.rx.finditer(orig):
+            start = m.start()
+            if start < i or masked[start] != orig[start]:  # inside a string
+                continue
+            name = m.group(1)
+            if name in self.functions:
+                k = m.end()
+                while k < len(orig) and orig[k] == " ":
+                    k += 1
+                if k >= len(orig) or orig[k] != "(":
+                    continue
+                close = _match_paren(masked, k)
+                if close < 0:
+                    continue
+                params, body = self.functions[name]
+                args = [orig[a:b].strip() for a, b in _split_top(masked, k + 1, close)] if close > k + 1 else []
+                text = body
+                for p, a in zip(params, args, strict=False):
+                    text = re.sub(rf"(?<![\w#])#{re.escape(p)}\b", f"'{a}'", text)
+                    text = re.sub(rf"\b{re.escape(p)}\b", a, text)
+                end = close + 1
+            else:
+                text = self.objects[name]
+                end = m.end()
+            out_o.append(orig[i:start])
+            out_m.append(masked[i:start])
+            out_p.extend(pos[i:start])
+            text = text.replace("##", "")
+            out_o.append(text)
+            out_m.append(_mask_strings(text))
+            out_p.extend([pos[start]] * len(text))
+            i = end
+            changed = True
+        if not changed:
+            return st
+        out_o.append(orig[i:])
+        out_m.append(masked[i:])
+        out_p.extend(pos[i:])
+        new = Statement("".join(out_o), "".join(out_m), out_p, st.condition, st.label)
+        if len(new.orig) != len(new.masked) or len(new.orig) != len(new.pos):
+            return st
+        return self.expand(new, depth + 1)
+
+
 def _bind_name(st: Statement, offset: int, bind: re.Match[str], default: str) -> str:
     """C name of ``BIND(C, NAME="...")``, read in the original text (strings are masked)."""
     if bind.group(1) is None:
@@ -183,10 +319,18 @@ class FortranParser:
         self.last_line = 0
         self.include_depth = 0
         self.seen_includes: set[str] = set()
+        self.macros = MacroTable()
 
     # ----------------------------------------------------------------- driver
     def run(self) -> tuple[list[Definition], list[Reference], list[IncludeRef], list[Directive], list[ParseError]]:
         prepared = prepare(self.text, self.fixed)
+        self.macros = MacroTable()
+        self.macros.harvest(self.text, self.path, self.ctx, set())
+        for inc in prepared.includes:
+            resolved = self.ctx.resolve_include(inc.target, self.path) if self.ctx.resolve_include else None
+            if resolved is not None:
+                self.macros.harvest(resolved.text, resolved.path, self.ctx, set(), cache_key=resolved.sha256)
+        self.macros.compile()
         for line, msg in prepared.errors:
             self.errors.append(ParseError(msg, line))
         self._process(prepared, include_source=None)
@@ -216,6 +360,7 @@ class FortranParser:
 
     # -------------------------------------------------------------- statements
     def statement(self, st: Statement, include_source: str | None) -> None:
+        st = self.macros.expand(st)
         low = st.masked.lower()
         scope = self.scope
         if scope is not None and scope.kind == "ifacebody":

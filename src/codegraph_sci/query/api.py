@@ -124,6 +124,28 @@ class GraphQuery:
         total = self.con.execute("SELECT count(*) FROM files").fetchone()[0]
         return InventoryReport(langs, dict(sorted(unknown.items())), total)
 
+    def files(self) -> list[dict[str, Any]]:
+        """Every file with its language, status, number of routines and of linked files (explorer)."""
+        routines = dict(self.con.execute(
+            "SELECT file_id, count(*) FROM nodes WHERE kind = 'routine' GROUP BY file_id").fetchall())
+        links: dict[int, int] = defaultdict(int)
+        for a, b, _n in self.con.execute("SELECT src_file, dst_file, count FROM file_edges"):
+            links[a] += 1
+            links[b] += 1
+        return [{"path": p, "lang": lang, "status": status, "routines": routines.get(fid, 0),
+                 "links": links.get(fid, 0)}
+                for fid, p, lang, status in self.con.execute(
+                    "SELECT id, path, lang, parse_status FROM files ORDER BY path")]
+
+    def file_symbols(self, path: str) -> list[NodeSummary]:
+        rows = self.con.execute(_SUMMARY + "WHERE f.path = ? AND n.kind NOT IN ('file') ORDER BY n.line_start, n.uid",
+                                (path,)).fetchall()
+        return [self._summary(r) for r in rows]
+
+    def sites_in_file(self, path: str) -> list[CallSite]:
+        rows = self.con.execute(self._SITE_COLS + "WHERE f.path = ? ORDER BY s.line, s.col", (path,)).fetchall()
+        return [self._site(r) for r in rows]
+
     # ------------------------------------------------------------- search
     def find(self, text: str, kinds: set[str] | None = None, limit: int = 50) -> list[NodeSummary]:
         """Fuzzy search on names, qualified names and paths: exact, then prefix, then contains."""

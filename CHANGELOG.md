@@ -62,3 +62,15 @@
 - Commandes `cgs callers`, `callees`, `find`, `file-links`, `path`, `impact`, `data`, `unresolved`, `health` (tableau ou `--json`).
 - Index ajoutés : `call_site_candidates(dst_node)`, `nodes(display_name)`.
 - Mesures sur le dépôt synthétique (15 000 routines) : appelants d'un hub 11 ms, dépliage 2 ms, recherche 7 ms, impact à profondeur 3 en 197 ms.
+
+## Validation Code_Aster (lot 7, en cours) — corrections génériques
+- Corpus `code_aster_start` : Code_Aster 17.5.7, téléchargement partiel (bibfor, bibcxx, bibc, code_aster ; 18 446 fichiers) dans `corpus_src/` (non versionné) ; manifeste adapté (contact v17 : `cont_*`).
+- Inventaire : chemin d'inclusion déduit du texte inclus (`#include "asterfort/x.h"` → `bibfor/include`).
+- Fortran : développement des macros du préprocesseur (fichier et en-têtes inclus, récursivement) dans chaque instruction, position de la macro conservée : types définis par macro, macros-fonctions, macros-instructions.
+- Python : limite de récursion relevée pendant l'extraction ; imports étoilés, réexportations et instances appelables suivis par Link.
+- C/C++ : API C de Python et espaces `py::`, `pybind11::`, `boost::`, `Eigen::` externes ; pointeurs intelligents (`shared_ptr<X>`, `XxxPtr`) ; repli par nom de méthode quand la classe n'est pas trouvée.
+
+## Lot 10 — Application de bureau (premier jet)
+- Fenêtre principale (§3.11) : inventaire (forcer un langage, ignorer une extension → `cgs profile`), recherche, panneau Appelants / Appelés avec sites, inspecteur de code coloré (sites surlignés, double-clic → routine appelée, bandeau « fichier modifié » + Ré-analyser), explorateur de fichiers, liste arborescente paresseuse (pages de 50, « +N autres », « ↺ déjà vu »), santé de l'analyse, filtres (utilitaires, confiance, liens IA, ambigus).
+- Requêtes dans le pool de threads Qt ; inventaire, analyse et profil en sous-processus `cgs` avec progression JSON et annulation.
+- Tests pytest-qt : scénarios S1, S2, S10 et modèles.

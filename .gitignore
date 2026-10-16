@@ -9,3 +9,4 @@ dist/
 *.sqlite.tmp
 *.sqlite-wal
 *.sqlite-shm
+corpus_src/

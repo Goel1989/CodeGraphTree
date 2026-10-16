@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 import builtins
+import sys
 from typing import Any
 
 from codegraph_sci.core.facts import ArgFact, Definition, FileFacts, ParseError, Reference, SourceFile
@@ -15,7 +16,7 @@ from codegraph_sci.core.ids import py_uid
 from codegraph_sci.core.plugins import ExtractContext
 
 ADAPTER = "python"
-VERSION = "1.0"
+VERSION = "1.1"
 BUILTINS = frozenset(dir(builtins))
 
 
@@ -195,6 +196,21 @@ class _AstExtractor:
                                            (1, max(1, nlines)), doc=doc.splitlines()[0] if doc else None))
         scope = _Scope("module", "", None, tree)
         self.collect(scope, tree.body)
+        # What other modules can see of this one: re-exported imports, star imports, callable instances.
+        attrs = self.definitions[0].attrs
+        imports = {n: str(i["target"]) for n, i in scope.names.items() if i["kind"] == "import"}
+        stars = []
+        for node in tree.body:
+            if isinstance(node, ast.ImportFrom) and any(a.name == "*" for a in node.names):
+                stars.append(resolve_relative(self.module, self.is_package, node.level, node.module)
+                             if node.level else (node.module or ""))
+        instances = {n: self.lookup(scope, n)["class"] for n, i in scope.names.items() if i["kind"] == "instance"}
+        if imports:
+            attrs["imports"] = dict(sorted(imports.items()))
+        if stars:
+            attrs["star_imports"] = stars
+        if instances:
+            attrs["instances"] = {k: v for k, v in sorted(instances.items()) if isinstance(v, dict)}
         self.visit_body(scope, tree.body)
 
     def visit_body(self, scope: _Scope, body: list[ast.stmt]) -> None:
@@ -323,7 +339,12 @@ class PythonAdapter:
             facts.used_fallback = True
             facts.variant = file.variant
             return facts.sort()
-        facts = _extract_ast(file.path, file.text, file.encoding, module, tree)
+        limit = sys.getrecursionlimit()
+        sys.setrecursionlimit(max(limit, 20_000))  # deeply nested expressions (long sums, big literals)
+        try:
+            facts = _extract_ast(file.path, file.text, file.encoding, module, tree)
+        finally:
+            sys.setrecursionlimit(limit)
         facts.variant = file.variant
         return facts
 

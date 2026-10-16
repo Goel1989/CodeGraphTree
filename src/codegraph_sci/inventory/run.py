@@ -177,12 +177,27 @@ def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
     for path in sorted(files):
         by_suffix[posixpath.basename(path)].append(path)
     includes: dict[str, list[str]] = {}
+    include_dir_set: set[str] = set()
     included_by: dict[str, set[str]] = defaultdict(set)
     for path, text in sorted(texts.items()):
         targets = _C_INCLUDE.findall(text)
         if entries[path].lang == "fortran" or path in pending:
             targets += _F_INCLUDE.findall(text)
-        resolved = sorted({r for t in targets for r in _resolve_include(path, t, by_suffix, files)} - {path})
+        resolved_set: set[str] = set()
+        for t in targets:
+            target = t.replace("\\", "/").strip()
+            for r in _resolve_include(path, target, by_suffix, files):
+                if r == path:
+                    continue
+                resolved_set.add(r)
+                # Include path = directory such that <dir>/<target as written> is the file.
+                if r.endswith("/" + target) and posixpath.dirname(path) != posixpath.dirname(r):
+                    include_dir_set.add(r[: -len(target) - 1] or ".")
+                elif r == target:
+                    include_dir_set.add(".")
+                elif posixpath.dirname(path) != posixpath.dirname(r) or "/" not in target:
+                    include_dir_set.add(posixpath.dirname(r) or ".")
+        resolved = sorted(resolved_set)
         if resolved:
             includes[path] = resolved
             for r in resolved:
@@ -231,7 +246,7 @@ def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
     for e in ordered:
         if e.status == "unknown":
             unknown[file_ext(e.path.rsplit("/", 1)[-1]).lower() or "(none)"].append(e.path)
-    include_dirs = sorted({posixpath.dirname(p) or "." for targets in includes.values() for p in targets})
+    include_dirs = sorted(include_dir_set)
 
     coverage: dict[str, CoverageLine] = {}
     for e in ordered:

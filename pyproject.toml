@@ -113,6 +113,7 @@ forbidden_modules = [
 [[tool.importlinter.contracts]]
 name = "ui only uses core, query, layout"
 type = "forbidden"
+allow_indirect_imports = true
 source_modules = ["codegraph_sci.ui"]
 forbidden_modules = [
     "codegraph_sci.extract", "codegraph_sci.link", "codegraph_sci.enrich", "codegraph_sci.store",

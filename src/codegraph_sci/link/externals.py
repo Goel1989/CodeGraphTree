@@ -28,6 +28,10 @@ def external_for(lang: str, name: str) -> str | None:
     """uid of a known external symbol called from ``lang``, or None."""
     low = name.lower().rstrip("_") if lang == "fortran" else name
     if lang in ("c", "cpp"):
+        if re.match(r"^_?Py[A-Z_]\w*$", name) or name.startswith("NPY_"):
+            return f"ext:python_capi:{name}"
+        if lang == "cpp" and re.match(r"^(py|pybind11|boost|Eigen|mpi|MPI|petsc)::", name):
+            return f"ext:{name.split('::', 1)[0].lower()}:{name}"
         if name in LIBC:
             return f"ext:libc:{name}"
         if name.startswith("MPI_") or name.startswith("PMPI_"):
