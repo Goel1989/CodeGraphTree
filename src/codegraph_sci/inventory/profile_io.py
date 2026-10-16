@@ -16,6 +16,7 @@ from codegraph_sci.core.profile import AnalysisProfile, HistoryEntry, LanguageEn
 from codegraph_sci.inventory.run import InventoryResult
 
 PROFILE_FILE = "analysis_profile.yaml"
+DEFAULT_PACKS = ("generic_noise", "generic_fortran")
 
 
 class ConfigError(ValueError):
@@ -87,6 +88,7 @@ def profile_from_inventory(result: InventoryResult, previous: AnalysisProfile | 
     prof.languages = languages
     prof.include_paths = list(result.include_paths)
     if previous is None:
+        prof.packs = list(DEFAULT_PACKS)
         prof.history = [HistoryEntry(prof.profile_version, "profile created by the inventory", by)]
     elif changed:
         prof.profile_version += 1

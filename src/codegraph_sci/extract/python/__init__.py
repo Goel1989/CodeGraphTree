@@ -165,7 +165,9 @@ class _AstExtractor:
                 return {"kind": "instance", "class": {"name": d[0], "attrs": d[1]}}
         return None
 
-    def lookup(self, scope: _Scope, name: str) -> dict[str, Any]:
+    def lookup(self, scope: _Scope, name: str, depth: int = 0) -> dict[str, Any]:
+        if depth > 8:  # ``x = x(...)``: the name refers to itself, stop
+            return {"kind": "variable"}
         s: _Scope | None = scope
         first = True
         while s is not None:
@@ -176,10 +178,10 @@ class _AstExtractor:
                 info = dict(s.names[name])
                 if info["kind"] == "instance":
                     cls = info["class"]
-                    info = {"kind": "instance", "class": self.lookup(s, cls["name"]) | {"attrs": cls["attrs"]}}
+                    info = {"kind": "instance", "class": self.lookup(s, cls["name"], depth + 1) | {"attrs": cls["attrs"]}}
                 elif info["kind"] == "getattr":
                     base = info["base"]
-                    info = {"kind": "getattr", "base": self.lookup(s, base["name"]) | {"attrs": base["attrs"]},
+                    info = {"kind": "getattr", "base": self.lookup(s, base["name"], depth + 1) | {"attrs": base["attrs"]},
                             "attr": info["attr"]}
                 return info
             first = False

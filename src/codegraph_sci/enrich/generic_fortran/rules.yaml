@@ -1,0 +1,6 @@
+# Generic Fortran data: COMMON blocks and module variables read or written by each routine.
+pack: generic_fortran
+version: "1.0"
+format_version: 1
+identifiers: []
+data: { fortran_common: true, fortran_module_variables: true }

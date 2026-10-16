@@ -49,6 +49,7 @@ class BridgeEngine:
         self.native = native
         self.read_text = read_text
         self.binding_targets: dict[str, str] = {}
+        self._bind_c: dict[str, str] | None = None
 
     # ------------------------------------------------------------ helpers
     def lang_of(self, site: CallSiteRecord) -> str | None:
@@ -62,21 +63,25 @@ class BridgeEngine:
         site.origin = f"bridge:{bridge}"
         site.candidates = sorted(set(candidates or []))
 
+    @property
+    def bind_c_index(self) -> dict[str, str]:
+        """C name -> Fortran routine declared ``BIND(C, NAME=...)`` (built once)."""
+        if self._bind_c is None:
+            self._bind_c = {}
+            for u, (dd, _p, lang) in sorted(self.lk.defs.items()):
+                if lang == "fortran" and dd.kind == "routine" and dd.attrs.get("bind_c"):
+                    self._bind_c.setdefault(str(dd.attrs["bind_c"]), u)
+        return self._bind_c
+
     def fortran_routine(self, name: str) -> str | None:
         uid = f"f:{name.lower()}"
         d = self.lk.defs.get(uid)
         if d is not None and d[0].kind == "routine":
             return uid
-        for u, (dd, _p, lang) in sorted(self.lk.defs.items()):
-            if lang == "fortran" and dd.kind == "routine" and str(dd.attrs.get("bind_c", "")) == name:
-                return u
-        return None
+        return self.bind_c_index.get(name)
 
     def fortran_bind_c(self, c_name: str) -> str | None:
-        for u, (dd, _p, lang) in sorted(self.lk.defs.items()):
-            if lang == "fortran" and dd.kind == "routine" and dd.attrs.get("bind_c") == c_name:
-                return u
-        return None
+        return self.bind_c_index.get(c_name)
 
     def c_function(self, name: str, from_path: str | None = None) -> str | None:
         if from_path is not None and f"c:{name}@{from_path}" in self.lk.defs:

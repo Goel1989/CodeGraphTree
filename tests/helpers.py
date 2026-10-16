@@ -74,14 +74,17 @@ def scan_fixture(name: str, folder: Path, root: Path | None = None, expected_fil
     expected = json.loads(exp_path.read_text(encoding="utf-8")) if exp_path.is_file() else {}
     src = root or FIXTURES / name / "src"
     project = open_project(src, folder)
-    if "profile" in expected and not project.profile_path.is_file():
+    if not project.profile_path.is_file():
         profile = profile_from_inventory(run_inventory(src))
-        profile.scope = Scope(**expected["profile"]["scope"])
+        if "profile" in expected:
+            profile.scope = Scope(**expected["profile"]["scope"])
+        profile.packs = list(expected.get("with_packs", []))
         save_profile(project.profile_path, profile)
     arrays = set(expected.get("extract_options", {}).get("known_arrays", []))
     bridges = expected.get("bridges", {})
+    kw = [FIXTURES / name / p for p in expected.get("keyword_profiles", [])]
     return scan(project, ScanOptions(extra_known_arrays=arrays, native_bridges=bridges.get("native", True),
-                                     bridge_rules=list(bridges.get("rules", []))))
+                                     bridge_rules=list(bridges.get("rules", [])), keyword_profiles=kw))
 
 
 def graph_diff(export: dict[str, Any], expected: dict[str, Any]) -> list[str]:

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Keyword language profile (architecture §3.9, format version 1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["language", "version", "format_version", "extensions", "definitions"],
+  "properties": {
+    "language": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+    "version": {"type": ["integer", "string"]},
+    "format_version": {"const": 1},
+    "source": {"enum": ["ai", "manual"]},
+    "status": {"enum": ["proposed", "approved", "rejected"]},
+    "extensions": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^\\.[\\w+-]+$"}},
+    "case_sensitive": {"type": "boolean"},
+    "comments": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "line": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "block": {"type": "array", "items": {"type": "array", "minItems": 2, "maxItems": 2,
+                                             "items": {"type": "string", "minLength": 1}}}
+      }
+    },
+    "strings": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 3}},
+    "line_continuation": {"type": "string"},
+    "definitions": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["keywords", "name"],
+        "properties": {
+          "keywords": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^\\w+$"}},
+          "name": {"const": "after_keyword"},
+          "end_keywords": {"type": "array", "items": {"type": "string", "pattern": "^\\w+$"}},
+          "kind": {"enum": ["routine", "module", "type"]}
+        }
+      }
+    },
+    "calls": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "keywords": {"type": "array", "items": {"type": "string", "pattern": "^\\w+$"}},
+          "name": {"const": "after_keyword"},
+          "style": {"const": "name_then_paren"},
+          "only_known_names": {"type": "boolean"}
+        }
+      }
+    },
+    "includes": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["keywords"],
+        "properties": {"keywords": {"type": "array", "items": {"type": "string", "pattern": "^\\w+$"}},
+                       "target": {"const": "after_keyword"}}
+      }
+    },
+    "coverage": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"sample_files": {"type": "integer"}, "definitions_recall": {"type": "number"},
+                     "calls_precision": {"type": "number"}}
+    },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"document": {"type": "string"}, "samples": {"type": "array", "items": {"type": "string"}}}
+    }
+  }
+}

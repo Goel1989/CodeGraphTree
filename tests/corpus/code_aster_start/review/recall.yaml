@@ -1,0 +1,4742 @@
+sheet_version: 1
+kind: recall
+seed: 42
+revision: 17.5.7
+entries:
+- id: r-c-2
+  group: c
+  file: bibc/hdf/hdfclf.c
+  line: 35
+  code: hid_t DEFP( HDFCLF, hdfclf, hid_t *idf ) {
+  extracted: []
+  actual: null
+- id: r-c-13
+  group: c
+  file: bibc/hdf/hdfopf.c
+  line: 54
+  code: if ( ( idfic = H5Fopen( nomf, H5F_ACC_RDONLY, H5P_DEFAULT ) ) >= 0 )
+  extracted:
+  - H5Fopen
+  actual: null
+- id: r-c-26
+  group: c
+  file: bibc/include/aster_core_module.h
+  line: 42
+  code: extern void DEFSPP( GTOPTI, gtopti, _IN char *, STRING_SIZE, _OUT ASTERINTEGER *,
+  extracted: []
+  actual: null
+- id: r-c-47
+  group: c
+  file: bibc/include/aster_exceptions.h
+  line: 56
+  code: 'DEBUG_EXCEPT( "raiseException: level=%d", gExcLvl );                                           \'
+  extracted: []
+  actual: null
+- id: r-c-79
+  group: c
+  file: bibc/include/definition_pt.h
+  line: 49
+  code: '#define DEFMFRONTSETOUTOFBOUNDSPOLICY(NAME,a)               (NAME)(a)'
+  extracted: []
+  actual: null
+- id: r-c-102
+  group: c
+  file: bibc/include/dll_mfront.h
+  line: 34
+  code: void DEFMFRONTSETDOUBLE( *NAME, char *, ASTERDOUBLE, STRING_SIZE )
+  extracted: []
+  actual: null
+- id: r-c-108
+  group: c
+  file: bibc/include/dll_mfront.h
+  line: 65
+  code: void error_symbol_not_found( const char *libname, const char *symbname );
+  extracted: []
+  actual: null
+- id: r-c-122
+  group: c
+  file: bibc/renum/fetsco.c
+  line: 26
+  code: void DEFPPPPPPPPPP( FETSCO, fetsco, ASTERINTEGER *nbmato, ASTERINTEGER *nblien,
+  extracted: []
+  actual: null
+- id: r-c-130
+  group: c
+  file: bibc/renum/fetsco.c
+  line: 49
+  code: printf("\n");*/
+  extracted: []
+  actual: null
+- id: r-c-131
+  group: c
+  file: bibc/renum/fetsco.c
+  line: 51
+  code: if ( err == 0 )
+  extracted: []
+  actual: null
+- id: r-c-177
+  group: c
+  file: bibc/supervis/aster_core_module.c
+  line: 101
+  code: Py_XDECREF( res );
+  extracted:
+  - Py_XDECREF
+  actual: null
+- id: r-c-187
+  group: c
+  file: bibc/supervis/aster_core_module.c
+  line: 149
+  code: if ( res == NULL )
+  extracted: []
+  actual: null
+- id: r-c-192
+  group: c
+  file: bibc/supervis/aster_core_module.c
+  line: 171
+  code: res = PyObject_CallMethod( get_sh_params(), "get_option", "s", option );
+  extracted:
+  - PyObject_CallMethod
+  - get_sh_params
+  actual: null
+- id: r-c-229
+  group: c
+  file: bibc/supervis/aster_core_module.c
+  line: 301
+  code: CopyCStrToFStr( valk, value, lvalk );
+  extracted:
+  - CopyCStrToFStr
+  actual: null
+- id: r-c-260
+  group: c
+  file: bibc/supervis/aster_core_module.c
+  line: 394
+  code: kwargs = PyDict_New();
+  extracted:
+  - PyDict_New
+  actual: null
+- id: r-c-271
+  group: c
+  file: bibc/supervis/aster_core_module.c
+  line: 410
+  code: Py_DECREF( args );
+  extracted:
+  - Py_DECREF
+  actual: null
+- id: r-c-284
+  group: c
+  file: bibc/supervis/aster_core_module.c
+  line: 448
+  code: s_id = MakeCStrFromFStr( idmess, lidm );
+  extracted:
+  - MakeCStrFromFStr
+  actual: null
+- id: r-c-292
+  group: c
+  file: bibc/supervis/aster_core_module.c
+  line: 465
+  code: res = PyObject_CallMethod( get_sh_msglog(), "get_info_alarm_nb", "" );
+  extracted:
+  - PyObject_CallMethod
+  - get_sh_msglog
+  actual: null
+- id: r-c-322
+  group: c
+  file: bibc/supervis/aster_core_module.c
+  line: 544
+  code: kwargs = PyDict_New();
+  extracted:
+  - PyDict_New
+  actual: null
+- id: r-c-326
+  group: c
+  file: bibc/supervis/aster_core_module.c
+  line: 548
+  code: comp = PyFloat_FromDouble( (double)( *compare ) );
+  extracted:
+  - PyFloat_FromDouble
+  actual: null
+- id: r-c-356
+  group: c
+  file: bibc/supervis/aster_fonctions_module.c
+  line: 40
+  code: Vf = (PyArrayObject *)PyArray_FROM_OTF( OF, NPY_DOUBLE, NPY_ARRAY_IN_ARRAY );
+  extracted:
+  - PyArray_FROM_OTF
+  actual: null
+- id: r-c-372
+  group: c
+  file: bibc/supervis/aster_fonctions_module.c
+  line: 71
+  code: (double *)PyArray_DATA( Sp ) );
+  extracted:
+  - PyArray_DATA
+  actual: null
+- id: r-c-379
+  group: c
+  file: bibc/supervis/aster_fonctions_module.c
+  line: 89
+  code: if ( !PyArg_ParseTuple( args, "O:_INFO", &OX ) )
+  extracted:
+  - PyArg_ParseTuple
+  actual: null
+- id: r-c-383
+  group: c
+  file: bibc/supervis/aster_fonctions_module.c
+  line: 98
+  code: 'printf( "Tableau de dimension : %d\n", ndim );'
+  extracted:
+  - printf
+  actual: null
+- id: r-c-396
+  group: c
+  file: bibc/supervis/aster_fonctions_module.c
+  line: 117
+  code: printf( "\nDUMP du data :\n--------------\n" );
+  extracted:
+  - printf
+  actual: null
+- id: r-c-413
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 59
+  code: Output[partcount++] = ptr + strlen( delim );
+  extracted:
+  - strlen
+  actual: null
+- id: r-c-418
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 77
+  code: options2 = MakeCStrFromFStr( options, loptions );
+  extracted:
+  - MakeCStrFromFStr
+  actual: null
+- id: r-c-419
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 78
+  code: myargs = (char **)malloc( 2500 * sizeof( *myargs ) );
+  extracted:
+  - malloc
+  actual: null
+- id: r-c-435
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 144
+  code: CALL_ASABRT( &ier );
+  extracted: []
+  actual: null
+- id: r-c-449
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 195
+  code: DEBUG_ASSERT( mfc != (char *)0 );
+  extracted: []
+  actual: null
+- id: r-c-456
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 209
+  code: if ( !ok )
+  extracted: []
+  actual: null
+- id: r-c-458
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 213
+  code: if ( nval < 0 )
+  extracted: []
+  actual: null
+- id: r-c-469
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 238
+  code: res = PyObject_CallMethod( get_sh_etape(), "getfac", "s", mfc );
+  extracted:
+  - PyObject_CallMethod
+  - get_sh_etape
+  actual: null
+- id: r-c-511
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 378
+  code: if ( !PyArg_ParseTuple( res, "OO", &lnom, &lty ) )
+  extracted:
+  - PyArg_ParseTuple
+  actual: null
+- id: r-c-566
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 504
+  code: 'le tableau des valeurs attendues : val (2 reels (double) par complexe)'
+  extracted: []
+  actual: null
+- id: r-c-571
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 523
+  code: cas, le numero d'occurrence (*iocc) doit etre strictement positif.
+  extracted: []
+  actual: null
+- id: r-c-585
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 547
+  code: MYABORT( "erreur dans la partie Python" );
+  extracted:
+  - PRE_myabort
+  actual: null
+- id: r-c-626
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 639
+  code: 'le nombre max de valeur attendues dans val : mxval (entier)'
+  extracted: []
+  actual: null
+- id: r-c-636
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 667
+  code: 'printf( "             commande : %s\n",'
+  extracted:
+  - printf
+  actual: null
+- id: r-c-647
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 687
+  code: if ( nval < 0 )
+  extracted: []
+  actual: null
+- id: r-c-653
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 699
+  code: void DEFSSPPSP( GETVTX_WRAP, getvtx_wrap, _IN char *motfac, _IN STRING_SIZE lfac, _IN char *motcle,
+  extracted: []
+  actual: null
+- id: r-c-655
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 707
+  code: 'le nom d un mot cle simple ou sous mot cle : motcle (string)'
+  extracted: []
+  actual: null
+- id: r-c-661
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 728
+  code: mcs = MakeCStrFromFStr( motcle, lcle );
+  extracted:
+  - MakeCStrFromFStr
+  actual: null
+- id: r-c-666
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 739
+  code: PyUnicode_AsUTF8( PyObject_CallMethod( get_sh_etape(), "getName", "" ) ) );
+  extracted:
+  - PyUnicode_AsUTF8
+  - PyObject_CallMethod
+  - get_sh_etape
+  actual: null
+- id: r-c-669
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 742
+  code: MYABORT( "erreur d'utilisation detectee" );
+  extracted:
+  - PRE_myabort
+  actual: null
+- id: r-c-700
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 817
+  code: 'printf( "<F> GETVID : le numero d''occurence (IOCC=%ld) est invalide\n", *iocc );'
+  extracted:
+  - printf
+  actual: null
+- id: r-c-731
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 882
+  code: res = PyObject_CallMethod( get_sh_etape(), "getvpy", "ssi", mfc, mcs, ioc - 1 );
+  extracted:
+  - PyObject_CallMethod
+  - get_sh_etape
+  actual: null
+- id: r-c-787
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1054
+  code: PyComplex_FromDoubles( (double)f[2 * i], (double)f[2 * i + 1] ) );
+  extracted:
+  - PyComplex_FromDoubles
+  actual: null
+- id: r-c-814
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1136
+  code: CALL_GETCON( nomsd32, &j, &ishf, &ilng, &ctype, &lcon, &iaddr, nomob );
+  extracted:
+  - strlen
+  - strlen
+  actual: null
+- id: r-c-858
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1235
+  code: FreeStr( nomsd32 );
+  extracted:
+  - FreeStr
+  actual: null
+- id: r-c-864
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1286
+  code: BlankStr( blanc, 80 );
+  extracted:
+  - BlankStr
+  actual: null
+- id: r-c-870
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1300
+  code: CALL_TAILSD( nom, nomsd32, val, &nbval );
+  extracted:
+  - strlen
+  - strlen
+  actual: null
+- id: r-c-881
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1320
+  code: nomch = MakeBlankFStr( 16 );
+  extracted:
+  - MakeBlankFStr
+  actual: null
+- id: r-c-895
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1339
+  code: PyList_Append( liste, value );
+  extracted:
+  - PyList_Append
+  actual: null
+- id: r-c-898
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1344
+  code: Py_DECREF( key );
+  extracted:
+  - Py_DECREF
+  actual: null
+- id: r-c-899
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1345
+  code: Py_DECREF( liste );
+  extracted:
+  - Py_DECREF
+  actual: null
+- id: r-c-902
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1350
+  code: raiseException();
+  extracted:
+  - _end_try
+  - _raiseException
+  actual: null
+- id: r-c-914
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1369
+  code: CALL_RSACPA( nomsd32, &numva, &icode, nomva, &ctype, ival, rval, kval, &ier );
+  extracted:
+  - strlen
+  - strlen
+  - strlen
+  actual: null
+- id: r-c-933
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1397
+  code: PyList_Append( liste, value );
+  extracted:
+  - PyList_Append
+  actual: null
+- id: r-c-938
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1421
+  code: for ( i = 0; i < inbord; i++ ) {
+  extracted: []
+  actual: null
+- id: r-c-952
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1445
+  code: CALL_JEDEMA();
+  extracted: []
+  actual: null
+- id: r-c-953
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1446
+  code: FreeStr( nom );
+  extracted:
+  - FreeStr
+  actual: null
+- id: r-c-1002
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1584
+  code: t_res = PyTuple_New( 2 );
+  extracted:
+  - PyTuple_New
+  actual: null
+- id: r-c-1003
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1585
+  code: PyTuple_SetItem( t_res, 0, t_valres );
+  extracted:
+  - PyTuple_SetItem
+  actual: null
+- id: r-c-1010
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1598
+  code: static PyObject *aster_gmardm( PyObject *self, PyObject *args ) {
+  extracted: []
+  actual: null
+- id: r-c-1029
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1652
+  code: FreeStr( Fres );
+  extracted:
+  - FreeStr
+  actual: null
+- id: r-c-1076
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1768
+  code: CALL_JEEXIN( tmpbuf, &intval );
+  extracted:
+  - strlen
+  actual: null
+- id: r-c-1078
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1772
+  code: FreeStr( tmpbuf );
+  extracted:
+  - FreeStr
+  actual: null
+- id: r-c-1083
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1781
+  code: Py_INCREF( Py_True );
+  extracted:
+  - Py_INCREF
+  actual: null
+- id: r-c-1084
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1789
+  code: void DEFPSS( LCCREE, lccree, _IN ASTERINTEGER *nbkit, _IN char *lkit, STRING_SIZE llkit,
+  extracted: []
+  actual: null
+- id: r-c-1092
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1810
+  code: scomp = PyUnicode_AsUTF8( res );
+  extracted:
+  - PyUnicode_AsUTF8
+  actual: null
+- id: r-c-1093
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1811
+  code: CopyCStrToFStr( compor, scomp, lcompor );
+  extracted:
+  - CopyCStrToFStr
+  actual: null
+- id: r-c-1096
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1815
+  code: Py_XDECREF( catalc );
+  extracted:
+  - Py_XDECREF
+  actual: null
+- id: r-c-1105
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1835
+  code: convertxt( 1, res, algo, lalgo );
+  extracted:
+  - convertxt
+  actual: null
+- id: r-c-1126
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1883
+  code: convertxt( (int)*nbvari, res, nomvar, lnomvar );
+  extracted:
+  - convertxt
+  actual: null
+- id: r-c-1138
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1908
+  code: Py_XDECREF( res );
+  extracted:
+  - Py_XDECREF
+  actual: null
+- id: r-c-1139
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 1909
+  code: Py_XDECREF( catalc );
+  extracted:
+  - Py_XDECREF
+  actual: null
+- id: r-c-1185
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 2013
+  code: catalc = GetJdcAttr( "catalc" );
+  extracted:
+  - GetJdcAttr
+  actual: null
+- id: r-c-1200
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 2040
+  code: convertxt( 1, res, deformldc, ldeformldc );
+  extracted:
+  - convertxt
+  actual: null
+- id: r-c-1202
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 2043
+  code: Py_XDECREF( catalc );
+  extracted:
+  - Py_XDECREF
+  actual: null
+- id: r-c-1222
+  group: c
+  file: bibc/supervis/aster_module.c
+  line: 2086
+  code: MYABORT( "Echec lors de la lecture du kit (lckitread/get_kit) !" );
+  extracted:
+  - PRE_myabort
+  actual: null
+- id: r-c-1288
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 207
+  code: void aster_free_comm( aster_comm_t *node ) {
+  extracted: []
+  actual: null
+- id: r-c-1292
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 222
+  code: for ( j = i + 1; j < nb; j++ ) {
+  extracted: []
+  actual: null
+- id: r-c-1327
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 311
+  code: 'DEBUG_MPI( "MPI_Gather: ... in %f sec %s\n", ( end - start ), " " );'
+  extracted: []
+  actual: null
+- id: r-c-1328
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 316
+  code: int aster_mpi_gatherv( void *sendbuf, int sendcnt, MPI_Datatype sendtype, void *recvbuf,
+  extracted: []
+  actual: null
+- id: r-c-1378
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 452
+  code: mpicom = MPI_Comm_f2c( *comm );
+  extracted: []
+  actual: null
+- id: r-c-1393
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 490
+  code: AS_ASSERT( sizeof( MPI_Fint ) == 4 );
+  extracted:
+  - abort
+  - fflush
+  - fflush
+  - fprintf
+  - printf
+  - printf
+  actual: null
+- id: r-c-1408
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 527
+  code: double start = MPI_Wtime();
+  extracted:
+  - MPI_Wtime
+  actual: null
+- id: r-c-1455
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 628
+  code: 'DEBUG_MPI( "MPI_Recv: ... in %f sec %s\n", ( end - start ), " " );'
+  extracted: []
+  actual: null
+- id: r-c-1470
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 677
+  code: void DEFPPPPPPPPP( ASMPI_SENDRECV_I4, asmpi_sendrecv_i4, ASTERINTEGER4 *buffer_send,
+  extracted: []
+  actual: null
+- id: r-c-1481
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 708
+  code: AS_MPICHECK( MPI_Sendrecv( (void *)buffer_send, *count_send, MPI_DOUBLE_COMPLEX, *recipient,
+  extracted:
+  - abort
+  - abort
+  - abort
+  - abort
+  - abort
+  - abort
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - MPI_Sendrecv
+  actual: null
+- id: r-c-1482
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 711
+  code: double end = MPI_Wtime();
+  extracted:
+  - MPI_Wtime
+  actual: null
+- id: r-c-1494
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 750
+  code: double start = MPI_Wtime();
+  extracted:
+  - MPI_Wtime
+  actual: null
+- id: r-c-1516
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 823
+  code: void DEFP( ASMPI_CANCEL, asmpi_cancel, MPI_Fint *request ) {
+  extracted: []
+  actual: null
+- id: r-c-1531
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 868
+  code: void DEFPPPPPP( ASMPI_REDUCE_C, asmpi_reduce_c, ASTERDOUBLE *sendbuf, ASTERDOUBLE *recvbuf,
+  extracted: []
+  actual: null
+- id: r-c-1550
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 912
+  code: 'DEBUG_MPI( "MPI_Reduce: %d integer4 reduced values by all ...%s\n", *count, " " );'
+  extracted: []
+  actual: null
+- id: r-c-1554
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 917
+  code: 'DEBUG_MPI( "MPI_Reduce: ... in %f sec %s\n", ( end - start ), " " );'
+  extracted: []
+  actual: null
+- id: r-c-1556
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 932
+  code: mpicom = MPI_Comm_f2c( *comm );
+  extracted: []
+  actual: null
+- id: r-c-1563
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 944
+  code: void DEFPPPPP( ASMPI_ALLREDUCE_C, asmpi_allreduce_c, ASTERDOUBLE *sendbuf, ASTERDOUBLE *recvbuf,
+  extracted: []
+  actual: null
+- id: r-c-1576
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 972
+  code: AS_MPICHECK(
+  extracted:
+  - abort
+  - abort
+  - abort
+  - abort
+  - abort
+  - abort
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  actual: null
+- id: r-c-1620
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 1069
+  code: double start = MPI_Wtime();
+  extracted:
+  - MPI_Wtime
+  actual: null
+- id: r-c-1635
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 1109
+  code: AS_MPICHECK( MPI_Allgather( (void *)sendbuf, *sendcnt, MPI_DOUBLE_PRECISION, (void *)recvbuf,
+  extracted:
+  - abort
+  - abort
+  - abort
+  - abort
+  - abort
+  - abort
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - printf
+  - MPI_Allgather
+  actual: null
+- id: r-c-1643
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 1132
+  code: double end = MPI_Wtime();
+  extracted:
+  - MPI_Wtime
+  actual: null
+- id: r-c-1718
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 1356
+  code: MPI_Finalize();
+  extracted:
+  - MPI_Finalize
+  actual: null
+- id: r-c-1728
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 1393
+  code: COMM_DEBUG( aster_mpi_world );
+  extracted: []
+  actual: null
+- id: r-c-1729
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 1394
+  code: aster_get_mpi_info( &aster_mpi_world, &rank, &size );
+  extracted:
+  - aster_get_mpi_info
+  actual: null
+- id: r-c-1731
+  group: c
+  file: bibc/supervis/aster_mpi.c
+  line: 1397
+  code: node = aster_get_current_comm();
+  extracted:
+  - aster_get_current_comm
+  actual: null
+- id: r-c-1754
+  group: c
+  file: bibc/supervis/aster_utils.c
+  line: 33
+  code: _check_string_length( flen );
+  extracted:
+  - _check_string_length
+  actual: null
+- id: r-c-1780
+  group: c
+  file: bibc/supervis/aster_utils.c
+  line: 131
+  code: 'printf( "WARNING: The string length seems corrupted. "'
+  extracted:
+  - printf
+  actual: null
+- id: r-c-1839
+  group: c
+  file: bibc/supervis/aster_utils.c
+  line: 274
+  code: 'printf( "s : " );'
+  extracted:
+  - printf
+  actual: null
+- id: r-c-1857
+  group: c
+  file: bibc/supervis/aster_utils.c
+  line: 308
+  code: printf( "\n " );
+  extracted:
+  - printf
+  actual: null
+- id: r-c-1858
+  group: c
+  file: bibc/supervis/aster_utils.c
+  line: 309
+  code: 'MYABORT( "erreur sur le type : devrait etre une string" );'
+  extracted:
+  - PRE_myabort
+  actual: null
+- id: r-c-1879
+  group: c
+  file: bibc/supervis/aster_utils.c
+  line: 418
+  code: if ( PyList_SetItem( l, i, PyLong_FromLong( (long)kval[i] ) ) ) {
+  extracted:
+  - PyList_SetItem
+  - PyLong_FromLong
+  actual: null
+- id: r-c-1881
+  group: c
+  file: bibc/supervis/aster_utils.c
+  line: 426
+  code: PyObject *MakeTupleFloat( long nbval, ASTERDOUBLE *kval ) {
+  extracted: []
+  actual: null
+- id: r-c-1893
+  group: c
+  file: bibc/supervis/dll_interface.c
+  line: 29
+  code: 'static inline int my_dlclose( void *handle ) { return FreeLibrary( (HMODULE)handle ) ? 0 : 1; }'
+  extracted:
+  - FreeLibrary
+  actual: null
+- id: r-c-1917
+  group: c
+  file: bibc/supervis/dll_register.c
+  line: 60
+  code: Py_XDECREF( key );
+  extracted:
+  - Py_XDECREF
+  actual: null
+- id: r-c-2001
+  group: c
+  file: bibc/supervis/dll_umat.c
+  line: 128
+  code: abort();
+  extracted:
+  - abort
+  actual: null
+- id: r-c-2021
+  group: c
+  file: bibc/supervis/logical_unit.c
+  line: 50
+  code: number = (int)PyLong_AsLong( unit );
+  extracted:
+  - PyLong_AsLong
+  actual: null
+- id: r-c-2044
+  group: c
+  file: bibc/supervis/shared_vars.c
+  line: 68
+  code: void register_sh_msglog( PyObject *obj ) {
+  extracted: []
+  actual: null
+- id: r-c-2050
+  group: c
+  file: bibc/supervis/shared_vars.c
+  line: 99
+  code: int get_sh_jeveux_status() { return gJeveuxStatus; }
+  extracted: []
+  actual: null
+- id: r-c-2069
+  group: c
+  file: bibc/supervis/spec_osci.c
+  line: 48
+  code: for ( a = 0; a < len_a; a++ ) {
+  extracted: []
+  actual: null
+- id: r-c-2079
+  group: c
+  file: bibc/supervis/spec_osci.c
+  line: 98
+  code: for ( f = 0; f < len_f; f++ ) {
+  extracted: []
+  actual: null
+- id: r-c-2087
+  group: c
+  file: bibc/utilitai/cpfile.c
+  line: 24
+  code: void DEFSSS( CPFILE, cpfile, char *action, STRING_SIZE la, char *nom1, STRING_SIZE lnom1,
+  extracted: []
+  actual: null
+- id: r-c-2167
+  group: c
+  file: bibc/utilitai/envima.c
+  line: 154
+  code: return (ASTERDOUBLE)( (ASTERDOUBLE)R8_PI / (ASTERDOUBLE)180. );
+  extracted:
+  - (ASTERDOUBLE)
+  actual: null
+- id: r-c-2172
+  group: c
+  file: bibc/utilitai/envima.c
+  line: 169
+  code: ASTERDOUBLE DEF0( R4MIEM, r4miem ) { return R4MIN; }
+  extracted: []
+  actual: null
+- id: r-c-2187
+  group: c
+  file: bibc/utilitai/hpalloc.c
+  line: 35
+  code: This function uses mmap() to prevent memory fragmentation with malloc() on Linux.
+  extracted: []
+  actual: null
+- id: r-c-2196
+  group: c
+  file: bibc/utilitai/hpalloc.c
+  line: 59
+  code: '} else if ( *addr == NULL ) {'
+  extracted: []
+  actual: null
+- id: r-c-2199
+  group: c
+  file: bibc/utilitai/hpdeallc.c
+  line: 21
+  code: void DEFPP( HPDEALLC, hpdeallc, void **addr, ASTERINTEGER *nbapp ) {
+  extracted: []
+  actual: null
+- id: r-c-2207
+  group: c
+  file: bibc/utilitai/indik8.c
+  line: 36
+  code: for ( i = 0; i < 8; i++ )
+  extracted: []
+  actual: null
+- id: r-c-2209
+  group: c
+  file: bibc/utilitai/indik8.c
+  line: 43
+  code: for ( i = 0; i < *nmot; i++ ) {
+  extracted: []
+  actual: null
+- id: r-c-2232
+  group: c
+  file: bibc/utilitai/inisig.c
+  line: 95
+  code: cw = _controlfp( 0, 0 );
+  extracted:
+  - _controlfp
+  actual: null
+- id: r-c-2233
+  group: c
+  file: bibc/utilitai/inisig.c
+  line: 97
+  code: cwOrig = _controlfp( cw, _MCW_EM );
+  extracted:
+  - _controlfp
+  actual: null
+- id: r-c-2261
+  group: c
+  file: bibc/utilitai/iodr.c
+  line: 90
+  code: if ( iu < 0 ) {
+  extracted: []
+  actual: null
+- id: r-c-2266
+  group: c
+  file: bibc/utilitai/iodr.c
+  line: 98
+  code: strcpy( smode, "rb+" );
+  extracted:
+  - strcpy
+  actual: null
+- id: r-c-2281
+  group: c
+  file: bibc/utilitai/iodr.c
+  line: 122
+  code: FreeStr( fname );
+  extracted:
+  - FreeStr
+  actual: null
+- id: r-c-2298
+  group: c
+  file: bibc/utilitai/iodr.c
+  line: 176
+  code: nbseek = fseek( fpfile[iu], offset, SEEK_SET );
+  extracted:
+  - fseek
+  actual: null
+- id: r-c-2299
+  group: c
+  file: bibc/utilitai/iodr.c
+  line: 178
+  code: nbval = (ASTERINTEGER)fread( buf, 1, ( size_t )( *nbytes ), fpfile[iu] );
+  extracted:
+  - fread
+  actual: null
+- id: r-c-2323
+  group: c
+  file: bibc/utilitai/matfpe.c
+  line: 50
+  code: void DEFP( MATFPE, matfpe, ASTERINTEGER *enable ) {
+  extracted: []
+  actual: null
+- id: r-c-2364
+  group: c
+  file: bibc/utilitai/mempid.c
+  line: 108
+  code: kvm_close( kd );
+  extracted:
+  - kvm_close
+  actual: null
+- id: r-c-2390
+  group: c
+  file: bibc/utilitai/mempid.c
+  line: 196
+  code: fprintf( stderr, "Format inattendu dans /proc/%d/cgroup\n", pid );
+  extracted:
+  - fprintf
+  actual: null
+- id: r-c-2394
+  group: c
+  file: bibc/utilitai/mempid.c
+  line: 205
+  code: 'perror( "ERROR: fopen memory.current" );'
+  extracted:
+  - perror
+  actual: null
+- id: r-c-2413
+  group: c
+  file: bibc/utilitai/rmfile.c
+  line: 42
+  code: if ( *iret == 0 ) {
+  extracted: []
+  actual: null
+- id: r-c-2418
+  group: c
+  file: bibc/utilitai/strmov.c
+  line: 21
+  code: void DEFSPPPP( STRMOV, strmov, char *src, STRING_SIZE len_src, ASTERINTEGER *isb, ASTERINTEGER *num,
+  extracted: []
+  actual: null
+- id: r-c-2440
+  group: c
+  file: bibc/utilitai/superlu_wrapper.c
+  line: 112
+  code: get_perm_c( permc_spec, &A, perm_c );
+  extracted:
+  - get_perm_c
+  actual: null
+- id: r-c-2442
+  group: c
+  file: bibc/utilitai/superlu_wrapper.c
+  line: 115
+  code: panel_size = sp_ienv( 1 );
+  extracted:
+  - sp_ienv
+  actual: null
+- id: r-c-2453
+  group: c
+  file: bibc/utilitai/superlu_wrapper.c
+  line: 140
+  code: Destroy_CompCol_Permuted( &AC );
+  extracted:
+  - Destroy_CompCol_Permuted
+  actual: null
+- id: r-c-2465
+  group: c
+  file: bibc/utilitai/superlu_wrapper.c
+  line: 240
+  code: for ( i = 0; i < Lstore->nnz; ++i )
+  extracted: []
+  actual: null
+- id: r-c-2472
+  group: c
+  file: bibc/utilitai/superlu_wrapper.c
+  line: 321
+  code: for ( k = 0; k <= Lstore->nsuper; ++k ) {
+  extracted: []
+  actual: null
+- id: r-c-2494
+  group: c
+  file: bibc/utilitai/superlu_wrapper.c
+  line: 483
+  code: SUPERLU_FREE( LUfactors->perm_r );
+  extracted:
+  - SUPERLU_FREE
+  actual: null
+- id: r-c-2495
+  group: c
+  file: bibc/utilitai/superlu_wrapper.c
+  line: 484
+  code: SUPERLU_FREE( LUfactors->perm_c );
+  extracted:
+  - SUPERLU_FREE
+  actual: null
+- id: r-cpp-70
+  group: cpp
+  file: bibc/include/aster_fort_calcul.h
+  line: 137
+  code: void DEFSSPP( NUME_DDL_MATR, nume_ddl_matr, const char *, STRING_SIZE, const char *, STRING_SIZE,
+  extracted: []
+  actual: null
+- id: r-cpp-235
+  group: cpp
+  file: bibc/include/aster_fort_ds.h
+  line: 202
+  code: F_FUNC( RSACCH, rsacch )                                                                       \
+  extracted: []
+  actual: null
+- id: r-cpp-483
+  group: cpp
+  file: bibc/include/aster_fort_utils.h
+  line: 114
+  code: VALK_SIZE, strlen( fname ) )
+  extracted: []
+  actual: null
+- id: r-cpp-689
+  group: cpp
+  file: bibc/include/definition.h
+  line: 129
+  code: '#define DEFSPSS(UN,LN,a,la,b,c,lc,d,ld)               STDCALL(UN,LN)(a,b,c,d,la,lc,ld)'
+  extracted: []
+  actual: null
+- id: r-cpp-1029
+  group: cpp
+  file: bibc/include/definition.h
+  line: 473
+  code: '#define CALLOOPOOP(UN,LN,a,b,c,d,e,f)                          F_FUNC(UN,LN)((a).c_str(),(a).size(),(b).c_str(),(b).size(),c,(d).c_str(),(d).size(),(e).c_str(),(e).size(),f)'
+  extracted: []
+  actual: null
+- id: r-cpp-1657
+  group: cpp
+  file: bibcxx/Contact/ContactComputation.cxx
+  line: 103
+  code: auto shift = data->getShifting( iGrel, iElem );
+  extracted:
+  - data->getShifting
+  actual: null
+- id: r-cpp-1775
+  group: cpp
+  file: bibcxx/Contact/ContactNew.cxx
+  line: 180
+  code: std::string ligret = ljust( "&&OP0030.LIGRET", 19, ' ' );
+  extracted:
+  - ljust
+  actual: null
+- id: r-cpp-1898
+  group: cpp
+  file: bibcxx/Contact/ContactPairing.cxx
+  line: 85
+  code: returnValue = zone->pairing( dist_pairing, pair_tole, area_tole );
+  extracted:
+  - zone->pairing
+  actual: null
+- id: r-cpp-1916
+  group: cpp
+  file: bibcxx/Contact/ContactPairing.cxx
+  line: 126
+  code: throw std::out_of_range( "The zone index should be between 0  and " +
+  extracted:
+  - std::out_of_range
+  actual: null
+- id: r-cpp-1921
+  group: cpp
+  file: bibcxx/Contact/ContactPairing.cxx
+  line: 136
+  code: returnValue += _contDefi->getMeshPairing( indexZone )->getNumberOfPairs();
+  extracted:
+  - _contDefi->getMeshPairing
+  - _contDefi->getMeshPairing(indexZone)->getNumberOfPairs
+  actual: null
+- id: r-cpp-1929
+  group: cpp
+  file: bibcxx/Contact/ContactPairing.cxx
+  line: 157
+  code: for ( ASTERINTEGER indexZone = 0; indexZone < _contDefi->getNumberOfContactZones();
+  extracted:
+  - _contDefi->getNumberOfContactZones
+  actual: null
+- id: r-cpp-1986
+  group: cpp
+  file: bibcxx/Contact/ContactPairing.cxx
+  line: 288
+  code: if ( lAxis ) {
+  extracted: []
+  actual: null
+- id: r-cpp-2098
+  group: cpp
+  file: bibcxx/Contact/ContactPairing.cxx
+  line: 624
+  code: if ( indexZone == 0 ) {
+  extracted: []
+  actual: null
+- id: r-cpp-2208
+  group: cpp
+  file: bibcxx/Contact/ContactParameter.h
+  line: 126
+  code: _coeff( 100. ),
+  extracted: []
+  actual: null
+- id: r-cpp-2267
+  group: cpp
+  file: bibcxx/Contact/ContactZone.cxx
+  line: 41
+  code: _meshPairing( std::make_shared< MeshPairing >( getName() + ".APMA" ) ) {};
+  extracted:
+  - std::make_shared
+  - getName
+  actual: null
+- id: r-cpp-2321
+  group: cpp
+  file: bibcxx/Contact/ContactZone.h
+  line: 138
+  code: MapLong getSlaveCellsSurfToVolu() const { return _meshPairing->getSlaveCellsSurfToVolu(); };
+  extracted:
+  - _meshPairing->getSlaveCellsSurfToVolu
+  actual: null
+- id: r-cpp-2326
+  group: cpp
+  file: bibcxx/Contact/ContactZone.h
+  line: 151
+  code: void enableFriction( const bool &friction ) { _fricParam->enableFriction( friction ); };
+  extracted:
+  - _fricParam->enableFriction
+  actual: null
+- id: r-cpp-2470
+  group: cpp
+  file: bibcxx/Crack/Crack.h
+  line: 111
+  code: const VectorString getCrackFrontNodes();
+  extracted: []
+  actual: null
+- id: r-cpp-2580
+  group: cpp
+  file: bibcxx/Crack/XfemCrack.cxx
+  line: 85
+  code: 'XfemCrack::XfemCrack( MeshPtr mesh ) : XfemCrack( ResultNaming::getNewResultName(), mesh ) {};'
+  extracted:
+  - ResultNaming::getNewResultName
+  actual: null
+- id: r-cpp-2806
+  group: cpp
+  file: bibcxx/DataFields/ConstantFieldOnCells.h
+  line: 235
+  code: ': DataField( name, "CARTE" ),'
+  extracted: []
+  actual: null
+- id: r-cpp-3056
+  group: cpp
+  file: bibcxx/DataFields/ElementaryTerm.h
+  line: 185
+  code: if ( modeId != mode ) {
+  extracted: []
+  actual: null
+- id: r-cpp-3090
+  group: cpp
+  file: bibcxx/DataFields/FieldBuilder.h
+  line: 115
+  code: _mapLigrel.clear();
+  extracted:
+  - _mapLigrel.clear
+  actual: null
+- id: r-cpp-3176
+  group: cpp
+  file: bibcxx/DataFields/FieldConverter.cxx
+  line: 130
+  code: JeveuxVectorReal res( "&&TMP", values->size() );
+  extracted:
+  - values->size
+  actual: null
+- id: r-cpp-3208
+  group: cpp
+  file: bibcxx/DataFields/FieldConverter.h
+  line: 72
+  code: cham_no->build( field.getMesh() );
+  extracted:
+  - cham_no->build
+  - field.getMesh
+  actual: null
+- id: r-cpp-3224
+  group: cpp
+  file: bibcxx/DataFields/FieldConverter.h
+  line: 122
+  code: const std::string resultName = toReturn->getName();
+  extracted:
+  - toReturn->getName
+  actual: null
+- id: r-cpp-3580
+  group: cpp
+  file: bibcxx/DataFields/FieldOnNodes.cxx
+  line: 38
+  code: if ( PyFloat_Check( res ) ) {
+  extracted:
+  - PyFloat_Check
+  actual: null
+- id: r-cpp-3965
+  group: cpp
+  file: bibcxx/DataFields/SimpleFieldOnCells.h
+  line: 106
+  code: ASTERINTEGER decal = this->_shiftCell( ima );
+  extracted:
+  - this->_shiftCell
+  actual: null
+- id: r-cpp-4120
+  group: cpp
+  file: bibcxx/DataFields/SimpleFieldOnCells.h
+  line: 491
+  code: ASTERINTEGER getNumberOfCells() const { return _nbCells; }
+  extracted: []
+  actual: null
+- id: r-cpp-4207
+  group: cpp
+  file: bibcxx/DataFields/SimpleFieldOnCells.h
+  line: 694
+  code: AS_ASSERT( cells.size() == values.size() );
+  extracted:
+  - abort
+  - fflush
+  - fflush
+  - fprintf
+  - printf
+  - printf
+  - cells.size
+  - values.size
+  actual: null
+- id: r-cpp-4335
+  group: cpp
+  file: bibcxx/DataFields/SimpleFieldOnNodes.h
+  line: 236
+  code: bool hasValue( const ASTERINTEGER &ino, const ASTERINTEGER &icmp ) const {
+  extracted: []
+  actual: null
+- id: r-cpp-4593
+  group: cpp
+  file: bibcxx/DataFields/Table.h
+  line: 159
+  code: GenericFunctionPtr getFunction( int ) const;
+  extracted: []
+  actual: null
+- id: r-cpp-5072
+  group: cpp
+  file: bibcxx/Discretization/Calcul.cxx
+  line: 302
+  code: _outputElemTermsExist.at( parameterName ) = false;
+  extracted:
+  - _outputElemTermsExist.at
+  actual: null
+- id: r-cpp-5394
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationAcousticVector.cxx
+  line: 110
+  code: std::make_shared< ElementaryVectorPressureComplex >( _phys_problem->getModel() );
+  extracted:
+  - std::make_shared
+  - _phys_problem->getModel
+  actual: null
+- id: r-cpp-5410
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationAcousticVector.cxx
+  line: 154
+  code: auto listOfLoads = _phys_problem->getListOfLoads();
+  extracted:
+  - _phys_problem->getListOfLoads
+  actual: null
+- id: r-cpp-5449
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationMechanicalMatrix.cxx
+  line: 68
+  code: if ( groupOfCells.empty() ) {
+  extracted:
+  - groupOfCells.empty
+  actual: null
+- id: r-cpp-6012
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationMechanicalVector.cxx
+  line: 63
+  code: auto listOfLoads = _phys_problem->getListOfLoads();
+  extracted:
+  - _phys_problem->getListOfLoads
+  actual: null
+- id: r-cpp-6222
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationMechanicalVector.cxx
+  line: 466
+  code: if ( elemVect->hasElementaryTerm() ) {
+  extracted:
+  - elemVect->hasElementaryTerm
+  actual: null
+- id: r-cpp-6232
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationMechanicalVector.cxx
+  line: 496
+  code: auto currBehaviour = _phys_problem->getBehaviourProperty();
+  extracted:
+  - _phys_problem->getBehaviourProperty
+  actual: null
+- id: r-cpp-6239
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationMechanicalVector.cxx
+  line: 513
+  code: auto currCodedMater = _phys_problem->getCodedMaterial();
+  extracted:
+  - _phys_problem->getCodedMaterial
+  actual: null
+- id: r-cpp-6278
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationMechanicalVector.cxx
+  line: 603
+  code: calcul->addOutputElementaryTerm( "PVECTUR",
+  extracted:
+  - calcul->addOutputElementaryTerm
+  actual: null
+- id: r-cpp-6591
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationThermalMatrix.cxx
+  line: 312
+  code: calcul->compute();
+  extracted:
+  - calcul->compute
+  actual: null
+- id: r-cpp-6940
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationThermalVector.cxx
+  line: 301
+  code: if ( !varc_curr || !varc_curr->exists() ) {
+  extracted:
+  - varc_curr->exists
+  actual: null
+- id: r-cpp-7004
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationThermalVector.cxx
+  line: 414
+  code: calcul->clearOutputs();
+  extracted:
+  - calcul->clearOutputs
+  actual: null
+- id: r-cpp-7020
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationThermalVector.cxx
+  line: 437
+  code: calcul->addHHOField( currModel );
+  extracted:
+  - calcul->addHHOField
+  actual: null
+- id: r-cpp-7133
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationThermalVector.cxx
+  line: 650
+  code: calcul->compute();
+  extracted:
+  - calcul->compute
+  actual: null
+- id: r-cpp-7216
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationThermalVector.cxx
+  line: 820
+  code: calcul->compute();
+  extracted:
+  - calcul->compute
+  actual: null
+- id: r-cpp-7362
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationThermalVector.cxx
+  line: 1123
+  code: if ( elemVect->hasElementaryTerm() ) {
+  extracted:
+  - elemVect->hasElementaryTerm
+  actual: null
+- id: r-cpp-7501
+  group: cpp
+  file: bibcxx/Discretization/DiscreteComputationVector.cxx
+  line: 264
+  code: if ( currExternVarRefe ) {
+  extracted: []
+  actual: null
+- id: r-cpp-7540
+  group: cpp
+  file: bibcxx/Discretization/ElementaryCharacteristics.cxx
+  line: 57
+  code: BaseMeshPtr ElementaryCharacteristics::getMesh() const { return _mesh; };
+  extracted: []
+  actual: null
+- id: r-cpp-7745
+  group: cpp
+  file: bibcxx/Elements/plaq_mitc.cxx
+  line: 1690
+  code: for ( size_t i = 0; i < A_vec.size(); ++i ) {
+  extracted:
+  - A_vec.size
+  actual: null
+- id: r-cpp-7798
+  group: cpp
+  file: bibcxx/Functions/Formula.cxx
+  line: 57
+  code: for ( ; varIt != names.end(); ++varIt ) {
+  extracted:
+  - names.end
+  actual: null
+- id: r-cpp-7846
+  group: cpp
+  file: bibcxx/Functions/Formula.cxx
+  line: 154
+  code: throw py::error_already_set();
+  extracted:
+  - py::error_already_set
+  actual: null
+- id: r-cpp-7892
+  group: cpp
+  file: bibcxx/Functions/Function.cxx
+  line: 42
+  code: if ( _property.exists() )
+  extracted:
+  - _property.exists
+  actual: null
+- id: r-cpp-7962
+  group: cpp
+  file: bibcxx/Functions/Function.h
+  line: 54
+  code: ~BaseFunction() {};
+  extracted: []
+  actual: null
+- id: r-cpp-8123
+  group: cpp
+  file: bibcxx/IOManager/MedField.cxx
+  line: 178
+  code: medV->setElement( curElem - start + cumulatedElem,
+  extracted:
+  - medV->setElement
+  actual: null
+- id: r-cpp-8147
+  group: cpp
+  file: bibcxx/IOManager/MedField.cxx
+  line: 256
+  code: MedVectorPtr MedField::getValuesAtSequenceOnNodes( int numdt, int numit ) const {
+  extracted: []
+  actual: null
+- id: r-cpp-8185
+  group: cpp
+  file: bibcxx/IOManager/MedField.cxx
+  line: 328
+  code: medV->endDefinition();
+  extracted:
+  - medV->endDefinition
+  actual: null
+- id: r-cpp-8685
+  group: cpp
+  file: bibcxx/IOManager/MeshReader.cxx
+  line: 188
+  code: const auto size = toReturn->getNumberOfNodes();
+  extracted:
+  - toReturn->getNumberOfNodes
+  actual: null
+- id: r-cpp-8690
+  group: cpp
+  file: bibcxx/IOManager/MeshReader.cxx
+  line: 194
+  code: toReturn->setLocalToGlobalNodeIds( nodeGlobNum );
+  extracted:
+  - toReturn->setLocalToGlobalNodeIds
+  actual: null
+- id: r-cpp-9125
+  group: cpp
+  file: bibcxx/LinearAlgebra/AssemblyMatrix.h
+  line: 604
+  code: char *tabNames = vectorStringAsFStrArray( names, 19 );
+  extracted:
+  - vectorStringAsFStrArray
+  actual: null
+- id: r-cpp-9127
+  group: cpp
+  file: bibcxx/LinearAlgebra/AssemblyMatrix.h
+  line: 607
+  code: std::string cumul( "ZERO" );
+  extracted: []
+  actual: null
+- id: r-cpp-9347
+  group: cpp
+  file: bibcxx/LinearAlgebra/ElementaryMatrix.h
+  line: 71
+  code: CALL_REDETR( getName() );
+  extracted:
+  - getName
+  actual: null
+- id: r-cpp-9722
+  group: cpp
+  file: bibcxx/Loads/AcousticLoadDescription.h
+  line: 67
+  code: AcousticLoadDescription( void ) = delete;
+  extracted: []
+  actual: null
+- id: r-cpp-10076
+  group: cpp
+  file: bibcxx/Loads/ListOfLoads.cxx
+  line: 337
+  code: bool ListOfLoads::hasDifferentialLoads() {
+  extracted: []
+  actual: null
+- id: r-cpp-10214
+  group: cpp
+  file: bibcxx/Loads/ListOfLoads.h
+  line: 460
+  code: void addLoad( const ThermalLoadRealPtr &currentLoad ) {
+  extracted: []
+  actual: null
+- id: r-cpp-10827
+  group: cpp
+  file: bibcxx/Loads/ThermalLoad.h
+  line: 129
+  code: std::string right( "EXCLU" );
+  extracted: []
+  actual: null
+- id: r-cpp-11078
+  group: cpp
+  file: bibcxx/Materials/CodedMaterial.cxx
+  line: 65
+  code: bool ther = _model->isThermal();
+  extracted:
+  - _model->isThermal
+  actual: null
+- id: r-cpp-11118
+  group: cpp
+  file: bibcxx/Materials/CodedMaterial.h
+  line: 84
+  code: ConstantFieldOnCellsLongPtr getCodedMaterialField() const { return _field; };
+  extracted: []
+  actual: null
+- id: r-cpp-11609
+  group: cpp
+  file: bibcxx/Materials/MaterialField.cxx
+  line: 287
+  code: dict2.container["PROL_GAUCHE"] = evolParam->getLeftExtension();
+  extracted:
+  - evolParam->getLeftExtension
+  actual: null
+- id: r-cpp-11894
+  group: cpp
+  file: bibcxx/MemoryManager/JeveuxCollection.h
+  line: 531
+  code: 'AS_ABORT( "Collection not built: " + _name );'
+  extracted: []
+  actual: null
+- id: r-cpp-12236
+  group: cpp
+  file: bibcxx/MemoryManager/JeveuxVector.h
+  line: 148
+  code: if ( this->operator[]( i ) != toCompare[i] ) {
+  extracted:
+  - this
+  actual: null
+- id: r-cpp-12418
+  group: cpp
+  file: bibcxx/MemoryManager/JeveuxVector.h
+  line: 724
+  code: CALL_JEDEMA();
+  extracted: []
+  actual: null
+- id: r-cpp-12793
+  group: cpp
+  file: bibcxx/Meshes/BaseMesh.h
+  line: 262
+  code: AS_ASSERT( false );
+  extracted:
+  - abort
+  - fflush
+  - fflush
+  - fprintf
+  - printf
+  - printf
+  actual: null
+- id: r-cpp-13074
+  group: cpp
+  file: bibcxx/Meshes/ConnectionMesh.cxx
+  line: 586
+  code: const auto nbCells = _pMesh->getNumberOfCells();
+  extracted:
+  - _pMesh->getNumberOfCells
+  actual: null
+- id: r-cpp-13141
+  group: cpp
+  file: bibcxx/Meshes/Grid.cxx
+  line: 30
+  code: _grlr( JeveuxVectorReal( getName() + ".GRLR" ) ),
+  extracted:
+  - JeveuxVectorReal
+  - getName
+  actual: null
+- id: r-cpp-13193
+  group: cpp
+  file: bibcxx/Meshes/IncompleteMesh.h
+  line: 64
+  code: 'IncompleteMesh() : IncompleteMesh( ResultNaming::getNewResultName() ) {};'
+  extracted:
+  - ResultNaming::getNewResultName
+  actual: null
+- id: r-cpp-13317
+  group: cpp
+  file: bibcxx/Meshes/LocalizationManager.h
+  line: 123
+  code: loopOverVariadicValues( CapyConvertibleContainer toReturn = CapyConvertibleContainer() ) {
+  extracted: []
+  actual: null
+- id: r-cpp-13338
+  group: cpp
+  file: bibcxx/Meshes/Mesh.cxx
+  line: 70
+  code: names.push_back( strip( _nameOfGrpNodes->getStringFromIndex( i + 1 ) ) );
+  extracted:
+  - names.push_back
+  - strip
+  - _nameOfGrpNodes->getStringFromIndex
+  actual: null
+- id: r-cpp-13470
+  group: cpp
+  file: bibcxx/Meshes/Mesh.h
+  line: 150
+  code: VectorLong( getNumberOfCells(), getMPIRank() ) );
+  extracted:
+  - VectorLong
+  - getNumberOfCells
+  - getMPIRank
+  actual: null
+- id: r-cpp-13824
+  group: cpp
+  file: bibcxx/Meshes/MeshBalancer.cxx
+  line: 776
+  code: if ( inSet.find( nodeId2 - 1 ) == endSet ) {
+  extracted:
+  - inSet.find
+  actual: null
+- id: r-cpp-13861
+  group: cpp
+  file: bibcxx/Meshes/MeshBalancer.cxx
+  line: 862
+  code: for ( int i = 0; i < size; ++i ) {
+  extracted: []
+  actual: null
+- id: r-cpp-13865
+  group: cpp
+  file: bibcxx/Meshes/MeshBalancer.cxx
+  line: 872
+  code: constexpr size_t size = CHAR_BIT * sizeof( Integer );
+  extracted: []
+  actual: null
+- id: r-cpp-13879
+  group: cpp
+  file: bibcxx/Meshes/MeshBalancer.cxx
+  line: 894
+  code: toSendCell.push_back( name );
+  extracted:
+  - toSendCell.push_back
+  actual: null
+- id: r-cpp-14124
+  group: cpp
+  file: bibcxx/Meshes/MeshPairing.cxx
+  line: 121
+  code: _slaveInverseConnectivity->getName().c_str() );
+  extracted:
+  - _slaveInverseConnectivity->getName
+  - _slaveInverseConnectivity->getName().c_str
+  actual: null
+- id: r-cpp-14355
+  group: cpp
+  file: bibcxx/Meshes/MeshPairing.cxx
+  line: 635
+  code: if ( _zoneHaveBeenDefined ) {
+  extracted: []
+  actual: null
+- id: r-cpp-14520
+  group: cpp
+  file: bibcxx/Meshes/ParallelMesh.cxx
+  line: 156
+  code: SetOfStringCIter curIter = _setOfAllGOE.find( name );
+  extracted:
+  - _setOfAllGOE.find
+  actual: null
+- id: r-cpp-14700
+  group: cpp
+  file: bibcxx/Meshes/ParallelMesh.cxx
+  line: 535
+  code: const std::string cadre( "G" );
+  extracted: []
+  actual: null
+- id: r-cpp-14794
+  group: cpp
+  file: bibcxx/Meshes/ParallelMesh.h
+  line: 209
+  code: const JeveuxVectorLong getLocalToGlobalCellIds() const;
+  extracted: []
+  actual: null
+- id: r-cpp-14909
+  group: cpp
+  file: bibcxx/Modal/DynamicMacroElement.h
+  line: 126
+  code: _maelRefe( JeveuxVectorChar24( getName() + ".MAEL_REFE" ) ),
+  extracted:
+  - JeveuxVectorChar24
+  - getName
+  actual: null
+- id: r-cpp-15159
+  group: cpp
+  file: bibcxx/Modeling/FiniteElementDescriptor.cxx
+  line: 124
+  code: _listOfGroupsOfElements->build();
+  extracted: []
+  actual: null
+- id: r-cpp-15303
+  group: cpp
+  file: bibcxx/Modeling/FiniteElementDescriptor.cxx
+  line: 459
+  code: for ( int i = 0; i < nbCells; ++i ) {
+  extracted: []
+  actual: null
+- id: r-cpp-15488
+  group: cpp
+  file: bibcxx/Modeling/HHO.cxx
+  line: 289
+  code: return toFieldOnNodes( hho_elno );
+  extracted:
+  - toFieldOnNodes
+  actual: null
+- id: r-cpp-15498
+  group: cpp
+  file: bibcxx/Modeling/HHO.cxx
+  line: 308
+  code: 'const std::string pname = model->isThermal() ? "PTEMP_R" : "PDEPLGA";'
+  extracted:
+  - model->isThermal
+  actual: null
+- id: r-cpp-15574
+  group: cpp
+  file: bibcxx/Modeling/Model.cxx
+  line: 126
+  code: cmdSt.define( dict );
+  extracted:
+  - cmdSt.define
+  actual: null
+- id: r-cpp-15773
+  group: cpp
+  file: bibcxx/Modeling/ParallelContactFEDescriptor.cxx
+  line: 199
+  code: if ( localVNodeNumber > 0 ) {
+  extracted: []
+  actual: null
+- id: r-cpp-15906
+  group: cpp
+  file: bibcxx/Modeling/ParallelContactFEDescriptor.cxx
+  line: 494
+  code: vCellToAdd.push_back( cellToAddToNema );
+  extracted:
+  - vCellToAdd.push_back
+  actual: null
+- id: r-cpp-15913
+  group: cpp
+  file: bibcxx/Modeling/ParallelContactFEDescriptor.cxx
+  line: 512
+  code: 'for ( const auto meshElem : explorer ) {'
+  extracted: []
+  actual: null
+- id: r-cpp-15924
+  group: cpp
+  file: bibcxx/Modeling/ParallelContactFEDescriptor.cxx
+  line: 540
+  code: cellToAddToNema.push_back( nodeId + 1 );
+  extracted:
+  - cellToAddToNema.push_back
+  actual: null
+- id: r-cpp-15947
+  group: cpp
+  file: bibcxx/Modeling/ParallelContactFEDescriptor.cxx
+  line: 584
+  code: if ( curOwner == rank ) {
+  extracted: []
+  actual: null
+- id: r-cpp-16847
+  group: cpp
+  file: bibcxx/Numbering/ForwardGeneralizedDOFNumbering.cxx
+  line: 41
+  code: GeneralizedDOFNumberingPtr ForwardGeneralizedDOFNumberingPtr::getPointer() {
+  extracted: []
+  actual: null
+- id: r-cpp-16959
+  group: cpp
+  file: bibcxx/Numbering/ParallelDOFNumbering.h
+  line: 73
+  code: EquationNumberingPtr getEquationNumbering() const { return _globalNumbering; };
+  extracted: []
+  actual: null
+- id: r-cpp-17290
+  group: cpp
+  file: bibcxx/ParallelUtilities/ArrayWrapper.h
+  line: 240
+  code: throw std::runtime_error( "Number of elements must be set before set elements" );
+  extracted:
+  - std::runtime_error
+  actual: null
+- id: r-cpp-17455
+  group: cpp
+  file: bibcxx/ParallelUtilities/AsterMPI.h
+  line: 413
+  code: key_in.push_back( key );
+  extracted:
+  - key_in.push_back
+  actual: null
+- id: r-cpp-17573
+  group: cpp
+  file: bibcxx/ParallelUtilities/MPIGroup.cxx
+  line: 73
+  code: while ( i < nb && parent->childs[i] != node ) {
+  extracted: []
+  actual: null
+- id: r-cpp-17669
+  group: cpp
+  file: bibcxx/ParallelUtilities/MeshConnectionGraph.cxx
+  line: 201
+  code: if ( orphanNodesTot > nbNodesByProcs ) {
+  extracted: []
+  actual: null
+- id: r-cpp-17671
+  group: cpp
+  file: bibcxx/ParallelUtilities/MeshConnectionGraph.cxx
+  line: 207
+  code: void MeshConnectionGraph::buildFromIncompleteMeshWithVertexWeights( const IncompleteMeshPtr &mesh,
+  extracted: []
+  actual: null
+- id: r-cpp-17713
+  group: cpp
+  file: bibcxx/ParallelUtilities/MeshConnectionGraph.cxx
+  line: 302
+  code: nodeSet.insert( toReceive[i] );
+  extracted:
+  - nodeSet.insert
+  actual: null
+- id: r-cpp-17766
+  group: cpp
+  file: bibcxx/ParallelUtilities/ObjectBalancer.cxx
+  line: 94
+  code: balanceSimpleVectorOverProcesses< ASTERDOUBLE, 3 >( valuesIn->getDataPtr(), vecSize,
+  extracted:
+  - balanceSimpleVectorOverProcesses
+  - valuesIn->getDataPtr
+  actual: null
+- id: r-cpp-18015
+  group: cpp
+  file: bibcxx/ParallelUtilities/ObjectBalancer.h
+  line: 661
+  code: vecOut->setComponentNumber( tmpArray.getComponentNumber() );
+  extracted:
+  - vecOut->setComponentNumber
+  - tmpArray.getComponentNumber
+  actual: null
+- id: r-cpp-18033
+  group: cpp
+  file: bibcxx/ParallelUtilities/ParMetisPartitioner.cxx
+  line: 39
+  code: AsterMPI::all_gather( inValue, _vtxdist );
+  extracted:
+  - AsterMPI::all_gather
+  actual: null
+- id: r-cpp-18150
+  group: cpp
+  file: bibcxx/ParallelUtilities/PtScotchPartitioner.cxx
+  line: 200
+  code: int PtScotchPartitioner::checkGraph() { return SCOTCH_dgraphCheck( _graph ); };
+  extracted:
+  - SCOTCH_dgraphCheck
+  actual: null
+- id: r-cpp-18211
+  group: cpp
+  file: bibcxx/ParallelUtilities/TemplateVectorTools.cxx
+  line: 41
+  code: void allocate( MedVector< long int > &in, const int &size1, const int &size2 ) {
+  extracted: []
+  actual: null
+- id: r-cpp-18591
+  group: cpp
+  file: bibcxx/PythonBindings/AssemblyMatrixInterface.cxx
+  line: 558
+  code: .def(
+  extracted: []
+  actual: null
+- id: r-cpp-18711
+  group: cpp
+  file: bibcxx/PythonBindings/BaseDOFNumberingInterface.cxx
+  line: 29
+  code: void exportBaseDOFNumberingToPython( py::module_ &mod ) {
+  extracted: []
+  actual: null
+- id: r-cpp-18881
+  group: cpp
+  file: bibcxx/PythonBindings/ConstantFieldOnCellsInterface.cxx
+  line: 67
+  code: .def(
+  extracted: []
+  actual: null
+- id: r-cpp-18978
+  group: cpp
+  file: bibcxx/PythonBindings/ContactPairingInterface.cxx
+  line: 35
+  code: class_.def( py::init( &initFactoryPtr< ContactPairing, ContactNewPtr > ) );
+  extracted:
+  - class_.def
+  - py::init
+  actual: null
+- id: r-cpp-19277
+  group: cpp
+  file: bibcxx/PythonBindings/DataStructureInterface.cxx
+  line: 123
+  code: .def( "build", &DataStructure::build,
+  extracted: []
+  actual: null
+- id: r-cpp-19282
+  group: cpp
+  file: bibcxx/PythonBindings/DebugInterface.cxx
+  line: 45
+  code: void exportDebugToPython( py::module_ &mod ) {
+  extracted: []
+  actual: null
+- id: r-cpp-19876
+  group: cpp
+  file: bibcxx/PythonBindings/EquationNumberingInterface.cxx
+  line: 59
+  code: 'local (bool): not used.'
+  extracted: []
+  actual: null
+- id: r-cpp-20679
+  group: cpp
+  file: bibcxx/PythonBindings/GeneralizedResultInterface.cxx
+  line: 68
+  code: 'dofn (DOFNumbering): DOF numbering'
+  extracted: []
+  actual: null
+- id: r-cpp-21174
+  group: cpp
+  file: bibcxx/PythonBindings/MGISBehaviourInterface.cxx
+  line: 46
+  code: .def( "_internal_state", &MGISBehaviour::internal_state, R"(
+  extracted: []
+  actual: null
+- id: r-cpp-21295
+  group: cpp
+  file: bibcxx/PythonBindings/MechanicalLoadInterface.cxx
+  line: 57
+  code: .def( py::init( &initFactoryPtr< MechanicalLoadFunction, const py::tuple & > ) )
+  extracted:
+  - py::init
+  actual: null
+- id: r-cpp-21369
+  group: cpp
+  file: bibcxx/PythonBindings/MedFileReaderInterface.cxx
+  line: 42
+  code: .export_values();
+  extracted: []
+  actual: null
+- id: r-cpp-21412
+  group: cpp
+  file: bibcxx/PythonBindings/MedMeshInterface.cxx
+  line: 70
+  code: 'geomtype_iterator (int): iterator on geometric type'
+  extracted: []
+  actual: null
+- id: r-cpp-21593
+  group: cpp
+  file: bibcxx/PythonBindings/MeshInterface.cxx
+  line: 144
+  code: 'filename (Path|str): Path to the file to be read.'
+  extracted: []
+  actual: null
+- id: r-cpp-21618
+  group: cpp
+  file: bibcxx/PythonBindings/MeshInterface.cxx
+  line: 212
+  code: py::arg( "remove_orphan" ) = true, py::arg( "positive_measure" ) = true,
+  extracted:
+  - py::arg
+  - py::arg
+  actual: null
+- id: r-cpp-21688
+  group: cpp
+  file: bibcxx/PythonBindings/MeshPairingInterface.cxx
+  line: 164
+  code: class_.def( "getVerbosity", &MeshPairing::getVerbosity, R"(
+  extracted:
+  - class_.def
+  actual: null
+- id: r-cpp-21921
+  group: cpp
+  file: bibcxx/PythonBindings/ParallelContactFEDescriptorInterface.cxx
+  line: 38
+  code: .def( py::init(
+  extracted:
+  - py::init
+  actual: null
+- id: r-cpp-22009
+  group: cpp
+  file: bibcxx/PythonBindings/ParallelEquationNumberingInterface.cxx
+  line: 59
+  code: .def( "getNumberOfDOFs", &ParallelEquationNumbering::getNumberOfDOFs,
+  extracted: []
+  actual: null
+- id: r-cpp-22064
+  group: cpp
+  file: bibcxx/PythonBindings/ParallelMeshInterface.cxx
+  line: 38
+  code: Return the list of the existing (local or global) groups of cells.
+  extracted: []
+  actual: null
+- id: r-cpp-22605
+  group: cpp
+  file: bibcxx/PythonBindings/PtScotchPartitionerInterface.cxx
+  line: 46
+  code: 'edges (list[int]): Describes vertex connections (at which vertices each vertex is connected)'
+  extracted: []
+  actual: null
+- id: r-cpp-22825
+  group: cpp
+  file: bibcxx/PythonBindings/ResultInterface.cxx
+  line: 573
+  code: py::arg( "fnds" ) = std::vector< EquationNumberingPtr >() )
+  extracted:
+  - py::arg
+  - std::vector
+  actual: null
+- id: r-cpp-23194
+  group: cpp
+  file: bibcxx/PythonBindings/TableInterface.cxx
+  line: 79
+  code: .def( "getNumberOfFunctions", &TableOfFunctions::getNumberOfFunctions, R"(
+  extracted: []
+  actual: null
+- id: r-cpp-23361
+  group: cpp
+  file: bibcxx/PythonBindings/XfemCrackInterface.cxx
+  line: 31
+  code: .def( py::init( &initFactoryPtr< XfemCrack, MeshPtr > ) )
+  extracted:
+  - py::init
+  actual: null
+- id: r-cpp-23540
+  group: cpp
+  file: bibcxx/Results/GeneralizedResult.h
+  line: 79
+  code: _abscissasOfSamples( JeveuxVectorReal( getName() + ".DISC" ) ),
+  extracted:
+  - JeveuxVectorReal
+  - getName
+  actual: null
+- id: r-cpp-23702
+  group: cpp
+  file: bibcxx/Results/GeneralizedResult.h
+  line: 499
+  code: VectorReal getAccelerationValues() const { return getValues( _acce ); }
+  extracted:
+  - getValues
+  actual: null
+- id: r-cpp-23862
+  group: cpp
+  file: bibcxx/Results/PhysicalSolutionRestitutor.cxx
+  line: 41
+  code: return std::find( availableFields.begin(), availableFields.end(), name ) !=
+  extracted:
+  - std::find
+  - availableFields.begin
+  - availableFields.end
+  actual: null
+- id: r-cpp-23890
+  group: cpp
+  file: bibcxx/Results/PhysicalSolutionRestitutor.cxx
+  line: 93
+  code: const size_t nModes = mode_idxs.size();
+  extracted:
+  - mode_idxs.size
+  actual: null
+- id: r-cpp-23918
+  group: cpp
+  file: bibcxx/Results/PhysicalSolutionRestitutor.cxx
+  line: 136
+  code: return toFieldOnNodes( *field_max );
+  extracted:
+  - toFieldOnNodes
+  actual: null
+- id: r-cpp-23937
+  group: cpp
+  file: bibcxx/Results/PhysicalSolutionRestitutor.cxx
+  line: 183
+  code: 'for ( auto idx : mode_indexes ) {'
+  extracted: []
+  actual: null
+- id: r-cpp-23983
+  group: cpp
+  file: bibcxx/Results/PhysicalSolutionRestitutor.h
+  line: 54
+  code: 'throw std::runtime_error( "PhysicalSolutionRestitutor: modPtr (mode result) is null." );'
+  extracted:
+  - std::runtime_error
+  actual: null
+- id: r-cpp-24108
+  group: cpp
+  file: bibcxx/Results/Result.cxx
+  line: 180
+  code: std::string type( "EXCIT" );
+  extracted: []
+  actual: null
+- id: r-cpp-24692
+  group: cpp
+  file: bibcxx/Results/Result.cxx
+  line: 1364
+  code: '} else if ( paraType == "Char16" ) {'
+  extracted: []
+  actual: null
+- id: r-cpp-24748
+  group: cpp
+  file: bibcxx/Results/Result.h
+  line: 324
+  code: ElementaryCharacteristicsPtr getElementaryCharacteristics() const;
+  extracted: []
+  actual: null
+- id: r-cpp-24923
+  group: cpp
+  file: bibcxx/Results/ResultBalancer.h
+  line: 227
+  code: const auto fED = modelOut->getFiniteElementDescriptor();
+  extracted:
+  - modelOut->getFiniteElementDescriptor
+  actual: null
+- id: r-cpp-25094
+  group: cpp
+  file: bibcxx/Steppers/TimesList.cxx
+  line: 27
+  code: _values->clear();
+  extracted:
+  - _values->clear
+  actual: null
+- id: r-cpp-25669
+  group: cpp
+  file: bibcxx/Utilities/ListOfIntegers.h
+  line: 68
+  code: _bint( JeveuxVectorReal( getName() + ".BINT" ) ),
+  extracted:
+  - JeveuxVectorReal
+  - getName
+  actual: null
+- id: r-cpp-25692
+  group: cpp
+  file: bibcxx/Utilities/MapVectorEnumerator.h
+  line: 125
+  code: auto enumerate( std::map< K, V > &m ) {
+  extracted: []
+  actual: null
+- id: r-cpp-25710
+  group: cpp
+  file: bibcxx/Utilities/PetscApplyFactorOnSubBlocks.cxx
+  line: 63
+  code: PetscCall( ISSortRemoveDups( *Jout ) );
+  extracted:
+  - PetscCall
+  - ISSortRemoveDups
+  actual: null
+- id: r-cpp-25727
+  group: cpp
+  file: bibcxx/Utilities/PetscApplyFactorOnSubBlocks.cxx
+  line: 133
+  code: PetscCall( PetscObjectGetComm( (PetscObject)RhsMat, &cb ) );
+  extracted:
+  - PetscCall
+  - PetscObjectGetComm
+  actual: null
+- id: r-fortran-116
+  group: fortran
+  file: bibfor/cont_algo/algocu.F90
+  line: 377
+  code: if (lelpiv) then
+  extracted: []
+  actual: null
+- id: r-fortran-256
+  group: fortran
+  file: bibfor/cont_algo/cfaca2.F90
+  line: 87
+  code: apcoef = sdcont_solv(1:14)//'.APCOEF'
+  extracted: []
+  actual: null
+- id: r-fortran-305
+  group: fortran
+  file: bibfor/cont_algo/cfaddm.F90
+  line: 112
+  code: v_sdcont_tangco(6*(i_cont_link-1)+5) = tau2(2)
+  extracted: []
+  actual: null
+- id: r-fortran-316
+  group: fortran
+  file: bibfor/cont_algo/cfalgo.F90
+  line: 79
+  code: 'integer(kind=8) :: algo_cont, algo_frot'
+  extracted: []
+  actual: null
+- id: r-fortran-1180
+  group: fortran
+  file: bibfor/cont_algo/cfprch.F90
+  line: 39
+  code: 'type(NL_DS_Contact), intent(in) :: ds_contact'
+  extracted: []
+  actual: null
+- id: r-fortran-1302
+  group: fortran
+  file: bibfor/cont_algo/cfresu.F90
+  line: 73
+  code: 'real(kind=8) :: testmu, testcf, coefpt'
+  extracted: []
+  actual: null
+- id: r-fortran-1307
+  group: fortran
+  file: bibfor/cont_algo/cfresu.F90
+  line: 78
+  code: 'real(kind=8) :: tau1(3), tau2(3), norm(3), proj(3)'
+  extracted: []
+  actual: null
+- id: r-fortran-1370
+  group: fortran
+  file: bibfor/cont_algo/cfresu.F90
+  line: 229
+  code: if (l_cont_pena) then
+  extracted: []
+  actual: null
+- id: r-fortran-1444
+  group: fortran
+  file: bibfor/cont_algo/cfsans.F90
+  line: 38
+  code: 'integer(kind=8), pointer :: v_ncomp_zone(:)'
+  extracted: []
+  actual: null
+- id: r-fortran-1643
+  group: fortran
+  file: bibfor/cont_algo/elpiv1.F90
+  line: 43
+  code: 'integer(kind=8) :: nbliac'
+  extracted: []
+  actual: null
+- id: r-fortran-1664
+  group: fortran
+  file: bibfor/cont_algo/elpiv1.F90
+  line: 126
+  code: if (kk2 .gt. kk1) then
+  extracted: []
+  actual: null
+- id: r-fortran-1863
+  group: fortran
+  file: bibfor/cont_algo/mldeco.F90
+  line: 57
+  code: 'integer(kind=8), pointer :: v_sdcont_znmc(:) => null()'
+  extracted: []
+  actual: null
+- id: r-fortran-1873
+  group: fortran
+  file: bibfor/cont_algo/mldeco.F90
+  line: 74
+  code: sdcont_znmc = ds_contact%sdcont_solv(1:14)//'.ZNMC'
+  extracted: []
+  actual: null
+- id: r-fortran-1997
+  group: fortran
+  file: bibfor/cont_algo/mm_cycl_algo.F90
+  line: 322
+  code: v_sdcont_cychis(NB_DATA_CYCL*(i_cont_poin-1)+24+2) = coef_opt
+  extracted: []
+  actual: null
+- id: r-fortran-2226
+  group: fortran
+  file: bibfor/cont_algo/mm_cycl_detect.F90
+  line: 20
+  code: subroutine mm_cycl_detect(ds_contact, &
+  extracted: []
+  actual: null
+- id: r-fortran-2245
+  group: fortran
+  file: bibfor/cont_algo/mm_cycl_detect.F90
+  line: 60
+  code: 'real(kind=8), intent(out) :: alpha_frot_matr'
+  extracted: []
+  actual: null
+- id: r-fortran-2254
+  group: fortran
+  file: bibfor/cont_algo/mm_cycl_erase.F90
+  line: 57
+  code: 'integer(kind=8), pointer :: p_sdcont_cycnbr(:) => null()'
+  extracted: []
+  actual: null
+- id: r-fortran-2377
+  group: fortran
+  file: bibfor/cont_algo/mm_cycl_shift.F90
+  line: 30
+  code: 'integer(kind=8), intent(inout) :: cycl_long'
+  extracted: []
+  actual: null
+- id: r-fortran-2400
+  group: fortran
+  file: bibfor/cont_algo/mm_cycl_t2.F90
+  line: 37
+  code: 'real(kind=8), intent(out) :: coef_frot_curr'
+  extracted: []
+  actual: null
+- id: r-fortran-2465
+  group: fortran
+  file: bibfor/cont_algo/mm_cycl_trait.F90
+  line: 47
+  code: 'integer(kind=8), intent(in) :: indi_cont_eval'
+  extracted: []
+  actual: null
+- id: r-fortran-2625
+  group: fortran
+  file: bibfor/cont_algo/mmbouc.F90
+  line: 111
+  code: else if (operation .eq. 'Is_Convergence') then
+  extracted: []
+  actual: null
+- id: r-fortran-2686
+  group: fortran
+  file: bibfor/cont_algo/mmchml_c.F90
+  line: 107
+  code: nt_cont_poin = nint(v_sdcont_tabfin(1))
+  extracted:
+  - nint
+  actual: null
+- id: r-fortran-3024
+  group: fortran
+  file: bibfor/cont_algo/mmglis.F90
+  line: 96
+  code: nbmae = mminfi(ds_contact%sdcont_defi, 'NBMAE', izone)
+  extracted:
+  - mminfi
+  actual: null
+- id: r-fortran-3276
+  group: fortran
+  file: bibfor/cont_algo/mmmbca.F90
+  line: 115
+  code: 'real(kind=8), pointer :: v_sdcont_cyccoe(:) => null()'
+  extracted: []
+  actual: null
+- id: r-fortran-3394
+  group: fortran
+  file: bibfor/cont_algo/mmmbca.F90
+  line: 446
+  code: -coor_proj_curr(3))**2 &
+  extracted: []
+  actual: null
+- id: r-fortran-3507
+  group: fortran
+  file: bibfor/cont_algo/mmmreg.F90
+  line: 79
+  code: 'integer(kind=8), pointer :: v_mesh_connex(:) => null()'
+  extracted: []
+  actual: null
+- id: r-fortran-3665
+  group: fortran
+  file: bibfor/cont_algo/mmmres.F90
+  line: 342
+  code: rtaz = v_cneltf(3*(node_slav_nume-1)+3)
+  extracted: []
+  actual: null
+- id: r-fortran-3782
+  group: fortran
+  file: bibfor/cont_algo/mmopti.F90
+  line: 72
+  code: 'real(kind=8) :: jeusgn, tau1(3), tau2(3), norm(3), noor'
+  extracted: []
+  actual: null
+- id: r-fortran-3928
+  group: fortran
+  file: bibfor/cont_algo/mmptch.F90
+  line: 59
+  code: length = cfdisi(ds_contact%sdcont_defi, 'NNOCO')
+  extracted:
+  - cfdisi
+  actual: null
+- id: r-fortran-4176
+  group: fortran
+  file: bibfor/cont_defi/cacoeq.F90
+  line: 169
+  code: if ((suppo1 .eq. 1) .or. (suppo2 .eq. 1) .or. (suppo3 .eq. 1)) then
+  extracted: []
+  actual: null
+- id: r-fortran-4286
+  group: fortran
+  file: bibfor/cont_defi/caracm.F90
+  line: 69
+  code: zmeth = cfmmvd('ZMETH')
+  extracted:
+  - cfmmvd
+  actual: null
+- id: r-fortran-4288
+  group: fortran
+  file: bibfor/cont_defi/caracm.F90
+  line: 71
+  code: ztole = cfmmvd('ZTOLE')
+  extracted:
+  - cfmmvd
+  actual: null
+- id: r-fortran-4340
+  group: fortran
+  file: bibfor/cont_defi/caralv.F90
+  line: 148
+  code: if (cont_form .eq. 2) then
+  extracted: []
+  actual: null
+- id: r-fortran-4400
+  group: fortran
+  file: bibfor/cont_defi/cazocc.F90
+  line: 156
+  code: ASSERT(ASTER_FALSE)
+  extracted:
+  - assert
+  - int
+  - logical
+  - logical
+  actual: null
+- id: r-fortran-4852
+  group: fortran
+  file: bibfor/cont_defi/cflecq.F90
+  line: 73
+  code: 'integer(kind=8), pointer :: v_mesh_typmail(:) => null()'
+  extracted: []
+  actual: null
+- id: r-fortran-4884
+  group: fortran
+  file: bibfor/cont_defi/cflema.F90
+  line: 36
+  code: 'integer(kind=8), pointer :: v_poin_elem(:)'
+  extracted: []
+  actual: null
+- id: r-fortran-5093
+  group: fortran
+  file: bibfor/cont_defi/cfsuex.F90
+  line: 76
+  code: AS_ALLOCATE(vi=v_pssnoco, size=nb_cont_zone+1)
+  extracted: []
+  actual: null
+- id: r-fortran-5158
+  group: fortran
+  file: bibfor/cont_defi/dfc_read_zone.F90
+  line: 36
+  code: 'integer(kind=8), intent(out) :: nb_cont_elem'
+  extracted: []
+  actual: null
+- id: r-fortran-5169
+  group: fortran
+  file: bibfor/cont_defi/dimeco.F90
+  line: 33
+  code: 'integer(kind=8), intent(in) :: nb_cont_surf'
+  extracted: []
+  actual: null
+- id: r-fortran-5294
+  group: fortran
+  file: bibfor/cont_defi/liexco.F90
+  line: 19
+  code: subroutine liexco(sdcont, keywf, mesh, model, nb_cont_zone, &
+  extracted: []
+  actual: null
+- id: r-fortran-6089
+  group: fortran
+  file: bibfor/cont_elem/contact_module.F90
+  line: 390
+  code: if (present(dshape_)) then
+  extracted:
+  - present
+  actual: null
+- id: r-fortran-6671
+  group: fortran
+  file: bibfor/cont_elem/laMatr_diff.F90
+  line: 164
+  code: geom%depl_slav_curr(i_dim, i_node) = depl_save-eps*norm_slav(i_dim)
+  extracted: []
+  actual: null
+- id: r-fortran-6693
+  group: fortran
+  file: bibfor/cont_elem/laMatr_diff.F90
+  line: 207
+  code: geom%lagc_slav_curr(i_lagr) = lagc_save*(1.d0-eps)
+  extracted: []
+  actual: null
+- id: r-fortran-6883
+  group: fortran
+  file: bibfor/cont_elem/laVect_ct_pr.F90
+  line: 132
+  code: b_dime = to_blas_int(geom%elem_dime)
+  extracted:
+  - int
+  actual: null
+- id: r-fortran-6901
+  group: fortran
+  file: bibfor/cont_elem/laVect_ct_std.F90
+  line: 124
+  code: if (l_cont_qp) then
+  extracted: []
+  actual: null
+- id: r-fortran-6984
+  group: fortran
+  file: bibfor/cont_elem/lccoes.F90
+  line: 103
+  code: shift = shift+indi_lagc(i_node_slav)
+  extracted: []
+  actual: null
+- id: r-fortran-7707
+  group: fortran
+  file: bibfor/cont_elem/mmGetProjection.F90
+  line: 91
+  code: ypc_prev = zr(jpcf-1+39)
+  extracted: []
+  actual: null
+- id: r-fortran-7821
+  group: fortran
+  file: bibfor/cont_elem/mmcalg.F90
+  line: 119
+  code: mprt11(:, :) = 0.d0
+  extracted: []
+  actual: null
+- id: r-fortran-8004
+  group: fortran
+  file: bibfor/cont_elem/mmelem.F90
+  line: 365
+  code: else if (nomte .eq. 'CFS3Q9' .or. nomte .eq. 'COS3Q9' .or. nomte .eq. 'CMS3Q9') then
+  extracted: []
+  actual: null
+- id: r-fortran-8067
+  group: fortran
+  file: bibfor/cont_elem/mmgnee.F90
+  line: 100
+  code: d(2, 3) = h(1, 2)*vech1(2)*vech2(3)
+  extracted: []
+  actual: null
+- id: r-fortran-8228
+  group: fortran
+  file: bibfor/cont_elem/mmgnme.F90
+  line: 118
+  code: f(3, 3) = h(2, 2)*vech2(3)*vech2(3)
+  extracted: []
+  actual: null
+- id: r-fortran-8544
+  group: fortran
+  file: bibfor/cont_elem/mmgtmm.F90
+  line: 180
+  code: kappa(1, 2)*dffm(1, j)+kappa(2, 2)*dffm(2, j)))+ &
+  extracted: []
+  actual: null
+- id: r-fortran-8583
+  group: fortran
+  file: bibfor/cont_elem/mmgtmm.F90
+  line: 236
+  code: mprnt1(l, k)*jeu*(kappa(2, 1)*kappa(1, 1)+ &
+  extracted: []
+  actual: null
+- id: r-fortran-8650
+  group: fortran
+  file: bibfor/cont_elem/mmmjeu.F90
+  line: 66
+  code: djeut(:) = 0.d0
+  extracted: []
+  actual: null
+- id: r-fortran-8666
+  group: fortran
+  file: bibfor/cont_elem/mmmmpb.F90
+  line: 71
+  code: matprb(i, j) = matprb(i, j)/nrese
+  extracted: []
+  actual: null
+- id: r-fortran-8690
+  group: fortran
+  file: bibfor/cont_elem/mmmsta.F90
+  line: 98
+  code: if (present(l_previous_)) then
+  extracted:
+  - present
+  actual: null
+- id: r-fortran-8703
+  group: fortran
+  file: bibfor/cont_elem/mmmtas.F90
+  line: 36
+  code: 'real(kind=8), intent(inout) :: matr(81, 81)'
+  extracted: []
+  actual: null
+- id: r-fortran-8924
+  group: fortran
+  file: bibfor/cont_elem/mmmvmm.F90
+  line: 138
+  code: +kappa(2, 1)*mprt21(i, j)+kappa(2, 2)*mprt22(i, j)
+  extracted: []
+  actual: null
+- id: r-fortran-9066
+  group: fortran
+  file: bibfor/cont_elem/mmvape.F90
+  line: 118
+  code: elseif (phase .eq. 'GLIS') then
+  extracted: []
+  actual: null
+- id: r-fortran-9232
+  group: fortran
+  file: bibfor/cont_elem/niMatr.F90
+  line: 35
+  code: 'type(ContactParameters), intent(in) :: parameters'
+  extracted: []
+  actual: null
+- id: r-fortran-9338
+  group: fortran
+  file: bibfor/cont_elem/niVect.F90
+  line: 134
+  code: b_incx = to_blas_int(1)
+  extracted:
+  - int
+  actual: null
+- id: r-fortran-9810
+  group: fortran
+  file: bibfor/cont_pair/apchoi.F90
+  line: 166
+  code: b_n = to_blas_int(3)
+  extracted:
+  - int
+  actual: null
+- id: r-fortran-9830
+  group: fortran
+  file: bibfor/cont_pair/apcinv.F90
+  line: 76
+  code: ASSERT(i_zone .le. 100)
+  extracted:
+  - assert
+  - int
+  - logical
+  actual: null
+- id: r-fortran-9912
+  group: fortran
+  file: bibfor/cont_pair/apcpoi.F90
+  line: 96
+  code: else if (itype .eq. 2) then
+  extracted: []
+  actual: null
+- id: r-fortran-10101
+  group: fortran
+  file: bibfor/cont_pair/apelem_getvertex_n.F90
+  line: 62
+  code: para_coor(2, 2) = 0.d0
+  extracted: []
+  actual: null
+- id: r-fortran-10276
+  group: fortran
+  file: bibfor/cont_pair/apinte_chck2.F90
+  line: 94
+  code: no_sside_coor_2(1:3) = 0.d0
+  extracted: []
+  actual: null
+- id: r-fortran-10295
+  group: fortran
+  file: bibfor/cont_pair/apinte_chck2.F90
+  line: 137
+  code: if (elem_dime .eq. 3) then
+  extracted: []
+  actual: null
+- id: r-fortran-10360
+  group: fortran
+  file: bibfor/cont_pair/apinte_prma_n.F90
+  line: 153
+  code: proj_coor(2, i_node) = ksi2
+  extracted: []
+  actual: null
+- id: r-fortran-10366
+  group: fortran
+  file: bibfor/cont_pair/apinte_prsl.F90
+  line: 30
+  code: 'integer(kind=8), intent(in) :: elem_dime'
+  extracted: []
+  actual: null
+- id: r-fortran-10929
+  group: fortran
+  file: bibfor/cont_pair/approj.F90
+  line: 130
+  code: l_cont_disc = cfdisl(sdcont_defi, 'FORMUL_DISCRETE')
+  extracted:
+  - cfdisl
+  actual: null
+- id: r-fortran-11235
+  group: fortran
+  file: bibfor/cont_pair/apsave_patch.F90
+  line: 45
+  code: 'integer(kind=8), pointer :: list_nbptit_zone(:)'
+  extracted: []
+  actual: null
+- id: r-fortran-11436
+  group: fortran
+  file: bibfor/cont_pair/aptgem.F90
+  line: 178
+  code: if (l_poi1) then
+  extracted: []
+  actual: null
+- id: r-fortran-11724
+  group: fortran
+  file: bibfor/cont_pair/cfapno.F90
+  line: 46
+  code: 'real(kind=8), intent(out) :: tau2m(3)'
+  extracted: []
+  actual: null
+- id: r-fortran-11948
+  group: fortran
+  file: bibfor/cont_pair/gapGetParamCoor.F90
+  line: 56
+  code: para_coor(2, 2) = 0.d0
+  extracted: []
+  actual: null
+- id: r-fortran-12098
+  group: fortran
+  file: bibfor/cont_pair/gtlima.F90
+  line: 57
+  code: 'integer(kind=8), pointer  :: v_list_slav(:) => null()'
+  extracted: []
+  actual: null
+- id: r-fortran-12108
+  group: fortran
+  file: bibfor/cont_pair/gtlmex.F90
+  line: 30
+  code: 'integer(kind=8), intent(in) :: nume_node_cl'
+  extracted: []
+  actual: null
+- id: r-fortran-12969
+  group: fortran
+  file: bibfor/cont_pair/ptinma.F90
+  line: 73
+  code: v0(1) = elem_coor(1, 2)-elem_coor(1, 1)
+  extracted: []
+  actual: null
+- id: r-fortran-13230
+  group: fortran
+  file: bibfor/nonlinear/GetIOField.F90
+  line: 73
+  code: if (present(l_acti_)) then
+  extracted:
+  - present
+  actual: null
+- id: r-fortran-13737
+  group: fortran
+  file: bibfor/nonlinear/NonLinear_module.F90
+  line: 689
+  code: else if (nonLinearOption(1:9) .eq. 'RAPH_MECA') then
+  extracted: []
+  actual: null
+- id: r-fortran-13879
+  group: fortran
+  file: bibfor/nonlinear/SetResiRefe.F90
+  line: 71
+  code: if (present(l_refe_test_)) then
+  extracted:
+  - present
+  actual: null
+- id: r-fortran-14014
+  group: fortran
+  file: bibfor/nonlinear/cfadju.F90
+  line: 234
+  code: if (ksi2 .lt. -1.d0) then
+  extracted: []
+  actual: null
+- id: r-fortran-14083
+  group: fortran
+  file: bibfor/nonlinear/cfcald.F90
+  line: 54
+  code: 'integer(kind=8) :: iappa'
+  extracted: []
+  actual: null
+- id: r-fortran-14358
+  group: fortran
+  file: bibfor/nonlinear/cffpm2.F90
+  line: 61
+  code: 'real(kind=8) :: lambdc, lambdf'
+  extracted: []
+  actual: null
+- id: r-fortran-14478
+  group: fortran
+  file: bibfor/nonlinear/cfgcin.F90
+  line: 129
+  code: b_incy = to_blas_int(1)
+  extracted:
+  - int
+  actual: null
+- id: r-fortran-14982
+  group: fortran
+  file: bibfor/nonlinear/cfreli.F90
+  line: 69
+  code: ksi(3) = un-ksi1-ksi2
+  extracted: []
+  actual: null
+- id: r-fortran-15017
+  group: fortran
+  file: bibfor/nonlinear/cfsvmu.F90
+  line: 57
+  code: 'integer(kind=8) :: jsvmu, jmu'
+  extracted: []
+  actual: null
+- id: r-fortran-15623
+  group: fortran
+  file: bibfor/nonlinear/isfonc.F90
+  line: 229
+  code: else if (func_name .eq. 'ROM') then
+  extracted: []
+  actual: null
+- id: r-fortran-16008
+  group: fortran
+  file: bibfor/nonlinear/mnlbra.F90
+  line: 95
+  code: b_incx = to_blas_int(1)
+  extracted:
+  - int
+  actual: null
+- id: r-fortran-16477
+  group: fortran
+  file: bibfor/nonlinear/mnleng.F90
+  line: 231
+  code: if (zr(iy-1+nddl) .gt. jeu) then
+  extracted: []
+  actual: null
+- id: r-fortran-16561
+  group: fortran
+  file: bibfor/nonlinear/mnline.F90
+  line: 76
+  code: 'integer(kind=8), pointer :: vneqs(:) => null()'
+  extracted: []
+  actual: null
+- id: r-fortran-16576
+  group: fortran
+  file: bibfor/nonlinear/mnline.F90
+  line: 150
+  code: b_incx = to_blas_int(1)
+  extracted:
+  - int
+  actual: null
+- id: r-fortran-16640
+  group: fortran
+  file: bibfor/nonlinear/mnline.F90
+  line: 248
+  code: zr(iline+nd*(2*h+1)+neqs*(2*hf+1)), b_incy)
+  extracted: []
+  actual: null
+- id: r-fortran-17130
+  group: fortran
+  file: bibfor/nonlinear/mnlqnl.F90
+  line: 176
+  code: b_n = to_blas_int(nd)
+  extracted:
+  - int
+  actual: null
+- id: r-fortran-17332
+  group: fortran
+  file: bibfor/nonlinear/mnluil.F90
+  line: 54
+  code: xt = x(1)
+  extracted: []
+  actual: null
+- id: r-fortran-17403
+  group: fortran
+  file: bibfor/nonlinear/ndxforc_pred.F90
+  line: 52
+  code: 'integer(kind=8), intent(in) :: list_func_acti(*)'
+  extracted: []
+  actual: null
+- id: r-fortran-17617
+  group: fortran
+  file: bibfor/nonlinear/nm1dpm.F90
+  line: 124
+  code: epsrp = vim(2)
+  extracted: []
+  actual: null
+- id: r-fortran-17800
+  group: fortran
+  file: bibfor/nonlinear/nm3dco.F90
+  line: 320
+  code: if ((option .eq. 'RIGI_MECA') .or. melas .or. (mtang .and. (plas .lt. 0.5d0))) then
+  extracted: []
+  actual: null
+- id: r-fortran-17877
+  group: fortran
+  file: bibfor/nonlinear/nmactf.F90
+  line: 86
+  code: ASSERT(retact .ne. 2)
+  extracted:
+  - assert
+  - int
+  - logical
+  actual: null
+- id: r-fortran-18077
+  group: fortran
+  file: bibfor/nonlinear/nmaffm.F90
+  line: 162
+  code: if (dvfixc) then
+  extracted: []
+  actual: null
+- id: r-fortran-18105
+  group: fortran
+  file: bibfor/nonlinear/nmarc0.F90
+  line: 132
+  code: zi(jv_para) = nint(valr)
+  extracted:
+  - nint
+  actual: null
+- id: r-fortran-18128
+  group: fortran
+  file: bibfor/nonlinear/nmarce.F90
+  line: 34
+  code: 'real(kind=8), intent(in) :: time'
+  extracted: []
+  actual: null
+- id: r-fortran-18173
+  group: fortran
+  file: bibfor/nonlinear/nmarnr.F90
+  line: 61
+  code: 'integer(kind=8) :: jlisre, nval, ival, vali'
+  extracted: []
+  actual: null
+- id: r-fortran-18379
+  group: fortran
+  file: bibfor/nonlinear/nmas3d.F90
+  line: 173
+  code: bi(3, ino) = bi(3, ino)+jac*dfdz(ino)
+  extracted: []
+  actual: null
+- id: r-fortran-18448
+  group: fortran
+  file: bibfor/nonlinear/nmasf2.F90
+  line: 19
+  code: subroutine nmasf2(nno, npg, ipoids, ivf, idfde, &
+  extracted: []
+  actual: null
+- id: r-fortran-18521
+  group: fortran
+  file: bibfor/nonlinear/nmasf2.F90
+  line: 241
+  code: '&gas(kl, kpgs)*jac'
+  extracted: []
+  actual: null
+- id: r-fortran-18667
+  group: fortran
+  file: bibfor/nonlinear/nmassi.F90
+  line: 116
+  code: if (lElemDampFromUser) then
+  extracted: []
+  actual: null
+- id: r-fortran-18970
+  group: fortran
+  file: bibfor/nonlinear/nmcha0.F90
+  line: 73
+  code: if ((index .le. 0) .or. (index .gt. nbvar)) then
+  extracted: []
+  actual: null
+- id: r-fortran-19087
+  group: fortran
+  file: bibfor/nonlinear/nmchat.F90
+  line: 196
+  code: if (idelta .gt. 0) then
+  extracted: []
+  actual: null
+- id: r-fortran-19125
+  group: fortran
+  file: bibfor/nonlinear/nmchcr.F90
+  line: 19
+  code: function nmchcr(dp)
+  extracted: []
+  actual: null
+- id: r-fortran-19142
+  group: fortran
+  file: bibfor/nonlinear/nmchcr.F90
+  line: 100
+  code: ainf = mat(8)
+  extracted: []
+  actual: null
+- id: r-fortran-19481
+  group: fortran
+  file: bibfor/nonlinear/nmconv.F90
+  line: 80
+  code: 'type(ROM_DS_AlgoPara), intent(inout) :: ds_algorom'
+  extracted: []
+  actual: null
+- id: r-fortran-19498
+  group: fortran
+  file: bibfor/nonlinear/nmconv.F90
+  line: 163
+  code: if (.not. lEventError) then
+  extracted: []
+  actual: null
+- id: r-fortran-19819
+  group: fortran
+  file: bibfor/nonlinear/nmcrls.F90
+  line: 77
+  code: sddiscDitr(pos) = listInst(iInst+1)
+  extracted: []
+  actual: null
+- id: r-fortran-20043
+  group: fortran
+  file: bibfor/nonlinear/nmctcc.F90
+  line: 75
+  code: 'integer(kind=8) :: iter_newt'
+  extracted: []
+  actual: null
+- id: r-fortran-20295
+  group: fortran
+  file: bibfor/nonlinear/nmdcen.F90
+  line: 79
+  code: zi(jnivtp-1+ipas) = nivini+1
+  extracted: []
+  actual: null
+- id: r-fortran-20354
+  group: fortran
+  file: bibfor/nonlinear/nmdeca.F90
+  line: 104
+  code: if (retdec .eq. 1) then
+  extracted: []
+  actual: null
+- id: r-fortran-20782
+  group: fortran
+  file: bibfor/nonlinear/nmdomt.F90
+  line: 129
+  code: ASSERT(reac_incr .ge. 0)
+  extracted:
+  - assert
+  - int
+  - logical
+  actual: null
+- id: r-fortran-20784
+  group: fortran
+  file: bibfor/nonlinear/nmdomt.F90
+  line: 136
+  code: ASSERT(.false.)
+  extracted:
+  - assert
+  - int
+  - logical
+  actual: null
+- id: r-fortran-20876
+  group: fortran
+  file: bibfor/nonlinear/nmdopo.F90
+  line: 57
+  code: 'integer(kind=8) :: ifm, niv'
+  extracted: []
+  actual: null
+- id: r-fortran-21151
+  group: fortran
+  file: bibfor/nonlinear/nmepsb.F90
+  line: 65
+  code: b_incx = to_blas_int(ndl)
+  extracted:
+  - int
+  actual: null
+- id: r-fortran-21429
+  group: fortran
+  file: bibfor/nonlinear/nmetl1.F90
+  line: 65
+  code: if (ds_inout%l_field_acti(i_field) .and. ds_inout%field(i_field)%l_read_init) then
+  extracted: []
+  actual: null
+- id: r-fortran-21540
+  group: fortran
+  file: bibfor/nonlinear/nmetpl.F90
+  line: 110
+  code: extr_info = sdextr_obsv(1:14)//'     .INFO'
+  extracted: []
+  actual: null
+- id: r-fortran-21737
+  group: fortran
+  file: bibfor/nonlinear/nmevr0.F90
+  line: 44
+  code: 'integer(kind=8), parameter :: iterSuppZero = 0'
+  extracted: []
+  actual: null
+- id: r-fortran-21884
+  group: fortran
+  file: bibfor/nonlinear/nmext0.F90
+  line: 133
+  code: if (field_disc .eq. 'NOEU') then
+  extracted: []
+  actual: null
+- id: r-fortran-21945
+  group: fortran
+  file: bibfor/nonlinear/nmext3.F90
+  line: 94
+  code: 'integer(kind=8), pointer :: v_list_elem(:) => null()'
+  extracted: []
+  actual: null
+- id: r-fortran-22009
+  group: fortran
+  file: bibfor/nonlinear/nmextc.F90
+  line: 32
+  code: 'type(NL_DS_InOut), intent(in) :: ds_inout'
+  extracted: []
+  actual: null
+- id: r-fortran-22125
+  group: fortran
+  file: bibfor/nonlinear/nmextk.F90
+  line: 247
+  code: ASSERT(snum .ne. 0)
+  extracted:
+  - assert
+  - int
+  - logical
+  actual: null
+- id: r-fortran-22527
+  group: fortran
+  file: bibfor/nonlinear/nmfext.F90
+  line: 99
+  code: if (present(sddyna_)) then
+  extracted:
+  - present
+  actual: null
+- id: r-fortran-22643
+  group: fortran
+  file: bibfor/nonlinear/nmfihm.F90
+  line: 277
+  code: if (ifhyme) then
+  extracted: []
+  actual: null
+- id: r-fortran-23053
+  group: fortran
+  file: bibfor/nonlinear/nmfonc.F90
+  line: 485
+  code: if (isfonc(list_func_acti, 'NEWTON_KRYLOV')) then
+  extracted:
+  - isfonc
+  actual: null
+- id: r-fortran-23123
+  group: fortran
+  file: bibfor/nonlinear/nmforc_acci.F90
+  line: 108
+  code: time_curr = diinst(sddisc, nume_inst)
+  extracted:
+  - diinst
+  actual: null
+- id: r-fortran-23468
+  group: fortran
+  file: bibfor/nonlinear/nmgvdn.F90
+  line: 49
+  code: iu(nno1*(i-1)+n+nno2) = i+(n-1)*ndim+os
+  extracted: []
+  actual: null
+- id: r-fortran-23514
+  group: fortran
+  file: bibfor/nonlinear/nmgvmb.F90
+  line: 127
+  code: b(5, g, iu1(n, 1)) = r2*dff1(n, 3)
+  extracted: []
+  actual: null
+- id: r-fortran-24288
+  group: fortran
+  file: bibfor/nonlinear/nmnoli.F90
+  line: 87
+  code: if (niv .ge. 2) then
+  extracted: []
+  actual: null
+- id: r-fortran-24327
+  group: fortran
+  file: bibfor/nonlinear/nmnume.F90
+  line: 95
+  code: if (v_tco(1) .eq. 'CHAR_MECA') then
+  extracted: []
+  actual: null
+- id: r-fortran-24509
+  group: fortran
+  file: bibfor/nonlinear/nmobsz.F90
+  line: 143
+  code: tabl_vale_i(nb_vale_i) = nume_obsv
+  extracted: []
+  actual: null
+- id: r-fortran-24637
+  group: fortran
+  file: bibfor/nonlinear/nmpial.F90
+  line: 110
+  code: b_incy = to_blas_int(1)
+  extracted:
+  - int
+  actual: null
+- id: r-fortran-25268
+  group: fortran
+  file: bibfor/nonlinear/nmprde.F90
+  line: 51
+  code: 'type(ROM_DS_AlgoPara), intent(in) :: ds_algorom'
+  extracted: []
+  actual: null
+- id: r-fortran-26087
+  group: fortran
+  file: bibfor/nonlinear/nmrvai.F90
+  line: 102
+  code: ASSERT(.false.)
+  extracted:
+  - assert
+  - int
+  - logical
+  actual: null
+- id: r-fortran-26447
+  group: fortran
+  file: bibfor/nonlinear/nmtacr.F90
+  line: 203
+  code: ddp = -mat(6)*tmp
+  extracted: []
+  actual: null
+- id: r-fortran-26774
+  group: fortran
+  file: bibfor/nonlinear/nmvccc.F90
+  line: 35
+  code: 'integer(kind=8), intent(in) :: nbin'
+  extracted: []
+  actual: null
+- id: r-fortran-27176
+  group: fortran
+  file: bibfor/nonlinear/nonlinDSColumnWriteValue.F90
+  line: 95
+  code: if (output_unit .eq. 0) then
+  extracted: []
+  actual: null
+- id: r-fortran-27320
+  group: fortran
+  file: bibfor/nonlinear/nonlinDSContactRead.F90
+  line: 53
+  code: if (niv .ge. 2) then
+  extracted: []
+  actual: null
+- id: r-fortran-27348
+  group: fortran
+  file: bibfor/nonlinear/nonlinDSConvergenceCreate.F90
+  line: 94
+  code: ds_conv%list_resi(1)%eventType = 'DIVE_RELA'
+  extracted: []
+  actual: null
+- id: r-fortran-27725
+  group: fortran
+  file: bibfor/nonlinear/nonlinDSPrintCreate_M.F90
+  line: 46
+  code: 'integer(kind=8) :: i_col, i_cols_dof'
+  extracted: []
+  actual: null
+- id: r-fortran-27896
+  group: fortran
+  file: bibfor/nonlinear/nonlinDynaMDampCompute.F90
+  line: 71
+  code: 'real(kind=8), pointer :: valeVectAsse(:) => null()'
+  extracted: []
+  actual: null
+- id: r-fortran-27941
+  group: fortran
+  file: bibfor/nonlinear/nonlinIntForceAsse.F90
+  line: 45
+  code: 'type(NL_DS_System), intent(in) :: ds_system'
+  extracted: []
+  actual: null
+- id: r-fortran-27948
+  group: fortran
+  file: bibfor/nonlinear/nonlinIntForceAsse.F90
+  line: 87
+  code: vectCoef(1) = +1.d0
+  extracted: []
+  actual: null
+- id: r-fortran-28203
+  group: fortran
+  file: bibfor/nonlinear/relax_acier_cable.F90
+  line: 124
+  code: if (codcar(1) .ne. 0) then
+  extracted: []
+  actual: null
+- id: r-fortran-28240
+  group: fortran
+  file: bibfor/nonlinear/rescmp.F90
+  line: 72
+  code: 'real(kind=8), pointer :: v_cnequi_cnsv(:) => null()'
+  extracted: []
+  actual: null
+- id: r-python-53
+  group: python
+  file: code_aster/Applications/dynamic_substructuring.py
+  line: 196
+  code: 'def __init__(self, sub1, sub2, interfaceName: str):'
+  extracted: []
+  actual: null
+- id: r-python-221
+  group: python
+  file: code_aster/Applications/dynamic_substructuring.py
+  line: 696
+  code: resu.append(resuSub)
+  extracted:
+  - resu.append
+  actual: null
+- id: r-python-726
+  group: python
+  file: code_aster/Behaviours/cata_vari.py
+  line: 91
+  code: '"BR_EP111": _("BETON_RAG : déformation déviatorique de fluage interne modèle, composante 1"),'
+  extracted:
+  - _
+  actual: null
+- id: r-python-3101
+  group: python
+  file: code_aster/Cata/Commands/affe_char_meca.py
+  line: 748
+  code: b_plaq_pout_orth=BLOC(
+  extracted:
+  - BLOC
+  actual: null
+- id: r-python-3201
+  group: python
+  file: code_aster/Cata/Commands/affe_char_meca.py
+  line: 907
+  code: AU_MOINS_UN(
+  extracted:
+  - AU_MOINS_UN
+  actual: null
+- id: r-python-3248
+  group: python
+  file: code_aster/Cata/Commands/affe_char_meca.py
+  line: 1015
+  code: PRESENT_ABSENT("MFZ", "FX", "FY", "FZ", "MX", "MY", "MZ"),
+  extracted:
+  - PRESENT_ABSENT
+  actual: null
+- id: r-python-3617
+  group: python
+  file: code_aster/Cata/Commands/affe_char_meca_f.py
+  line: 303
+  code: MY=SIMP(statut="f", typ=(fonction_sdaster, nappe_sdaster, formule)),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-5014
+  group: python
+  file: code_aster/Cata/Commands/calc_essai_geomeca.py
+  line: 89
+  code: validators=NoRepeat(),
+  extracted:
+  - NoRepeat
+  actual: null
+- id: r-python-5075
+  group: python
+  file: code_aster/Cata/Commands/calc_essai_geomeca.py
+  line: 188
+  code: GRAPHIQUE=SIMP(
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-5817
+  group: python
+  file: code_aster/Cata/Commands/calc_fonction.py
+  line: 478
+  code: INTEGRE_FREQ=FACT(
+  extracted:
+  - FACT
+  actual: null
+- id: r-python-6057
+  group: python
+  file: code_aster/Cata/Commands/calc_inte_spec.py
+  line: 35
+  code: DUREE_DECALAGE=SIMP(statut="f", typ="R"),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-6582
+  group: python
+  file: code_aster/Cata/Commands/calc_miss.py
+  line: 445
+  code: FREQ_IMAG=SIMP(statut="f", typ="R"),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-9099
+  group: python
+  file: code_aster/Cata/Commands/debut.py
+  line: 90
+  code: ALARME=SIMP(statut="f", typ="TXM", into=("ALARME", "EXCEPTION")),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-9171
+  group: python
+  file: code_aster/Cata/Commands/defi_base_modale.py
+  line: 85
+  code: TITRE=SIMP(statut="f", typ="TXM"),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-9545
+  group: python
+  file: code_aster/Cata/Commands/defi_contact.py
+  line: 261
+  code: GROUP_MA_MAIT=SIMP(statut="f", typ=grma, max=1),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-11114
+  group: python
+  file: code_aster/Cata/Commands/defi_mater_gc.py
+  line: 397
+  code: ALPHA=SIMP(statut="f", typ="R", fr=tr("Coefficient de dilatation")),
+  extracted:
+  - SIMP
+  - tr
+  actual: null
+- id: r-python-12240
+  group: python
+  file: code_aster/Cata/Commands/defi_materiau.py
+  line: 2044
+  code: ANGDIL=SIMP(statut="o", typ="R"),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-13473
+  group: python
+  file: code_aster/Cata/Commands/defi_materiau.py
+  line: 3923
+  code: PRESENT_PRESENT("D_LB_TT", "D_LB_TL"),
+  extracted:
+  - PRESENT_PRESENT
+  actual: null
+- id: r-python-13970
+  group: python
+  file: code_aster/Cata/Commands/defi_materiau.py
+  line: 4780
+  code: LAMB_TN=SIMP(statut="f", typ=(fonction_sdaster, nappe_sdaster, formule)),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-14168
+  group: python
+  file: code_aster/Cata/Commands/defi_materiau.py
+  line: 5081
+  code: PENA_LAGR_ABSO=SIMP(statut="o", typ="R", val_min=0.0),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-14208
+  group: python
+  file: code_aster/Cata/Commands/defi_materiau.py
+  line: 5144
+  code: PRESENT_ABSENT("VISC_FLUIDE", "PRES_FLUIDE", "PRES_CLAVAGE", "SCIAGE"),
+  extracted:
+  - PRESENT_ABSENT
+  actual: null
+- id: r-python-15118
+  group: python
+  file: code_aster/Cata/Commands/defi_prop_alea.py
+  line: 51
+  code: a_data_x=BLOC(
+  extracted:
+  - BLOC
+  actual: null
+- id: r-python-15157
+  group: python
+  file: code_aster/Cata/Commands/defi_sol_equi.py
+  line: 76
+  code: condition="""equal_to("TOUT_ACCE", 'NON')""",
+  extracted: []
+  actual: null
+- id: r-python-15906
+  group: python
+  file: code_aster/Cata/Commands/dyna_line.py
+  line: 550
+  code: UNITE_RESU_FORC=SIMP(
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-16334
+  group: python
+  file: code_aster/Cata/Commands/dyna_vibra.py
+  line: 333
+  code: PRECISION=SIMP(statut="f", typ="R", defaut=1.0e-6),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-16683
+  group: python
+  file: code_aster/Cata/Commands/extr_resu.py
+  line: 127
+  code: MAILLAGE=SIMP(statut="f", typ=maillage_sdaster),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-17477
+  group: python
+  file: code_aster/Cata/Commands/impr_resu.py
+  line: 389
+  code: RESULTAT=SIMP(statut="f", typ=resultat_sdaster),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-19313
+  group: python
+  file: code_aster/Cata/Commands/meca_non_line.py
+  line: 45
+  code: CARA_ELEM=SIMP(statut="f", typ=cara_elem),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-19342
+  group: python
+  file: code_aster/Cata/Commands/meca_non_line.py
+  line: 108
+  code: b_implicit=BLOC(
+  extracted:
+  - BLOC
+  actual: null
+- id: r-python-20257
+  group: python
+  file: code_aster/Cata/Commands/post_elem.py
+  line: 159
+  code: NIVE_COUCHE=SIMP(statut="f", typ="TXM", defaut="MOY", into=("INF", "SUP", "MOY")),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-20866
+  group: python
+  file: code_aster/Cata/Commands/post_fatigue.py
+  line: 147
+  code: b_fati_npf=BLOC(
+  extracted:
+  - BLOC
+  actual: null
+- id: r-python-21299
+  group: python
+  file: code_aster/Cata/Commands/post_rccm.py
+  line: 303
+  code: TABL_TEMP=SIMP(
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-22241
+  group: python
+  file: code_aster/Cata/Commands/proj_champ.py
+  line: 342
+  code: VIS_A_VIS=FACT(
+  extracted:
+  - FACT
+  actual: null
+- id: r-python-22810
+  group: python
+  file: code_aster/Cata/Commands/recu_fonction.py
+  line: 309
+  code: NOM_CHAM=SIMP(statut="f", typ="TXM", validators=NoRepeat(), into=C_NOM_CHAM_INTO()),
+  extracted:
+  - SIMP
+  - NoRepeat
+  - C_NOM_CHAM_INTO
+  actual: null
+- id: r-python-23053
+  group: python
+  file: code_aster/Cata/Commands/rest_sous_struc.py
+  line: 32
+  code: 'if AsType(RESU_GENE) == mode_gene:'
+  extracted:
+  - AsType
+  actual: null
+- id: r-python-23206
+  group: python
+  file: code_aster/Cata/Commands/sech_non_line.py
+  line: 156
+  code: OBSERVATION=C_OBSERVATION("SECHAGE"),
+  extracted:
+  - C_OBSERVATION
+  actual: null
+- id: r-python-23405
+  group: python
+  file: code_aster/Cata/Commands/stat_non_line.py
+  line: 165
+  code: b_calibre=BLOC(
+  extracted:
+  - BLOC
+  actual: null
+- id: r-python-23509
+  group: python
+  file: code_aster/Cata/Commands/test_fonction.py
+  line: 33
+  code: VALEUR=FACT(
+  extracted:
+  - FACT
+  actual: null
+- id: r-python-24914
+  group: python
+  file: code_aster/Cata/Commons/c_suivi_ddl.py
+  line: 82
+  code: TITRE=SIMP(statut="f", typ="TXM", max=3),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-25144
+  group: python
+  file: code_aster/Cata/Language/Rules.py
+  line: 48
+  code: 'def __init__(self, *args):'
+  extracted: []
+  actual: null
+- id: r-python-25313
+  group: python
+  file: code_aster/Cata/Language/SyntaxChecker.py
+  line: 300
+  code: 'if issubclass(typeobj, DS.ValueCheckMixing):'
+  extracted:
+  - issubclass
+  actual: null
+- id: r-python-25485
+  group: python
+  file: code_aster/Cata/Language/SyntaxObjects.py
+  line: 373
+  code: 'TypeError, f"{key}: Unexpected type: {type(userOcc)}", []'
+  extracted:
+  - type
+  actual: null
+- id: r-python-25825
+  group: python
+  file: code_aster/Cata/Language/Validators.py
+  line: 155
+  code: 'Old usage: OrdList(''croissant'')'
+  extracted: []
+  actual: null
+- id: r-python-26100
+  group: python
+  file: code_aster/CodeCommands/affe_char_sech.py
+  line: 149
+  code: groups.update(force_list(mc))
+  extracted:
+  - groups.update
+  - force_list
+  actual: null
+- id: r-python-26158
+  group: python
+  file: code_aster/CodeCommands/affe_char_ther.py
+  line: 58
+  code: 'if keywords.get(key):'
+  extracted:
+  - keywords.get
+  actual: null
+- id: r-python-27549
+  group: python
+  file: code_aster/CodeCommands/defi_materiau.py
+  line: 249
+  code: UTMESS("F", "MATERIAL1_13", valr=(val1, val2, epsi), valk=(par1, par2))
+  extracted:
+  - UTMESS
+  actual: null
+- id: r-python-28010
+  group: python
+  file: code_aster/CodeCommands/lire_resu.py
+  line: 68
+  code: self._result = FullHarmonicResult()
+  extracted:
+  - FullHarmonicResult
+  actual: null
+- id: r-python-28683
+  group: python
+  file: code_aster/CodeCommands/rest_sous_struc.py
+  line: 134
+  code: fnds.append(dofNum.getEquationNumbering())
+  extracted:
+  - fnds.append
+  - dofNum.getEquationNumbering
+  actual: null
+- id: r-python-29154
+  group: python
+  file: code_aster/Coupling/mpi_calcium.py
+  line: 131
+  code: 'root (bool): root or not ?'
+  extracted: []
+  actual: null
+- id: r-python-29219
+  group: python
+  file: code_aster/Coupling/ple_utils.py
+  line: 109
+  code: 'for loc, glob in ranks.items():'
+  extracted:
+  - ranks.items
+  actual: null
+- id: r-python-29444
+  group: python
+  file: code_aster/Helpers/debugging.py
+  line: 178
+  code: visitor = DataStructureFilter(result.getName(), dump)
+  extracted:
+  - DataStructureFilter
+  - result.getName
+  actual: null
+- id: r-python-29831
+  group: python
+  file: code_aster/LinearAlgebra/MatrixScaler.py
+  line: 83
+  code: Dr_2.abs()
+  extracted:
+  - Dr_2.abs
+  actual: null
+- id: r-python-30784
+  group: python
+  file: code_aster/MacroCommands/Contrib/HookeTensor.py
+  line: 153
+  code: 'for J in range(3):'
+  extracted:
+  - range
+  actual: null
+- id: r-python-31029
+  group: python
+  file: code_aster/MacroCommands/Contrib/calc_endo_ops.py
+  line: 130
+  code: __INST_1 = DEFI_LIST_REEL(DEBUT=-2, INTERVALLE=_F(JUSQU_A=0, NOMBRE=2))
+  extracted:
+  - DEFI_LIST_REEL
+  - _F
+  actual: null
+- id: r-python-31979
+  group: python
+  file: code_aster/MacroCommands/Contrib/testcase_tools.py
+  line: 198
+  code: traceback.print_exc()
+  extracted:
+  - traceback.print_exc
+  actual: null
+- id: r-python-32092
+  group: python
+  file: code_aster/MacroCommands/Fracture/post_endo_fiss_utils.py
+  line: 144
+  code: 'for j in range(len(ConnTot)):'
+  extracted:
+  - range
+  - len
+  actual: null
+- id: r-python-32527
+  group: python
+  file: code_aster/MacroCommands/GeoMeca/geomec_essais.py
+  line: 900
+  code: 'if not (Gs <= 1.0 or abs(Gs - 1.0) <= 1.0e-8):'
+  extracted:
+  - abs
+  actual: null
+- id: r-python-32662
+  group: python
+  file: code_aster/MacroCommands/GeoMeca/geomec_essais.py
+  line: 1472
+  code: _F(NUME_LIGNE=1, NUME_COLONNE=1, VALE=K_EAU),
+  extracted:
+  - _F
+  actual: null
+- id: r-python-32706
+  group: python
+  file: code_aster/MacroCommands/GeoMeca/geomec_essais.py
+  line: 1592
+  code: indx_init = len(inst) - 2
+  extracted:
+  - len
+  actual: null
+- id: r-python-33386
+  group: python
+  file: code_aster/MacroCommands/GeoMeca/geomec_utils.py
+  line: 472
+  code: 'for iocc, DicoEssai in enumerate(ESSAI_TRIA_DR_C_D.List_F()):'
+  extracted:
+  - enumerate
+  - ESSAI_TRIA_DR_C_D.List_F
+  actual: null
+- id: r-python-34237
+  group: python
+  file: code_aster/MacroCommands/Mac3Coeur/mac3coeur_calcul.py
+  line: 664
+  code: _F(
+  extracted:
+  - _F
+  actual: null
+- id: r-python-34795
+  group: python
+  file: code_aster/MacroCommands/Mac3Coeur/mac3coeur_coeur.py
+  line: 1205
+  code: ASSE=_F(
+  extracted:
+  - _F
+  actual: null
+- id: r-python-34970
+  group: python
+  file: code_aster/MacroCommands/Mac3Coeur/mac3coeur_factory.py
+  line: 70
+  code: 'def get(self, objname):'
+  extracted: []
+  actual: null
+- id: r-python-36517
+  group: python
+  file: code_aster/MacroCommands/MateHomo/rest_homo_utilities.py
+  line: 458
+  code: 'def getP0ElasGlobalEvol(self, resu):'
+  extracted: []
+  actual: null
+- id: r-python-36585
+  group: python
+  file: code_aster/MacroCommands/MateHomo/syme_utilities.py
+  line: 176
+  code: common_nodes_id, common_nodes_shift = coords_merged_with_duplicates.findCommonTuples(
+  extracted:
+  - coords_merged_with_duplicates.findCommonTuples
+  actual: null
+- id: r-python-37196
+  group: python
+  file: code_aster/MacroCommands/Miss/miss_fichier_interf.py
+  line: 90
+  code: 'cont.extend(fmt_ligne(struct.mode_dyna_vale[i * mult : (i + 1) * mult]))'
+  extracted:
+  - cont.extend
+  - fmt_ligne
+  actual: null
+- id: r-python-37606
+  group: python
+  file: code_aster/MacroCommands/Miss/miss_post.py
+  line: 882
+  code: 'self.add_line(gno, cham, "SPEC_OSCI", **{FKEY[dir]: _spec})'
+  extracted:
+  - self.add_line
+  actual: null
+- id: r-python-38752
+  group: python
+  file: code_aster/MacroCommands/Modal/mode_iter_simult.py
+  line: 380
+  code: mesh = basis.getMesh()
+  extracted:
+  - basis.getMesh
+  actual: null
+- id: r-python-39363
+  group: python
+  file: code_aster/MacroCommands/Recal/reca_message.py
+  line: 141
+  code: UTMESS("I", "RECAL0_66", files=self.get_filename())
+  extracted:
+  - UTMESS
+  - self.get_filename
+  actual: null
+- id: r-python-39446
+  group: python
+  file: code_aster/MacroCommands/Recal/recal.py
+  line: 123
+  code: 'for p, v in zip(para, val):'
+  extracted:
+  - zip
+  actual: null
+- id: r-python-39829
+  group: python
+  file: code_aster/MacroCommands/Utils/TableReader.py
+  line: 261
+  code: _printDBG("PARAMS:", para)
+  extracted:
+  - _printDBG
+  actual: null
+- id: r-python-40001
+  group: python
+  file: code_aster/MacroCommands/Utils/calc_ecrevisse_ops.py
+  line: 82
+  code: beta = degrees(beta)
+  extracted:
+  - degrees
+  actual: null
+- id: r-python-40538
+  group: python
+  file: code_aster/MacroCommands/Utils/creation_donnees_homard.py
+  line: 123
+  code: print("Lancement de creation_donnees_homard en mode", self.mode_homard_texte)
+  extracted:
+  - print
+  actual: null
+- id: r-python-40687
+  group: python
+  file: code_aster/MacroCommands/Utils/creation_donnees_homard.py
+  line: 831
+  code: self.ecrire_ligne_configuration_0("Les mailles acceptees par HOMARD")
+  extracted:
+  - self.ecrire_ligne_configuration_0
+  actual: null
+- id: r-python-41114
+  group: python
+  file: code_aster/MacroCommands/Utils/macr_ecre_calc.py
+  line: 111
+  code: LISTE_COTES_BL=SIMP(
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-41145
+  group: python
+  file: code_aster/MacroCommands/Utils/macr_ecre_calc.py
+  line: 174
+  code: statut="o", typ="R", fr=tr("Pression partielle air en entree (Pa) [pae]")
+  extracted:
+  - tr
+  actual: null
+- id: r-python-42237
+  group: python
+  file: code_aster/MacroCommands/Utils/ther_non_line_fort_cata.py
+  line: 183
+  code: RESI_GLOB_RELA=SIMP(statut="f", typ="R"),
+  extracted:
+  - SIMP
+  actual: null
+- id: r-python-42753
+  group: python
+  file: code_aster/MacroCommands/calc_bt_ops.py
+  line: 513
+  code: N_S[j_, 1::] = AB.astype(float)
+  extracted:
+  - AB.astype
+  actual: null
+- id: r-python-43025
+  group: python
+  file: code_aster/MacroCommands/calc_bt_ops.py
+  line: 1298
+  code: C, D = count_dup((Con_Mat[0:B]).reshape(-1))
+  extracted:
+  - count_dup
+  - (Con_Mat[0:B]).reshape
+  actual: null
+- id: r-python-43279
+  group: python
+  file: code_aster/MacroCommands/calc_bt_ops.py
+  line: 2175
+  code: int_nodes = np.zeros((len(SUPPORTS[:, 0]) + len(__FORCES[:, 0]), 4))
+  extracted:
+  - np.zeros
+  - len
+  - len
+  actual: null
+- id: r-python-43404
+  group: python
+  file: code_aster/MacroCommands/calc_char_cine_ops.py
+  line: 48
+  code: diriBCs = disc_comp.getDirichletBC(args["INST"])
+  extracted:
+  - disc_comp.getDirichletBC
+  actual: null
+- id: r-python-43540
+  group: python
+  file: code_aster/MacroCommands/calc_fonction_ops.py
+  line: 331
+  code: 'def _build_list_fonc(self, arg="real", mcsimp="FONCTION"):'
+  extracted: []
+  actual: null
+- id: r-python-43933
+  group: python
+  file: code_aster/MacroCommands/calc_gp_ops.py
+  line: 381
+  code: 'for cop in range(nbcop):'
+  extracted:
+  - range
+  actual: null
+- id: r-python-45309
+  group: python
+  file: code_aster/MacroCommands/calc_stab_pente_ops.py
+  line: 2671
+  code: 'char_ext.update({"mom_late": np.sum((centre_base[:, 1] - barycent[:, 1]) * poids)})'
+  extracted:
+  - char_ext.update
+  - np.sum
+  actual: null
+- id: r-python-45830
+  group: python
+  file: code_aster/MacroCommands/calc_thermeca_mult_ops.py
+  line: 304
+  code: chamm[i][j] = CREA_CHAMP(
+  extracted:
+  - CREA_CHAMP
+  actual: null
+- id: r-python-46025
+  group: python
+  file: code_aster/MacroCommands/calc_vect_elem_ops.py
+  line: 86
+  code: varc_elem = disc_comp.getExternalStateVariablesForces(time, varc, assembly=False)
+  extracted:
+  - disc_comp.getExternalStateVariablesForces
+  actual: null
+- id: r-python-46357
+  group: python
+  file: code_aster/MacroCommands/comb_sism_modal_ops.py
+  line: 984
+  code: 'comb_direction (str): type of combination'
+  extracted: []
+  actual: null
+- id: r-python-47739
+  group: python
+  file: code_aster/MacroCommands/defi_materiau_ops.py
+  line: 55
+  code: check_young_consistency(mater)
+  extracted:
+  - check_young_consistency
+  actual: null
+- id: r-python-49695
+  group: python
+  file: code_aster/MacroCommands/defi_sol_equi_ops.py
+  line: 4978
+  code: ifspecX.append(
+  extracted:
+  - ifspecX.append
+  actual: null
+- id: r-python-50140
+  group: python
+  file: code_aster/MacroCommands/dyna_iss_vari_ops.py
+  line: 658
+  code: VECRES = self.append_Vec(RS, k, RESU)
+  extracted:
+  - self.append_Vec
+  actual: null
+- id: r-python-50328
+  group: python
+  file: code_aster/MacroCommands/dyna_line_ops.py
+  line: 498
+  code: raise Exception(
+  extracted:
+  - Exception
+  actual: null
+- id: r-python-50488
+  group: python
+  file: code_aster/MacroCommands/dyna_line_ops.py
+  line: 971
+  code: 'if hasattr(self, "_DynaLineBasisaddedMass"):'
+  extracted:
+  - hasattr
+  actual: null
+- id: r-python-52227
+  group: python
+  file: code_aster/MacroCommands/lire_fonction_ops.py
+  line: 157
+  code: 'if col_para > len(blocs[bloc_para - 1][0]):'
+  extracted:
+  - len
+  actual: null
+- id: r-python-52383
+  group: python
+  file: code_aster/MacroCommands/lire_table_ops.py
+  line: 65
+  code: motscles = tab.dict_CREA_TABLE()
+  extracted:
+  - tab.dict_CREA_TABLE
+  actual: null
+- id: r-python-52386
+  group: python
+  file: code_aster/MacroCommands/liss_spectre_ops.py
+  line: 36
+  code: 'def recu_val(tab, para, stop=0, typ=None):'
+  extracted: []
+  actual: null
+- id: r-python-52743
+  group: python
+  file: code_aster/MacroCommands/macr_adap_mail_ops.py
+  line: 1607
+  code: UTMESS("F", "HOMARD0_4", valk=Rep_Calc_HOMARD_global)
+  extracted:
+  - UTMESS
+  actual: null
+- id: r-python-53225
+  group: python
+  file: code_aster/MacroCommands/macr_ecrevisse_ops.py
+  line: 476
+  code: T_DEB_TMP1 = DEBIECR1.EXTR_TABLE()
+  extracted:
+  - DEBIECR1.EXTR_TABLE
+  actual: null
+- id: r-python-53264
+  group: python
+  file: code_aster/MacroCommands/macr_lign_coupe_ops.py
+  line: 59
+  code: 'node_by_name = {str(node + 1): node for node in __macou.getNodes(groupe, localNumbering=True)}'
+  extracted:
+  - str
+  - __macou.getNodes
+  actual: null
+- id: r-python-53528
+  group: python
+  file: code_aster/MacroCommands/macr_lign_coupe_ops.py
+  line: 881
+  code: crea_grp_matiere(f"LICOU{ioc2}", groupe, iocc, m, __remodr, NOM_CHAM, __macou)
+  extracted:
+  - crea_grp_matiere
+  actual: null
+- id: r-python-53964
+  group: python
+  file: code_aster/MacroCommands/macro_expans_ops.py
+  line: 111
+  code: 'mfact.update({"COEF_PONDER_F": RESOLUTION["COEF_PONDER_F"]})'
+  extracted:
+  - mfact.update
+  actual: null
+- id: r-python-54040
+  group: python
+  file: code_aster/MacroCommands/meca_non_line_ops.py
+  line: 40
+  code: CONTACT = force_list(CONTACT)
+  extracted:
+  - force_list
+  actual: null
+- id: r-python-54321
+  group: python
+  file: code_aster/MacroCommands/observation_ops.py
+  line: 588
+  code: num_ordr = __proj.getIndexes()
+  extracted:
+  - __proj.getIndexes
+  actual: null
+- id: r-python-55108
+  group: python
+  file: code_aster/MacroCommands/post_decollement_ops.py
+  line: 43
+  code: listOUT.append(1)
+  extracted:
+  - listOUT.append
+  actual: null
+- id: r-python-55724
+  group: python
+  file: code_aster/MacroCommands/post_erreur_ops.py
+  line: 720
+  code: l_diff_norm.append(diff_norm_tot)
+  extracted:
+  - l_diff_norm.append
+  actual: null
+- id: r-python-56346
+  group: python
+  file: code_aster/MacroCommands/post_jmod_ops.py
+  line: 1869
+  code: __FMULTJ05 = FORMULE(
+  extracted:
+  - FORMULE
+  actual: null
+- id: r-python-56531
+  group: python
+  file: code_aster/MacroCommands/post_jmod_ops.py
+  line: 2439
+  code: DETR_GROUP_MA=_F(NOM="MBOUGER"),
+  extracted:
+  - _F
+  actual: null
+- id: r-python-56959
+  group: python
+  file: code_aster/MacroCommands/post_jmod_ops.py
+  line: 4256
+  code: 'for iNP in range(NP):'
+  extracted:
+  - range
+  actual: null
+- id: r-python-57154
+  group: python
+  file: code_aster/MacroCommands/post_jmod_ops.py
+  line: 4752
+  code: 'for iKey in TLIPSUPCAL.keys():'
+  extracted:
+  - TLIPSUPCAL.keys
+  actual: null
+- id: r-python-57199
+  group: python
+  file: code_aster/MacroCommands/post_jmod_ops.py
+  line: 5019
+  code: TQ[2 * iNP] = (np.array(TVECTEUR[2 * iNP]) * XMULT / XAIRE).tolist()
+  extracted:
+  - (np.array(TVECTEUR[2 * iNP]) * XMULT / XAIRE).tolist
+  - np.array
+  actual: null
+- id: r-python-57905
+  group: python
+  file: code_aster/MacroCommands/post_k1_k2_k3_ops.py
+  line: 1733
+  code: npara.append(type_para)
+  extracted:
+  - npara.append
+  actual: null
+- id: r-python-57954
+  group: python
+  file: code_aster/MacroCommands/post_k1_k2_k3_ops.py
+  line: 1937
+  code: NB_NOEUD_COUPE = args.get("NB_NOEUD_COUPE")
+  extracted:
+  - args.get
+  actual: null
+- id: r-python-59692
+  group: python
+  file: code_aster/MacroCommands/pre_seisme_nonl_ops.py
+  line: 692
+  code: DEBUT=self.inst_init, INTERVALLE=_F(JUSQU_A=TFIN_TOTAL, PAS=self.pas_inst_impe)
+  extracted:
+  - _F
+  actual: null
+- id: r-python-59829
+  group: python
+  file: code_aster/MacroCommands/pre_seisme_nonl_ops.py
+  line: 1078
+  code: name = "STAT" + str(key_index)
+  extracted:
+  - str
+  actual: null
+- id: r-python-60332
+  group: python
+  file: code_aster/MacroCommands/propa_fiss_ops.py
+  line: 1489
+  code: 'if abs(verif) > 0.01:'
+  extracted:
+  - abs
+  actual: null
+- id: r-python-60889
+  group: python
+  file: code_aster/MacroCommands/test_compor_ops.py
+  line: 489
+  code: __RES[i] = SIMU_POINT_MAT(
+  extracted:
+  - SIMU_POINT_MAT
+  actual: null
+- id: r-python-60901
+  group: python
+  file: code_aster/MacroCommands/test_compor_ops.py
+  line: 535
+  code: FILTRE=_F(NOM_PARA="INST", VALE=time),
+  extracted:
+  - _F
+  actual: null
+- id: r-python-60946
+  group: python
+  file: code_aster/MacroCommands/test_compor_ops.py
+  line: 678
+  code: _F(JUSQU_A=8.0 * t_0, NOMBRE=N),
+  extracted:
+  - _F
+  actual: null
+- id: r-python-61694
+  group: python
+  file: code_aster/MedUtils/MedConverter/result_converter.py
+  line: 59
+  code: raise RuntimeError(msg)
+  extracted:
+  - RuntimeError
+  actual: null
+- id: r-python-62021
+  group: python
+  file: code_aster/Messages/Utmess.py
+  line: 247
+  code: 'def load_cata_msg(self, catamess):'
+  extracted: []
+  actual: null
+- id: r-python-62277
+  group: python
+  file: code_aster/Messages/algeline.py
+  line: 161
+  code: '27: _('
+  extracted:
+  - _
+  actual: null
+- id: r-python-64799
+  group: python
+  file: code_aster/Messages/contact.py
+  line: 131
+  code: Il ne faut pas que les surfaces de contact mélangent des mailles affectées d'une modélisation plane (D_PLAN, C_PLAN
+    ou AXIS)
+  extracted: []
+  actual: null
+- id: r-python-66469
+  group: python
+  file: code_aster/Messages/mecanonline13.py
+  line: 81
+  code: '60: _("""  Incrément des vitesses depuis le début du pas de temps."""),'
+  extracted:
+  - _
+  actual: null
+- id: r-python-66768
+  group: python
+  file: code_aster/Messages/mecanonline9.py
+  line: 176
+  code: '65: _('
+  extracted:
+  - _
+  actual: null
+- id: r-python-67000
+  group: python
+  file: code_aster/Messages/miss0.py
+  line: 94
+  code: '14: _('
+  extracted:
+  - _
+  actual: null
+- id: r-python-67033
+  group: python
+  file: code_aster/Messages/miss0.py
+  line: 230
+  code: '43: _('
+  extracted:
+  - _
+  actual: null
+- id: r-python-67561
+  group: python
+  file: code_aster/Messages/modelisa7.py
+  line: 336
+  code: '62: _('
+  extracted:
+  - _
+  actual: null
+- id: r-python-67889
+  group: python
+  file: code_aster/Messages/postfm.py
+  line: 38
+  code: '4: _("""Il n''a pas été possible de récupérer le matériau en fond de fissure."""),'
+  extracted:
+  - _
+  actual: null
+- id: r-python-68146
+  group: python
+  file: code_aster/Messages/prepost2.py
+  line: 75
+  code: '56: _('
+  extracted:
+  - _
+  actual: null
+- id: r-python-69616
+  group: python
+  file: code_aster/Messages/utilitai3.py
+  line: 349
+  code: '77: _('
+  extracted:
+  - _
+  actual: null
+- id: r-python-70282
+  group: python
+  file: code_aster/Objects/function_py.py
+  line: 355
+  code: return t_fonction(vale_x, vale_y, para)
+  extracted:
+  - t_fonction
+  actual: null
+- id: r-python-70575
+  group: python
+  file: code_aster/Objects/table_graph.py
+  line: 164
+  code: self.BBYmax = max([self.BBYmax, y1])
+  extracted:
+  - max
+  actual: null
+- id: r-python-71819
+  group: python
+  file: code_aster/ObjectsExt/datastructure_ext.py
+  line: 57
+  code: 'def copy(self):'
+  extracted: []
+  actual: null
+- id: r-python-72667
+  group: python
+  file: code_aster/ObjectsExt/generalizedassemblymatrix_ext.py
+  line: 187
+  code: 'for i in range(j + 1):'
+  extracted:
+  - range
+  actual: null
+- id: r-python-73060
+  group: python
+  file: code_aster/ObjectsExt/medctoaster.py
+  line: 357
+  code: self._dim = curMesh.getDimension()
+  extracted:
+  - curMesh.getDimension
+  actual: null
+- id: r-python-73259
+  group: python
+  file: code_aster/ObjectsExt/mesh_builder.py
+  line: 327
+  code: meshC.setCoords(vx, vy, vz)
+  extracted:
+  - meshC.setCoords
+  actual: null
+- id: r-python-73385
+  group: python
+  file: code_aster/ObjectsExt/mesh_builder.py
+  line: 551
+  code: mcmesh.setGroupsAtLevel(-1, [surfint, surfext, top, bottom])
+  extracted:
+  - mcmesh.setGroupsAtLevel
+  actual: null
+- id: r-python-74593
+  group: python
+  file: code_aster/SD/asojb.py
+  line: 314
+  code: modelong = JeveuxStrAttr("MODELONG")
+  extracted:
+  - JeveuxStrAttr
+  actual: null
+- id: r-python-75454
+  group: python
+  file: code_aster/SD/sd_interf_dyna_clas.py
+  line: 87
+  code: nbno = len(llino)
+  extracted:
+  - len
+  actual: null
+- id: r-python-75574
+  group: python
+  file: code_aster/SD/sd_listis.py
+  line: 27
+  code: nomj = SDNom(fin=19)
+  extracted:
+  - SDNom
+  actual: null
+- id: r-python-76019
+  group: python
+  file: code_aster/SD/sd_nume_ddl_gd.py
+  line: 29
+  code: FETN = Facultatif(AsVK24())
+  extracted:
+  - Facultatif
+  - AsVK24
+  actual: null
+- id: r-python-76099
+  group: python
+  file: code_aster/SD/sd_proj_mesu.py
+  line: 40
+  code: 'def exists(self):'
+  extracted: []
+  actual: null
+- id: r-python-78047
+  group: python
+  file: code_aster/Solvers/IterationSolver/raspen_solver.py
+  line: 1147
+  code: self.local_dofs = np.array([LGMap(i) for i in range(neq)], dtype=np.int32)
+  extracted:
+  - np.array
+  - LGMap
+  - range
+  actual: null
+- id: r-python-78193
+  group: python
+  file: code_aster/Solvers/IterationSolver/raspen_solver.py
+  line: 1573
+  code: samplMat = samplMat.transpose()
+  extracted:
+  - samplMat.transpose
+  actual: null
+- id: r-python-79457
+  group: python
+  file: code_aster/Solvers/Operators/thermal_operators.py
+  line: 41
+  code: 'context (Context): Context of the problem.'
+  extracted: []
+  actual: null
+- id: r-python-79516
+  group: python
+  file: code_aster/Solvers/Post/hooks.py
+  line: 48
+  code: 'nl_oper (NonLinearOperator): Non linear operator'
+  extracted: []
+  actual: null
+- id: r-python-80120
+  group: python
+  file: code_aster/Supervis/ExecuteCommand.py
+  line: 577
+  code: timer = ExecutionParameter().timer
+  extracted:
+  - ExecutionParameter
+  actual: null
+- id: r-python-80676
+  group: python
+  file: code_aster/Supervis/visitors.py
+  line: 79
+  code: userOrig = userOcc.copy()
+  extracted:
+  - userOcc.copy
+  actual: null
+- id: r-python-81167
+  group: python
+  file: code_aster/Utilities/compatibility.py
+  line: 128
+  code: 'def _if_exists(keywords, factor_keyword, simple_keyword, callback):'
+  extracted: []
+  actual: null
+- id: r-python-81351
+  group: python
+  file: code_aster/Utilities/logger.py
+  line: 173
+  code: 'with_result (bool): If *True*, the result is logged (debug mode).'
+  extracted: []
+  actual: null
+- id: r-python-81678
+  group: python
+  file: code_aster/Utilities/report.py
+  line: 173
+  code: 'if not self.estvide():'
+  extracted:
+  - self.estvide
+  actual: null

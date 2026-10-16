@@ -233,6 +233,12 @@
   },
   "bridges": {
    "type": "object"
+  },
+  "keyword_profiles": {
+   "type": "array"
+  },
+  "with_packs": {
+   "type": "array"
   }
  }
 }

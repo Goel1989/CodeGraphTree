@@ -1,0 +1,27 @@
+{
+  "description": "Fictitious language described by a hand-written keyword profile (profile/acme_script.yaml): definitions, keyword calls, name(...) calls limited to known names, comments and strings ignored",
+  "keyword_profiles": ["profile/acme_script.yaml"],
+  "nodes": [
+    {"uid": "kw:acme_script:compute", "kind": "routine", "subtype": "kw_routine", "file": "scripts/helpers.acs", "line_start": 7, "line_end": 9},
+    {"uid": "kw:acme_script:main", "kind": "routine", "subtype": "kw_routine", "file": "scripts/main.acs", "line_start": 3, "line_end": 8},
+    {"uid": "kw:acme_script:prepare", "kind": "routine", "subtype": "kw_routine", "file": "scripts/helpers.acs", "line_start": 3, "line_end": 5},
+    {"uid": "kw:acme_script:report", "kind": "routine", "subtype": "kw_routine", "file": "scripts/helpers.acs", "line_start": 15, "line_end": 16},
+    {"uid": "kw:acme_script:square", "kind": "routine", "subtype": "kw_routine", "file": "scripts/helpers.acs", "line_start": 11, "line_end": 13}
+  ],
+  "call_sites": [
+    {"src": "kw:acme_script:prepare", "file": "scripts/helpers.acs", "line": 4, "col": 7, "ref_kind": "call", "target_text": "report", "dst": "kw:acme_script:report", "resolution": "resolved", "confidence": "heuristic", "origin": "keywords:acme_script"},
+    {"src": "kw:acme_script:compute", "file": "scripts/helpers.acs", "line": 8, "col": 10, "ref_kind": "maybe_call", "target_text": "square", "dst": "kw:acme_script:square", "resolution": "resolved", "confidence": "heuristic", "origin": "keywords:acme_script"},
+    {"src": "file:scripts/main.acs", "file": "scripts/main.acs", "line": 2, "col": 5, "ref_kind": "use", "target_text": "helpers", "dst": "file:scripts/helpers.acs", "resolution": "resolved", "confidence": "heuristic", "origin": "keywords:acme_script"},
+    {"src": "kw:acme_script:main", "file": "scripts/main.acs", "line": 4, "col": 7, "ref_kind": "call", "target_text": "prepare", "dst": "kw:acme_script:prepare", "resolution": "resolved", "confidence": "heuristic", "origin": "keywords:acme_script"},
+    {"src": "kw:acme_script:main", "file": "scripts/main.acs", "line": 5, "col": 11, "ref_kind": "maybe_call", "target_text": "compute", "dst": "kw:acme_script:compute", "resolution": "resolved", "confidence": "heuristic", "origin": "keywords:acme_script"},
+    {"src": "kw:acme_script:main", "file": "scripts/main.acs", "line": 7, "col": 7, "ref_kind": "call", "target_text": "report", "dst": "kw:acme_script:report", "resolution": "resolved", "confidence": "heuristic", "origin": "keywords:acme_script"}
+  ],
+  "edges": [
+    {"src": "file:scripts/main.acs", "dst": "file:scripts/helpers.acs", "kind": "uses", "site_count": 1},
+    {"src": "kw:acme_script:compute", "dst": "kw:acme_script:square", "kind": "calls", "site_count": 1},
+    {"src": "kw:acme_script:main", "dst": "kw:acme_script:compute", "kind": "calls", "site_count": 1},
+    {"src": "kw:acme_script:main", "dst": "kw:acme_script:prepare", "kind": "calls", "site_count": 1},
+    {"src": "kw:acme_script:main", "dst": "kw:acme_script:report", "kind": "calls", "site_count": 1},
+    {"src": "kw:acme_script:prepare", "dst": "kw:acme_script:report", "kind": "calls", "site_count": 1}
+  ]
+}

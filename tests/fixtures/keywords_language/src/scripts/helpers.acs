@@ -1,0 +1,16 @@
+/* Helper procedures
+   run fake_in_block_comment */
+proc prepare
+  run report
+endproc
+
+function compute
+  return square(2) + unknown_thing(1)
+endfunction
+
+function square
+  return 4
+endfunction
+
+proc report
+endproc

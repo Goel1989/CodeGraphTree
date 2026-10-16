@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 from codegraph_sci.core.facts import (
     ArgFact,
+    DataAccess,
     Definition,
     Directive,
     FileFacts,
@@ -25,7 +26,7 @@ from codegraph_sci.extract.fortran.intrinsics import INTRINSICS
 from codegraph_sci.extract.fortran.source import PreparedSource, Statement, prepare
 
 ADAPTER = "fortran"
-VERSION = "1.1"
+VERSION = "1.3"
 
 
 class HardParseError(Exception):
@@ -314,6 +315,8 @@ class FortranParser:
         self.definitions: list[Definition] = []
         self.references: list[Reference] = []
         self.includes: list[IncludeRef] = []
+        self.data_accesses: list[DataAccess] = []
+        self._data_seen: set[tuple[str, str, str, int]] = set()
         self.errors: list[ParseError] = []
         self.uid_counts: dict[str, int] = {}
         self.last_line = 0
@@ -364,11 +367,19 @@ class FortranParser:
         low = st.masked.lower()
         scope = self.scope
         if scope is not None and scope.kind == "ifacebody":
+            # An interface body may itself contain interfaces (dummy procedures): count nesting.
+            depth = int(str(scope.attrs.get("depth", 0)))
             m = _END.match(low)
-            if m and (m.group(1) in (None, "subroutine", "function")) and not (m.group(1) is None and m.group(2)):
-                self.stack.pop()
-            elif _PROC_HDR.match(low) and not _DECL.match(low) and "=" not in low:
-                pass
+            if m and not (m.group(1) is None and m.group(2)):
+                if m.group(1) in (None, "subroutine", "function"):
+                    if depth == 0:
+                        self.stack.pop()
+                    else:
+                        scope.attrs["depth"] = depth - 1
+                elif m.group(1) == "interface" and depth > 0:
+                    scope.attrs["depth"] = depth - 1
+            elif _INTERFACE.match(low) or (_PROC_HDR.match(low) and _top_level_assign(low, 0) < 0):
+                scope.attrs["depth"] = depth + 1
             return
         if scope is not None and scope.kind == "interface":
             self._in_interface(st, low, scope)
@@ -823,7 +834,11 @@ class FortranParser:
         eq = _top_level_assign(low, lo)
         if eq >= 0 and re.match(r"[a-z_]\w*\s*(\(|%|=|\[)", s):
             rhs = eq + 2 if low[eq + 1:eq + 2] == ">" else eq + 1
-            self._scan(st, low, rhs, len(low), owner)
+            lhs = _IDENT.match(low, lo)
+            if lhs is not None:
+                self._data(owner, lhs.group(0), "writes", st.at(lo)[0])
+            self._scan(st, low, lhs.end() if lhs is not None and low[lhs.end():lhs.end() + 1] == "(" else rhs,
+                       len(low), owner, skip_until=rhs)
             return
         m = re.match(r"(write|print)\b\s*", s)
         if m:
@@ -907,7 +922,27 @@ class FortranParser:
     def _cond(self, st: Statement, line: int) -> str | None:
         return st.condition
 
-    def _scan(self, st: Statement, low: str, lo: int, hi: int, owner: Scope) -> None:
+    def _data(self, owner: Scope, name: str, mode: str, line: int) -> None:
+        """Access to shared data: a COMMON member, or a name not declared locally (maybe a module variable)."""
+        if owner.uid is None or owner.kind not in ("routine", "program"):
+            return
+        sym = self._lookup(owner, name)
+        if sym is not None:
+            if not sym.source.startswith("common:") or sym.role in PROCEDURE_ROLES:
+                return
+            key, subtype = sym.source, "common_block"
+        else:
+            if name in INTRINSICS or name == owner.result or name in owner.args:
+                return
+            key, subtype = f"var:{name}", "module_variable"
+        marker = (owner.uid, key, mode, line)
+        if marker in self._data_seen:
+            return
+        self._data_seen.add(marker)
+        self.data_accesses.append(DataAccess(owner.uid, key, mode, "literal", line, subtype=subtype,
+                                             origin="native:fortran"))
+
+    def _scan(self, st: Statement, low: str, lo: int, hi: int, owner: Scope, skip_until: int = -1) -> None:
         """Find ``name(`` function references in an expression (rules of §3.7)."""
         i = lo
         while i < hi:
@@ -951,9 +986,16 @@ class FortranParser:
                     i = nm2.end()
                     continue
             if k >= hi or low[k] != "(":
+                if i >= skip_until:
+                    self._data(owner, name, "reads", st.at(i)[0])
+                i = j
+                continue
+            if i < skip_until:  # subscripts of the assigned variable: read, not called
                 i = j
                 continue
             ref_kind = self._classify(name, owner)
+            if ref_kind is None:
+                self._data(owner, name, "reads", st.at(i)[0])
             if ref_kind is not None:
                 line, col = st.at(i)
                 hint = {"intrinsic": True} if ref_kind == "maybe_call" and name in INTRINSICS else {}
@@ -1011,4 +1053,4 @@ def extract_fortran(path: str, text: str, encoding: str, variant: str | None, ct
     definitions, references, includes, directives, errors = parser.run()
     return FileFacts(path=path, lang="fortran", encoding=encoding, adapter=ADAPTER, adapter_version=VERSION,
                      definitions=definitions, references=references, includes=includes, directives=directives,
-                     errors=errors, variant=variant).sort()
+                     errors=errors, variant=variant, data_accesses=parser.data_accesses).sort()

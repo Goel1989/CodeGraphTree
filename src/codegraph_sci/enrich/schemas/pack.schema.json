@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Domain pack rules.yaml (format version 1, architecture §3.8)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["pack", "version", "format_version", "identifiers"],
+  "$defs": {
+    "names": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "bridge": {
+      "type": "object", "additionalProperties": false, "required": ["from", "to"],
+      "properties": {
+        "from": {"enum": ["fortran", "python", "c", "cpp"]},
+        "to": {"enum": ["fortran", "python", "c", "cpp"]},
+        "call_prefixes": {"$ref": "#/$defs/names"},
+        "name_transform": {"type": "array", "items": {"enum": ["strip_prefix", "lowercase", "uppercase",
+                                                                "append_underscore", "strip_underscore"]}},
+        "declaration_patterns": {"$ref": "#/$defs/names"},
+        "extension_modules": {"$ref": "#/$defs/names"},
+        "id": {"type": "string"}
+      }
+    }
+  },
+  "properties": {
+    "pack": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"},
+    "format_version": {"const": 1},
+    "identifiers": {"$ref": "#/$defs/names"},
+    "covers": {"type": "object", "additionalProperties": {"type": "string"}},
+    "detect": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"any_path": {"$ref": "#/$defs/names"}, "all_path": {"$ref": "#/$defs/names"}}
+    },
+    "noise": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "hide": {"$ref": "#/$defs/names"},
+        "optional": {"$ref": "#/$defs/names"},
+        "auto_detect_hubs": {
+          "type": "object", "additionalProperties": false, "required": ["min_fan_in"],
+          "properties": {"min_fan_in": {"type": "integer", "minimum": 1},
+                         "max_fan_out": {"type": "integer", "minimum": 0}}
+        }
+      }
+    },
+    "extraction": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"known_arrays": {"$ref": "#/$defs/names"}}
+    },
+    "data": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"fortran_common": {"type": "boolean"}, "fortran_module_variables": {"type": "boolean"}}
+    },
+    "memory_access": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["routine", "name_arg", "object_key"],
+        "properties": {
+          "routine": {"type": "string"}, "name_arg": {"type": "integer", "minimum": 1},
+          "mode_arg": {"type": "integer", "minimum": 1},
+          "modes": {"type": "object", "additionalProperties": {"enum": ["reads", "writes"]}},
+          "effect": {"enum": ["creates", "destroys"]},
+          "object_key": {"type": "array", "minItems": 1,
+                         "items": {"enum": ["literal", "local_prefix", "symbolic", "family"]}},
+          "local_prefix_pattern": {"type": "string"}
+        }
+      }
+    },
+    "dispatch": {
+      "type": "array",
+      "items": {"type": "object", "additionalProperties": false, "required": ["routine", "select_on", "target_pattern"],
+                "properties": {"routine": {"type": "string"}, "select_on": {"type": "string"},
+                               "target_pattern": {"type": "string"}}}
+    },
+    "catalogs": {
+      "type": "array",
+      "items": {"type": "object", "additionalProperties": false, "required": ["glob", "format", "entry", "target"],
+                "properties": {"glob": {"type": "string"}, "format": {"enum": ["yaml", "json", "python"]},
+                               "entry": {"type": "string"}, "target": {"type": "string"}}}
+    },
+    "entry_points": {
+      "type": "array",
+      "items": {"type": "object", "additionalProperties": false, "required": ["kind", "glob", "pattern", "target"],
+                "properties": {"kind": {"type": "string"}, "glob": {"type": "string"}, "pattern": {"type": "string"},
+                               "multiline": {"type": "boolean"}, "target": {"type": "string"},
+                               "fallback_target": {"type": "string"}}}
+    },
+    "bridges": {"type": "array", "items": {"$ref": "#/$defs/bridge"}},
+    "tests": {
+      "type": "array",
+      "items": {"type": "object", "additionalProperties": false, "required": ["kind", "glob"],
+                "properties": {"kind": {"type": "string"}, "glob": {"type": "string"},
+                               "uses_entry_points": {"type": "boolean"}, "coverage": {"type": "string"}}}
+    },
+    "glossary": {"type": "string"}
+  }
+}

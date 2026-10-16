@@ -7,7 +7,14 @@ from collections import defaultdict
 from collections.abc import Iterable
 
 from codegraph_sci.algo.graph import impact_sizes
-from codegraph_sci.core.graph import AggregateEdge, CallSiteRecord, EdgeRecord, NodeRecord, NodeStatRecord
+from codegraph_sci.core.graph import (
+    AggregateEdge,
+    CallSiteRecord,
+    DataAccessRecord,
+    EdgeRecord,
+    NodeRecord,
+    NodeStatRecord,
+)
 from codegraph_sci.core.model import CALL_PATH, CONFIDENCE_RANK
 
 SITE_EDGE_KIND = {"call": "calls", "maybe_call": "calls", "dynamic_call": "calls", "use": "uses",
@@ -47,7 +54,8 @@ def aggregate_edges(sites: Iterable[CallSiteRecord], struct_edges: Iterable[Edge
     return edges
 
 
-def node_statistics(nodes: list[NodeRecord], edges: list[EdgeRecord], noise: dict[str, str]) -> list[NodeStatRecord]:
+def node_statistics(nodes: list[NodeRecord], edges: list[EdgeRecord], noise: dict[str, str],
+                    reasons: dict[str, str] | None = None) -> list[NodeStatRecord]:
     """fan-in/fan-out (distinct callers/callees) and impact size, raw and without noise nodes."""
     index = {n.uid: i for i, n in enumerate(nodes)}
     succ: list[list[int]] = [[] for _ in nodes]
@@ -73,7 +81,7 @@ def node_statistics(nodes: list[NodeRecord], edges: list[EdgeRecord], noise: dic
     impact = impact_sizes(len(nodes), succ)
     impact_f = impact_sizes(len(nodes), succ_f)
     return [NodeStatRecord(n.uid, len(callers[i]), len(callees[i]), len(callers_f[i]), len(callees_f[i]),
-                           impact[i], impact_f[i], n.uid in noise, noise.get(n.uid))
+                           impact[i], impact_f[i], n.uid in noise, (reasons or noise).get(n.uid))
             for i, n in enumerate(nodes)]
 
 
@@ -100,3 +108,13 @@ def file_and_dir_edges(nodes: list[NodeRecord], sites: Iterable[CallSiteRecord]
             dcount[(da, db, e.kind)] += e.count
     dir_edges = [AggregateEdge(a, b, k, c) for (a, b, k), c in sorted(dcount.items())]
     return file_edges, dir_edges
+
+
+def data_edges(accesses: Iterable[DataAccessRecord]) -> list[EdgeRecord]:
+    """One ``reads``/``writes``/... edge per (routine, data, mode), weighted by the number of accesses."""
+    acc: dict[tuple[str, str, str], tuple[int, set[str]]] = {}
+    for a in accesses:
+        count, origins = acc.get((a.src, a.data, a.mode), (0, set()))
+        origins.add(a.origin)
+        acc[(a.src, a.data, a.mode)] = (count + 1, origins)
+    return [EdgeRecord(src, dst, mode, n, "resolved", sorted(o), []) for (src, dst, mode), (n, o) in sorted(acc.items())]

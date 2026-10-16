@@ -223,7 +223,13 @@ def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
                 elif "c" in includer_langs:
                     new = ("c", "context:included_by_c", None, 1.0)
                 else:
-                    new = ("c", "default:c", None, 0.7)
+                    det, conf, rule = detect_by_content(table, text, candidates)
+                    if det == "fortran" and not included_by.get(path):
+                        new = ("fortran", rule, fortran_variant(None, "", text).split("+")[0], conf)
+                    elif det == "cpp":
+                        new = ("cpp", rule, None, conf)
+                    else:
+                        new = ("c", "default:c", None, 0.7)
             else:  # fortran or other
                 if "fortran" in includer_langs:
                     new = ("fortran", "context:included_by_fortran",

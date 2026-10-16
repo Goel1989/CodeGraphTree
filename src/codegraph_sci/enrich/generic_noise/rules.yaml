@@ -1,0 +1,8 @@
+# Generic noise detection: hubs (very called, calling little) are hidden by default in the
+# TreeGraph views and counted in the "+N utilities hidden" badge. Visible again in one click.
+pack: generic_noise
+version: "1.0"
+format_version: 1
+identifiers: []
+noise:
+  auto_detect_hubs: { min_fan_in: 150, max_fan_out: 5 }

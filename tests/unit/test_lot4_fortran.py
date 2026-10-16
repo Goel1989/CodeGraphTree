@@ -102,3 +102,27 @@ def test_fuzz_fortran_never_crashes() -> None:
         assert facts.path == "z.f"
 
     run()
+
+
+def test_nested_interface_in_interface_body() -> None:
+    """A dummy procedure declared by an interface inside an interface body must not close the routine."""
+    text = (
+        "subroutine outer(n)\n"
+        "  interface\n"
+        "    subroutine solver(f, n)\n"
+        "      interface\n"
+        "        subroutine f(x)\n"
+        "          real :: x\n"
+        "        end subroutine f\n"
+        "      end interface\n"
+        "      integer :: n\n"
+        "    end subroutine solver\n"
+        "  end interface\n"
+        "  call solver(g, n)\n"
+        "  call other(n)\n"
+        "end subroutine outer\n"
+    )
+    facts = FortranAdapter().extract(SourceFile("o.f90", "fortran", "free", "utf-8", text), ExtractContext())
+    assert facts.errors == []
+    assert [(r.target_text, r.src) for r in facts.references] == [("solver", "f:outer"), ("other", "f:outer")]
+    assert [d.uid for d in facts.definitions] == ["f:outer"]

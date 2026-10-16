@@ -1,0 +1,8 @@
+# Main driver of the case
+use helpers
+proc main
+  run prepare
+  value = compute(3)   # run fake_in_comment
+  msg = "run fake_in_string"
+  run report
+endproc

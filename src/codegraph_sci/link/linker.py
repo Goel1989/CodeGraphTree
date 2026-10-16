@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from codegraph_sci.core.facts import Definition, FileFacts, Reference
-from codegraph_sci.core.graph import CallSiteRecord, EdgeRecord, NodeRecord
+from codegraph_sci.core.graph import CallSiteRecord, DataAccessRecord, EdgeRecord, NodeRecord
 from codegraph_sci.core.ids import file_uid, variant_uid
 from codegraph_sci.core.model import CONFIDENCE_RANK
 from codegraph_sci.link.bridges import BridgeEngine
@@ -40,6 +40,7 @@ class LinkResult:
     call_sites: list[CallSiteRecord]
     struct_edges: list[EdgeRecord]
     stats: dict[str, int]
+    data_accesses: list[DataAccessRecord] = field(default_factory=list)
 
 
 def _base(uid: str) -> str:
@@ -63,6 +64,7 @@ class Linker:
         self.native_bridges = native_bridges
         self.read_text = read_text
         self.binding_targets: dict[str, str] = {}
+        self.data_records: list[DataAccessRecord] = []
         self.struct_edges: list[EdgeRecord] = []
         self.variants: dict[str, list[str]] = defaultdict(list)
         self.parent: dict[str, str] = {}
@@ -104,11 +106,13 @@ class Linker:
         engine.run()
         self.binding_targets = engine.binding_targets
         self._structure()
+        self._data_accesses()
         self._prune_externals()
         stats = {"nodes": len(self.nodes), "call_sites": len(self.sites)}
         for res_name in ("resolved", "ambiguous", "external", "out_of_scope", "unresolved"):
             stats[res_name] = sum(1 for s in self.sites if s.resolution == res_name)
-        return LinkResult(sorted(self.nodes.values(), key=lambda n: n.uid), self.sites, self.struct_edges, stats)
+        return LinkResult(sorted(self.nodes.values(), key=lambda n: n.uid), self.sites, self.struct_edges, stats,
+                          self.data_records)
 
     def _file_node(self, path: str, lang: str | None, lines: int) -> None:
         uid = file_uid(path)
@@ -231,11 +235,20 @@ class Linker:
 
     def _resolve_generic(self, facts: FileFacts, ref: Reference) -> Resolution:
         """Keyword-profile languages: a call resolves to a definition of the same language and name."""
-        prefix = f"kw:{facts.lang}:"
-        uid = prefix + ref.target_text
+        name = str(ref.hint.get("key", ref.target_text))
+        if ref.kind == "use":
+            for path, (lang, _n) in sorted(self.file_info.items()):
+                stem = path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+                if lang == facts.lang and (stem == ref.target_text or stem.lower() == name):
+                    return Resolution(file_uid(path), "resolved", "heuristic")
+            return Resolution(None, "unresolved", "heuristic")
+        uid = f"kw:{facts.lang}:{name}"
         if uid in self.nodes:
             return self._with_variants(uid, "heuristic")
+        if ref.kind == "maybe_call" and ref.hint.get("only_known_names", True):
+            return Resolution(_DROP, "unresolved", "heuristic")
         return Resolution(None, "unresolved", "heuristic")
+
 
     # -------------------------------------------------------------- Fortran
     def _f_chain(self, uid: str) -> list[str]:
@@ -661,6 +674,35 @@ class Linker:
             if uid in self.nodes and target in self.nodes:
                 edges.append(EdgeRecord(uid, target, "binds", 0, "resolved", ["bridge"], []))
         self.struct_edges = edges
+
+    def _data_accesses(self) -> None:
+        """Fortran shared data: COMMON blocks, and module variables found through the USE of each routine."""
+        for facts in self.facts:
+            for a in facts.data_accesses:
+                src = self._src(facts, a.src)
+                if src not in self.defs:
+                    continue
+                if a.data_key.startswith("common:"):
+                    uid = f"data:{a.data_key}"
+                    subtype = "common_block"
+                    display = "/" + a.data_key.split(":", 1)[1] + "/"
+                elif a.data_key.startswith("var:"):
+                    name = a.data_key[4:]
+                    chain = self._f_chain(src)
+                    modules = [self.defs[u][0].name for u in chain if self.defs[u][0].kind == "module"]
+                    modules += self._f_modules(chain)
+                    owner = next((m for m in modules if name in self.f_module_vars.get(f"fmod:{m}", set())), None)
+                    if owner is None:
+                        continue
+                    uid = f"data:module:{owner}::{name}"
+                    subtype = "module_variable"
+                    display = f"{owner}::{name}"
+                else:
+                    continue
+                if uid not in self.nodes:
+                    self.nodes[uid] = NodeRecord(uid, display, "data", subtype, facts.lang, None, None, None, True, {})
+                self.data_records.append(DataAccessRecord(src, uid, None, a.mode, a.key_kind, facts.path, a.line,
+                                                          a.origin or f"native:{facts.lang}"))
 
     def _prune_externals(self) -> None:
         """External nodes no longer referenced (e.g. replaced by a bridge) are removed."""
