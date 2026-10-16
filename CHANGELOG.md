@@ -114,3 +114,10 @@
 - Offline: CSP, Qt's off-the-record profile, request interceptor allowing only `file`, `data`, `blob`; no server, no port.
 - The 2D `ui/treegraph.py` and the "3D view" toolbar button (separate PyWebView process) are removed; `cgs view3d` stays available.
 - Portable build: Qt WebEngine is no longer excluded.
+
+## Dark & orange interface (decision D22)
+- Frameless window with a 28 px orange title bar (minimize, maximize, close; drag to move, double-click to maximize, edges to resize).
+- Icon rail (Explore, Project) and a list of views with the active one on an orange gradient; search and file explorer below it.
+- Header band with the view title in capitals; hero card of the selected routine with 48 × 48 badges (callers, callees) and buttons opening popovers (Show in, Filters, Analysis).
+- Dark theme everywhere: style sheet and Fusion palette (`ui/theme.py`), code colours and site highlights for a dark editor, 3D page in the same colours.
+- Opening a project now stops the inventory or analysis still running for the previous one.

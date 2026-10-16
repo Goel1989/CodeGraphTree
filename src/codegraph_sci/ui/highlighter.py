@@ -41,13 +41,13 @@ class CodeHighlighter(QSyntaxHighlighter):
         self.rules: list[tuple[re.Pattern[str], QTextCharFormat]] = []
         flags = re.IGNORECASE if lang == "fortran" else 0
         if lang in KEYWORDS:
-            self.rules.append((re.compile(KEYWORDS[lang], flags), _fmt("#1f4e9c", bold=True)))
+            self.rules.append((re.compile(KEYWORDS[lang], flags), _fmt("#F28C38", bold=True)))
         if extra_keywords:
             words = "|".join(re.escape(w) for w in extra_keywords)
-            self.rules.append((re.compile(rf"\b({words})\b", re.IGNORECASE), _fmt("#1f4e9c", bold=True)))
+            self.rules.append((re.compile(rf"\b({words})\b", re.IGNORECASE), _fmt("#F28C38", bold=True)))
         if lang in ("c", "cpp", "fortran"):
-            self.rules.append((re.compile(PREPROC), _fmt("#8a5a00")))
-        self.rules.append((re.compile(STRINGS), _fmt("#2e7d32")))
+            self.rules.append((re.compile(PREPROC), _fmt("#C792EA")))
+        self.rules.append((re.compile(STRINGS), _fmt("#9CCC65")))
         if lang in COMMENTS:
             self.rules.append((re.compile(COMMENTS[lang]), _fmt("#7a7a7a", italic=True)))
         if lang == "fortran":

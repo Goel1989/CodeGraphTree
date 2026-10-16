@@ -691,10 +691,12 @@ class GraphQuery:
 
 | Area | Content |
 | :--- | :--- |
-| Top bar | Project picker, search box, "Analyze" button, filters (hide utilities, min confidence, hide AI links, hide ambiguous sites) |
-| Left | Repository file explorer (with language of each file) |
-| Center (tabs) | Inventory · Tree list (text call tree) · Functions 3D · Files 3D · Analysis health |
-| Right | Code inspector; below it, Callers (N) / Callees (M) panel |
+| Title bar | Frameless window (D22): 28 px orange gradient bar with the title on the left and minimize / maximize / close on the right; drag moves, double-click maximizes; a 5 px outer margin resizes the window |
+| Left, column 1 | Icon rail (50 px): open folder, view groups **Explore** and **Project** (active group framed in orange), About |
+| Left, column 2 | Views of the active group (Explore: Functions 3D, Files 3D, Tree list; Project: Inventory, Analysis health; active view on an orange gradient), then search box and results, then repository file explorer |
+| Centre, level 1 | Header band: title of the active view in capitals, project path |
+| Centre, level 2 | Hero card: the selected routine (name, kind, language, identifier, location, callers and impact summary) with 48 × 48 px square badges and buttons: callers, callees, "Show in" (views), Filters (hide utilities, min confidence, hide AI links, hide ambiguous sites), Analysis (Analyze, Cancel, force language, ignore extension, open folder); the buttons open dark popovers |
+| Centre, level 3 | Details panel: the active view; on its right the code inspector and the Callers (N) / Callees (M) panel |
 | Status bar | Analysis in progress, analysis health, active filters |
 
 **Qt components**
@@ -1204,6 +1206,7 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 | D16 | Graph algorithms written in-house (iterative Tarjan, bitsets); NetworkX removed |
 | D17 | Fortran parser chosen via comparative benchmark on real files, among permissive candidates; fxtran (GPL-3.0) excluded from default distribution |
 | D18 | *(Lot 4)* Main Fortran parser: **in-house logical statement analyzer** (fixed and free form, continuations, preprocessor branches preserved, exact positions). Benchmark on fixtures (`docs/bench/fortran_parsers.md`): only candidate with 100% recall and precision; tree-sitter-fortran fails on fixed form (text past col 72, `C`/`*` comments) and loses `#ifdef` branches; fparser fails on 4/23 files and is 25x slower; LFortran not evaluated (binary missing). Fallback and dual extraction: independent pattern extractor. **To confirm on real sample files from test case #1** (`python tools/bench_fortran.py <folder>`) |
+| D22 | *(UI look)* Dark & orange theme (`ui/theme.py`: palette, style sheet, icons painted with QPainter, no image file) and a frameless shell (`ui/shell.py`: title bar, resize margins, popovers, hero card) replacing the toolbar, menu and docks. Window move and resize go through the platform (`startSystemMove` / `startSystemResize`) |
 | D21 | *(3D in the main window)* The two 2D TreeGraphs (`QGraphicsView`) are **replaced** by two embedded 3D graphs (functions, files) drawn by the vendored 3d-force-graph page in a **`QWebEngineView`**: the user prefers the 3D display, and it fits in the current Qt UI, so **no web UI** is needed (C1 kept). Offline guarantees: CSP, off-the-record profile, request interceptor, no server, no port (C2). Cost: Qt WebEngine is now shipped in the portable build (about +300 MB). The PyWebView window of D20 remains as the optional `cgs view3d` command |
 | D20 | *(3D view)* 3D visualization with 3d-force-graph in a **PyWebView** window running in a separate process, without HTTP server or port, JavaScript vendored. **Streamlit rejected**: it is a web application serving on a local port (violates C1 and C2). QtWebEngine not used at the time (size): revised by D21 |
 | D19 | *(Lot 0)* Tree-sitter grammars: standalone wheels `tree-sitter-fortran`, `-python`, `-c`, `-cpp`; `tree-sitter-language-pack` ≥ 1.0 excluded because it downloads grammars at runtime (violates C2) |

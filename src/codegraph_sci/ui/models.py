@@ -14,7 +14,7 @@ from codegraph_sci.query.api import GraphQuery
 from codegraph_sci.query.types import Direction, Level, TreeItem
 
 PAGE = 50
-LANG_COLORS = {"fortran": "#7b3fa0", "python": "#2b6cb0", "c": "#4a5568", "cpp": "#c05621", None: "#718096"}
+LANG_COLORS = {"fortran": "#B392F0", "python": "#79B8FF", "c": "#C0C6CC", "cpp": "#F0883E", None: "#9E9E9E"}
 Index = QModelIndex | QPersistentModelIndex
 
 
@@ -167,7 +167,7 @@ class CallTreeModel(QAbstractItemModel):
         if role == Qt.ItemDataRole.ForegroundRole and col == 0:
             if node.more or node.seen:
                 return QBrush(QColor("#888888"))
-            return QBrush(QColor(LANG_COLORS.get(item.lang if item else None, "#222222")))
+            return QBrush(QColor(LANG_COLORS.get(item.lang if item else None, "#FFFFFF")))
         if role == Qt.ItemDataRole.ToolTipRole:
             return node.uid if not node.more else "Double-click to show more"
         return None
@@ -200,7 +200,7 @@ class FileTreeModel(QStandardItemModel):
             parent = folder(posixpath.dirname(f["path"]))
             name = QStandardItem(posixpath.basename(f["path"]))
             name.setData(f["path"], self.PATH_ROLE)
-            name.setForeground(QBrush(QColor(LANG_COLORS.get(f["lang"], "#222222"))))
+            name.setForeground(QBrush(QColor(LANG_COLORS.get(f["lang"], "#FFFFFF"))))
             if f["status"] in ("failed", "fallback"):
                 name.setToolTip(f"Analysis: {f['status']}")
             row = [name, QStandardItem(f["lang"] or "-"), QStandardItem(str(f["routines"] or "")),

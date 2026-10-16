@@ -142,3 +142,55 @@ def test_graph_3d_events_select_expand_link_and_paths(window, qtbot) -> None:  #
                     timeout=5000)
     graph.handle_event({"event": "bogus"})  # unknown events are ignored
     graph.handle_event({"event": "select"})
+
+
+def test_frameless_shell_and_navigation(window, qtbot) -> None:  # type: ignore[no-untyped-def]
+    from PySide6.QtCore import Qt
+
+    assert window.windowFlags() & Qt.WindowType.FramelessWindowHint
+    assert window.title_bar.height() == 28 and window.rail.width() == 50
+    assert window.title_bar.title.text().startswith("CodeGraph-Sci")
+    window.rail_buttons["project"].click()
+    assert [b.text() for b in window.nav_buttons] == ["Inventory", "Analysis health"]
+    window.nav_buttons[1].click()
+    assert window.views.currentWidget() is window.health_view
+    assert window.header_title.text() == "ANALYSIS HEALTH" and window.nav_buttons[1].isChecked()
+    window.show_view(window.graph_files)  # jumps to the group of the view
+    assert window.rail_buttons["explore"].isChecked() and window.header_title.text() == "FILES 3D"
+    assert [b.text() for b in window.nav_buttons] == ["Functions 3D", "Files 3D", "Tree list"]
+
+
+def test_hero_card_badges_and_popovers(window, qtbot) -> None:  # type: ignore[no-untyped-def]
+    from PySide6.QtWidgets import QCheckBox, QPushButton
+
+    hero = window.hero
+    assert "Select a routine" in hero.subtitle.text()
+    window.select_symbol("f:kernel")
+    qtbot.waitUntil(lambda: hero.title.text() == "kernel", timeout=5000)
+    assert hero.badge_callers.text().startswith("1") and hero.badge_callees.text().startswith("0")
+    assert (hero.badge_callers.width(), hero.badge_callers.height()) == (48, 48)
+    hero.badge_callees.click()
+    assert window.links_tabs.currentIndex() == 1
+    hero.btn_filters.click()
+    assert window.filters_popover.isVisible() and window.hide_noise in window.filters_popover.findChildren(QCheckBox)
+    window.filters_popover.close()
+    hero.btn_analysis.click()
+    assert window.btn_scan in window.analysis_popover.findChildren(QPushButton)
+    window.analysis_popover.close()
+
+
+def test_title_bar_window_controls(window, qtbot) -> None:  # type: ignore[no-untyped-def]
+    window.show()
+    window.title_bar.btn_max.click()
+    qtbot.waitUntil(window.isMaximized, timeout=3000)
+    window.title_bar.btn_max.click()
+    qtbot.waitUntil(lambda: not window.isMaximized(), timeout=3000)
+
+
+def test_opening_a_project_stops_the_running_command(window, qtbot) -> None:  # type: ignore[no-untyped-def]
+    assert window.project is not None
+    window.start_scan()
+    assert window.process.running()
+    window.open_project_folder(window.repo, window.project.folder)
+    assert not window.process.running() and not window.pending_scan
+    qtbot.waitUntil(lambda: window.btn_scan.isEnabled(), timeout=5000)

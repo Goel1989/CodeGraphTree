@@ -7,17 +7,18 @@
       content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; worker-src blob:; connect-src 'none'">
 <title>{{TITLE}}</title>
 <style>
-  :root { --bg: #0f1419; --panel: rgba(22, 28, 36, 0.92); --text: #e6edf3; --muted: #8b98a5; --accent: #f2c94c; }
+  :root { --bg: #181818; --panel: rgba(43, 43, 43, 0.94); --text: #ffffff; --muted: #9e9e9e; --accent: #e06310; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
                font: 13px/1.4 "Segoe UI", system-ui, sans-serif; overflow: hidden; }
   #graph { position: absolute; inset: 0; }
-  .panel { position: absolute; background: var(--panel); border: 1px solid #2d3743; border-radius: 6px;
+  .panel { position: absolute; background: var(--panel); border: 1px solid #3a3a3a; border-radius: 6px;
            padding: 8px 10px; }
   #toolbar { top: 10px; left: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; max-width: 70vw; }
-  #toolbar input[type=search] { background: #0b0f14; color: var(--text); border: 1px solid #2d3743;
+  #toolbar input[type=search] { background: #222222; color: var(--text); border: 1px solid #3a3a3a;
                                 border-radius: 4px; padding: 4px 6px; width: 220px; }
-  #toolbar button { background: #1f6feb; color: #fff; border: 0; border-radius: 4px; padding: 4px 9px; cursor: pointer; }
+  #toolbar button { background: var(--accent); color: #fff; border: 0; border-radius: 4px; padding: 4px 9px; cursor: pointer; }
   #toolbar label { color: var(--muted); user-select: none; }
+  #toolbar input[type=checkbox] { accent-color: var(--accent); }
   #info { bottom: 10px; left: 10px; color: var(--muted); max-width: 60vw; }
   #legend { top: 10px; right: 10px; }
   #legend div { display: flex; align-items: center; gap: 6px; margin: 2px 0; }

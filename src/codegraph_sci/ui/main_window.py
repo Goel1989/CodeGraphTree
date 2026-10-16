@@ -6,14 +6,15 @@ import json
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QEvent, QSettings, QSize, Qt
 from PySide6.QtGui import QAction, QColor, QFont, QKeySequence, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QButtonGroup,
     QCheckBox,
     QComboBox,
-    QDockWidget,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QInputDialog,
@@ -27,11 +28,12 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QSplitter,
+    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
     QTextEdit,
-    QToolBar,
+    QToolButton,
     QTreeView,
     QTreeWidget,
     QTreeWidgetItem,
@@ -43,9 +45,11 @@ from codegraph_sci.core.paths import data_dir
 from codegraph_sci.core.project import Project, open_project
 from codegraph_sci.core.versions import APP_VERSION
 from codegraph_sci.query.types import CallerReport, Direction, NodeSummary, ScanHealth, SourceExcerpt
+from codegraph_sci.ui import theme
 from codegraph_sci.ui.graph3d_view import Graph3DView
 from codegraph_sci.ui.highlighter import CodeHighlighter
 from codegraph_sci.ui.models import CallTreeModel, FileTreeModel
+from codegraph_sci.ui.shell import HeroCard, Popover, ResizeFrame, TitleBar
 from codegraph_sci.ui.workers import CgsProcess, QueryRunner
 
 ABOUT_TEXT = (
@@ -77,7 +81,7 @@ class Inspector(QWidget):
         bl.addWidget(self.banner_label)
         bl.addStretch()
         bl.addWidget(self.reanalyse)
-        self.banner.setStyleSheet("background:#fff3cd;color:#664d03;")
+        self.banner.setStyleSheet(f"background:{theme.CURRENT_LINE};color:#FFB26B;")
         self.banner.hide()
         self.editor = QPlainTextEdit()
         self.editor.setReadOnly(True)
@@ -106,7 +110,8 @@ class Inspector(QWidget):
         for s in sites:
             sel = QTextEdit.ExtraSelection()
             fmt = QTextCharFormat()
-            fmt.setBackground(QColor("#e8f0fe") if s.resolution in ("resolved", "out_of_scope") else QColor("#fde8e8"))
+            fmt.setBackground(QColor(theme.SITE_RESOLVED) if s.resolution in ("resolved", "out_of_scope")
+                              else QColor(theme.SITE_UNRESOLVED))
             sel.format = fmt  # type: ignore[attr-defined]
             block = self.editor.document().findBlockByNumber(s.line - 1)
             cursor = QTextCursor(block)
@@ -119,7 +124,7 @@ class Inspector(QWidget):
             cursor = QTextCursor(block)
             sel = QTextEdit.ExtraSelection()
             fmt = QTextCharFormat()
-            fmt.setBackground(QColor("#fff59d"))
+            fmt.setBackground(QColor(theme.CURRENT_LINE))
             fmt.setProperty(QTextCharFormat.Property.FullWidthSelection, True)
             sel.format = fmt  # type: ignore[attr-defined]
             sel.cursor = cursor  # type: ignore[attr-defined]
@@ -166,70 +171,44 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------- layout
     def _build_ui(self) -> None:
-        tb = QToolBar("Main")
-        tb.setMovable(False)
-        self.addToolBar(tb)
+        """Frameless shell: title bar; icon rail + view list; header band, hero card and details panel."""
+        self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
+        self.setStyleSheet(theme.STYLE)
         act_open = QAction("Open folder…", self)
         act_open.setShortcut(QKeySequence.StandardKey.Open)
         act_open.triggered.connect(self.choose_folder)
-        tb.addAction(act_open)
+        self.addAction(act_open)
+
+        # Widgets shared by several places (filters and analysis live in the hero card popovers).
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search for a routine, file, module…")
         self.search.setClearButtonEnabled(True)
         self.search.returnPressed.connect(self.run_search)
-        self.search.setMinimumWidth(320)
-        tb.addWidget(self.search)
         self.btn_scan = QPushButton("Analyze")
         self.btn_scan.clicked.connect(self.start_scan)
-        tb.addWidget(self.btn_scan)
         self.btn_cancel = QPushButton("Cancel")
         self.btn_cancel.clicked.connect(self.cancel_scan)
         self.btn_cancel.setEnabled(False)
-        tb.addWidget(self.btn_cancel)
-        tb.addSeparator()
         self.hide_noise = QCheckBox("Hide utilities")
         self.hide_noise.setChecked(True)
         self.hide_noise.toggled.connect(self.refresh_symbol)
-        tb.addWidget(self.hide_noise)
         self.min_conf = QComboBox()
         self.min_conf.addItems(["All confidences", "≥ heuristic", "≥ resolved", "exact"])
         self.min_conf.currentIndexChanged.connect(self.refresh_symbol)
-        tb.addWidget(self.min_conf)
         self.hide_ai = QCheckBox("Hide AI links")
         self.hide_ai.toggled.connect(self.refresh_symbol)
-        tb.addWidget(self.hide_ai)
         self.hide_amb = QCheckBox("Hide ambiguous sites")
         self.hide_amb.toggled.connect(self.refresh_symbol)
-        tb.addWidget(self.hide_amb)
 
-        help_menu = self.menuBar().addMenu("&Help")
-        about = help_menu.addAction("&About CodeGraph-Sci")
-        about.triggered.connect(self.show_about)
-
-        # Left: file explorer.
-        self.files_view = QTreeView()
-        self.files_view.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.files_view.doubleClicked.connect(self._file_activated)
-        dock = QDockWidget("Files", self)
-        dock.setObjectName("files")
-        dock.setWidget(self.files_view)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
-        self.results = QListWidget()
-        self.results.itemActivated.connect(self._result_activated)
-        self.results.itemClicked.connect(self._result_activated)
-        rdock = QDockWidget("Search results", self)
-        rdock.setObjectName("results")
-        rdock.setWidget(self.results)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, rdock)
-
-        # Centre: tabs.
-        self.tabs = QTabWidget()
+        # Views of the details panel.
         self.inventory_table = QTableWidget(0, 5)
         self.inventory_table.setHorizontalHeaderLabels(["Language", "Files", "Lines", "Adapter", "Status"])
         self.inventory_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.inventory_table.verticalHeader().hide()
         self.unknown_label = QLabel("")
         inv = QWidget()
         il = QVBoxLayout(inv)
+        il.setContentsMargins(0, 0, 0, 0)
         il.addWidget(self.inventory_table)
         il.addWidget(self.unknown_label)
         actions = QHBoxLayout()
@@ -241,9 +220,10 @@ class MainWindow(QMainWindow):
         actions.addWidget(btn_ignore)
         actions.addStretch()
         il.addLayout(actions)
-        self.tabs.addTab(inv, "Inventory")
-        tree_box = QWidget()
-        tl = QVBoxLayout(tree_box)
+        self.inventory_view = inv
+        self.tree_box = QWidget()
+        tl = QVBoxLayout(self.tree_box)
+        tl.setContentsMargins(0, 0, 0, 0)
         row = QHBoxLayout()
         self.tree_direction = QComboBox()
         self.tree_direction.addItems(["Callees", "Callers"])
@@ -256,20 +236,126 @@ class MainWindow(QMainWindow):
         self.tree_view.setUniformRowHeights(True)
         self.tree_view.doubleClicked.connect(self._tree_activated)
         tl.addWidget(self.tree_view)
-        self.tabs.addTab(tree_box, "Tree list")
         self.graph_functions = Graph3DView(self.runner, files=False)
         self.graph_functions.node_selected.connect(self._graph_node_selected)
         self.graph_functions.sites_requested.connect(self.show_link_sites)
-        self.tabs.addTab(self.graph_functions, "Functions 3D")
         self.graph_files = Graph3DView(self.runner, files=True)
         self.graph_files.node_selected.connect(self._graph_node_selected)
         self.graph_files.sites_requested.connect(self.show_link_sites)
-        self.tabs.addTab(self.graph_files, "Files 3D")
         self.health_view = QPlainTextEdit()
         self.health_view.setReadOnly(True)
-        self.tabs.addTab(self.health_view, "Analysis health")
+        self.groups: dict[str, tuple[str, str, list[tuple[str, QWidget]]]] = {
+            "explore": ("Explore", "graph", [("Functions 3D", self.graph_functions), ("Files 3D", self.graph_files),
+                                             ("Tree list", self.tree_box)]),
+            "project": ("Project", "project", [("Inventory", inv), ("Analysis health", self.health_view)]),
+        }
+        self.views = QStackedWidget()
+        for _label, _icon, items in self.groups.values():
+            for _name, widget in items:
+                self.views.addWidget(widget)
 
-        # Right: inspector + callers/callees.
+        # Title bar and resize frame.
+        frame = ResizeFrame(self)
+        self.resize_frame = frame
+        outer = QVBoxLayout(frame)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        self.title_bar = TitleBar(self)
+        outer.addWidget(self.title_bar)
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
+        outer.addLayout(body, 1)
+
+        # Left 1: icon rail.
+        self.rail = QFrame()
+        self.rail.setObjectName("Rail")
+        self.rail.setFixedWidth(50)
+        rl = QVBoxLayout(self.rail)
+        rl.setContentsMargins(5, 8, 5, 8)
+        rl.setSpacing(6)
+        self.rail_group = QButtonGroup(self)
+        self.rail_group.setExclusive(True)
+        self.rail_buttons: dict[str, QToolButton] = {}
+        btn_open = self._rail_button("folder", "Open a source folder (Ctrl+O)")
+        btn_open.clicked.connect(self.choose_folder)
+        rl.addWidget(btn_open)
+        for key, (label, icon_name, _items) in self.groups.items():
+            b = self._rail_button(icon_name, label)
+            b.setCheckable(True)
+            b.clicked.connect(lambda _c=False, k=key: self.show_group(k))
+            self.rail_group.addButton(b)
+            self.rail_buttons[key] = b
+            rl.addWidget(b)
+        rl.addStretch()
+        btn_about = self._rail_button("info", "About CodeGraph-Sci")
+        btn_about.clicked.connect(self.show_about)
+        rl.addWidget(btn_about)
+        body.addWidget(self.rail)
+
+        # Left 2: view list, search, files.
+        nav = QFrame()
+        nav.setObjectName("NavColumn")
+        nav.setFixedWidth(270)
+        nl = QVBoxLayout(nav)
+        nl.setContentsMargins(0, 10, 0, 0)
+        nl.setSpacing(0)
+        self.nav_title = QLabel("")
+        self.nav_title.setContentsMargins(12, 0, 0, 6)
+        nl.addWidget(self.nav_title)
+        self.nav_box = QVBoxLayout()
+        self.nav_box.setSpacing(0)
+        nl.addLayout(self.nav_box)
+        self.nav_buttons: list[QPushButton] = []
+        search_box = QWidget()
+        sl = QVBoxLayout(search_box)
+        sl.setContentsMargins(8, 14, 8, 4)
+        sl.addWidget(QLabel("SEARCH"))
+        sl.addWidget(self.search)
+        self.results = QListWidget()
+        self.results.itemActivated.connect(self._result_activated)
+        self.results.itemClicked.connect(self._result_activated)
+        sl.addWidget(self.results)
+        files_box = QWidget()
+        fl = QVBoxLayout(files_box)
+        fl.setContentsMargins(8, 8, 8, 8)
+        fl.addWidget(QLabel("FILES"))
+        self.files_view = QTreeView()
+        self.files_view.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.files_view.doubleClicked.connect(self._file_activated)
+        fl.addWidget(self.files_view)
+        nav_split = QSplitter(Qt.Orientation.Vertical)
+        nav_split.addWidget(search_box)
+        nav_split.addWidget(files_box)
+        nav_split.setSizes([260, 420])
+        nl.addWidget(nav_split, 1)
+        body.addWidget(nav)
+
+        # Centre: header band, hero card, details panel.
+        centre = QWidget()
+        cl = QVBoxLayout(centre)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(0)
+        header = QFrame()
+        header.setObjectName("HeaderBand")
+        header.setFixedHeight(40)
+        hl = QHBoxLayout(header)
+        hl.setContentsMargins(16, 0, 16, 0)
+        self.header_title = QLabel("")
+        self.header_info = QLabel("No project open.")
+        self.header_info.setStyleSheet(f"color: {theme.MUTED}; font-size: 9pt; font-weight: normal;")
+        hl.addWidget(self.header_title)
+        hl.addStretch()
+        hl.addWidget(self.header_info)
+        cl.addWidget(header)
+        hero_box = QWidget()
+        hbl = QVBoxLayout(hero_box)
+        hbl.setContentsMargins(12, 12, 12, 10)
+        self.hero = HeroCard()
+        self.summary = self.hero.summary
+        hbl.addWidget(self.hero)
+        cl.addWidget(hero_box)
+
         self.inspector = Inspector(self)
         self.inspector.reanalyse.clicked.connect(self.start_scan)
         self.links_tabs = QTabWidget()
@@ -277,25 +363,28 @@ class MainWindow(QMainWindow):
         self.callees_tree = self._links_tree()
         self.links_tabs.addTab(self.callers_tree, "Callers")
         self.links_tabs.addTab(self.callees_tree, "Callees")
-        self.summary = QLabel("Select a routine.")
-        self.summary.setWordWrap(True)
-        right = QWidget()
-        rl = QVBoxLayout(right)
-        rl.setContentsMargins(0, 0, 0, 0)
-        rsplit = QSplitter(Qt.Orientation.Vertical)
-        rsplit.addWidget(self.inspector)
-        lw = QWidget()
-        ll = QVBoxLayout(lw)
-        ll.setContentsMargins(0, 0, 0, 0)
-        ll.addWidget(self.summary)
-        ll.addWidget(self.links_tabs)
-        rsplit.addWidget(lw)
-        rl.addWidget(rsplit)
-        split = QSplitter(Qt.Orientation.Horizontal)
-        split.addWidget(self.tabs)
-        split.addWidget(right)
-        split.setSizes([600, 700])
-        self.setCentralWidget(split)
+        right = QSplitter(Qt.Orientation.Vertical)
+        right.addWidget(self.inspector)
+        right.addWidget(self.links_tabs)
+        right.setSizes([480, 300])
+        details = QSplitter(Qt.Orientation.Horizontal)
+        details.addWidget(self.views)
+        details.addWidget(right)
+        details.setSizes([820, 560])
+        details_box = QWidget()
+        dl = QVBoxLayout(details_box)
+        dl.setContentsMargins(12, 0, 12, 12)
+        dl.addWidget(details)
+        cl.addWidget(details_box, 1)
+        body.addWidget(centre, 1)
+        self.setCentralWidget(frame)
+
+        self._build_popovers()
+        self.hero.badge_callers.clicked.connect(lambda: self.links_tabs.setCurrentIndex(0))
+        self.hero.badge_callees.clicked.connect(lambda: self.links_tabs.setCurrentIndex(1))
+        self.hero.btn_filters.clicked.connect(lambda: self.filters_popover.show_under(self.hero.btn_filters))
+        self.hero.btn_analysis.clicked.connect(lambda: self.analysis_popover.show_under(self.hero.btn_analysis))
+        self.hero.btn_view.clicked.connect(lambda: self.view_popover.show_under(self.hero.btn_view))
 
         self.progress = QProgressBar()
         self.progress.setMaximumWidth(220)
@@ -303,6 +392,80 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel("No project open.")
         self.statusBar().addWidget(self.status_label, 1)
         self.statusBar().addPermanentWidget(self.progress)
+        self.show_view(self.graph_functions)
+
+    def _rail_button(self, icon_name: str, tip: str) -> QToolButton:
+        b = QToolButton()
+        b.setIcon(theme.icon(icon_name))
+        b.setIconSize(QSize(22, 22))
+        b.setFixedSize(40, 40)
+        b.setToolTip(tip)
+        b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        return b
+
+    def _build_popovers(self) -> None:
+        self.filters_popover = Popover(self, "Filters", columns=2)
+        for w in (self.hide_noise, self.hide_ai, self.hide_amb, self.min_conf):
+            self.filters_popover.add(w)
+        self.analysis_popover = Popover(self, "Analysis", columns=2)
+        btn_force = QPushButton("Force language…")
+        btn_force.clicked.connect(self.force_language)
+        btn_ignore = QPushButton("Ignore extension…")
+        btn_ignore.clicked.connect(self.ignore_extension)
+        btn_open = QPushButton("Open folder…")
+        btn_open.clicked.connect(self.choose_folder)
+        for w in (self.btn_scan, self.btn_cancel, btn_force, btn_ignore, btn_open):
+            self.analysis_popover.add(w)
+        self.view_popover = Popover(self, "Show in", columns=3)
+        for label, widget in self.groups["explore"][2]:
+            b = QPushButton(label)
+            b.clicked.connect(lambda _c=False, w=widget: self._show_from_popover(w))
+            self.view_popover.add(b)
+
+    def _show_from_popover(self, widget: QWidget) -> None:
+        self.view_popover.close()
+        self.show_view(widget)
+
+    def show_group(self, key: str, current: QWidget | None = None) -> None:
+        """Select a rail group: rebuild the view list, show ``current`` (or the group's first view)."""
+        label, _icon, items = self.groups[key]
+        self.rail_buttons[key].setChecked(True)
+        self.nav_title.setText(label.upper())
+        for b in self.nav_buttons:
+            self.nav_box.removeWidget(b)
+            b.deleteLater()
+        self.nav_buttons = []
+        for name, widget in items:
+            b = QPushButton(name)
+            b.setObjectName("NavButton")
+            b.setCheckable(True)
+            b.clicked.connect(lambda _c=False, w=widget: self.show_view(w))
+            self.nav_box.addWidget(b)
+            self.nav_buttons.append(b)
+        self._activate_view(key, current if current is not None else items[0][1])
+
+    def show_view(self, widget: QWidget) -> None:
+        """Show one view of the details panel; the rail and the view list follow."""
+        for key, (_label, _icon, items) in self.groups.items():
+            if any(w is widget for _n, w in items):
+                if self.rail_buttons[key].isChecked() and self.nav_buttons:
+                    self._activate_view(key, widget)
+                else:
+                    self.show_group(key, widget)
+                return
+
+    def _activate_view(self, key: str, widget: QWidget) -> None:
+        for b, (name, w) in zip(self.nav_buttons, self.groups[key][2], strict=True):
+            b.setChecked(w is widget)
+            if w is widget:
+                self.header_title.setText(name.upper())
+        self.views.setCurrentWidget(widget)
+
+    def changeEvent(self, event: QEvent) -> None:  # noqa: N802 - Qt API
+        if event.type() == QEvent.Type.WindowStateChange and hasattr(self, "resize_frame"):
+            self.resize_frame.update_margins()
+            self.title_bar.btn_max.setText("❐" if self.isMaximized() else "□")
+        super().changeEvent(event)
 
     def _links_tree(self) -> QTreeWidget:
         tree = QTreeWidget()
@@ -328,9 +491,18 @@ class MainWindow(QMainWindow):
         return None
 
     def open_project_folder(self, root: Path, project_folder: Path | None = None) -> None:
+        if self.process.running():  # the inventory or analysis of the previous project is not wanted any more
+            self.pending_scan = False
+            self.process.cancel(wait=True)
         self.project = open_project(root, project_folder)
         self.settings.setValue("last_project", str(root))
         self.setWindowTitle(f"CodeGraph-Sci — {root}")
+        self.title_bar.title.setText(f"CodeGraph-Sci — {root}")
+        self.header_info.setText(str(root))
+        self.hero.title.setText(root.name or str(root))
+        self.hero.subtitle.setText("Select a routine: search, file explorer or a click in a graph.")
+        self.hero.summary.setText("")
+        self.hero.set_counts(None, None)
         if self.db is not None:
             self.load_project()
         else:
@@ -449,7 +621,12 @@ class MainWindow(QMainWindow):
     def _show_files(self, files: list[dict[str, Any]]) -> None:
         self.files_model = FileTreeModel(files)
         self.files_view.setModel(self.files_model)
-        self.files_view.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header = self.files_view.header()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for col in (2, 3):
+            header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
+        self.files_view.setColumnHidden(1, True)  # the language is the colour of the name (narrow column)
 
     def _show_health(self, data: tuple[ScanHealth, list[Any]]) -> None:
         health, groups = data
@@ -560,8 +737,11 @@ class MainWindow(QMainWindow):
         self.links_tabs.setTabText(0, f"Callers ({n_callers})")
         self.links_tabs.setTabText(1, f"Callees ({n_callees})")
         hidden = f" (+{callers.hidden_noise} utilities hidden)" if callers.hidden_noise else ""
-        self.summary.setText(f"<b>{node.display_name}</b> <span style='color:#666'>{node.uid}</span><br>"
-                             f"Called by <b>{callers.count}</b> routine(s) in <b>{callers.file_count}</b> "
+        where = f"{node.file}:{node.line}" if node.file else "outside the repository"
+        self.hero.title.setText(node.display_name)
+        self.hero.subtitle.setText(f"{node.kind} · {node.lang or '-'} · {node.uid} · {where}")
+        self.hero.set_counts(callers.count, callees.count)
+        self.summary.setText(f"Called by <b>{callers.count}</b> routine(s) in <b>{callers.file_count}</b> "
                              f"file(s){hidden} — calls {callees.count} routine(s) — "
                              f"impact: {node.impact_size} transitive caller(s)")
         if node.file:

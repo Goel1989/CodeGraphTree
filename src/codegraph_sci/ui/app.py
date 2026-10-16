@@ -9,6 +9,7 @@ from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtWidgets import QApplication
 
 from codegraph_sci.core import netguard
+from codegraph_sci.ui import theme
 from codegraph_sci.ui.main_window import MainWindow  # imports QtWebEngine before the QApplication exists
 
 
@@ -18,6 +19,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     app = QApplication(list(argv) if argv is not None else sys.argv)
     app.setApplicationName("CodeGraph-Sci")
     app.setOrganizationName("CodeGraph-Sci")
+    theme.apply_palette(app)
     window = MainWindow()
     window.show()
     code = app.exec()

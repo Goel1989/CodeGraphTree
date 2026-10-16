@@ -113,9 +113,12 @@ class CgsProcess(QObject):
     def running(self) -> bool:
         return self.proc.state() != QProcess.ProcessState.NotRunning
 
-    def cancel(self) -> None:
+    def cancel(self, *, wait: bool = False) -> None:
+        """Kill the command; with ``wait``, return once it is finished (its ``finished`` signal already sent)."""
         if self.running():
             self.proc.kill()
+            if wait:
+                self.proc.waitForFinished(5000)
 
     def _read(self) -> None:
         self._buffer += bytes(self.proc.readAllStandardOutput().data()).decode("utf-8", errors="replace")

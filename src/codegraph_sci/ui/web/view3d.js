@@ -93,7 +93,7 @@
 
   function tooltip(n) {
     const where = n.file ? `${n.file}${n.line ? ":" + n.line : ""}` : "outside the repository";
-    return `<b>${escapeHtml(n.label)}</b><br><span style="color:#8b98a5">${escapeHtml(n.kind)} · ${escapeHtml(n.lang || "-")}</span>`
+    return `<b>${escapeHtml(n.label)}</b><br><span style="color:#9e9e9e">${escapeHtml(n.kind)} · ${escapeHtml(n.lang || "-")}</span>`
       + `<br>${escapeHtml(where)}<br>callers ${n.fan_in} · callees ${n.fan_out}`;
   }
 
@@ -105,7 +105,7 @@
   let graph = null;
   try {
     graph = ForceGraph3D({ controlType: "orbit" })(document.getElementById("graph"))
-      .backgroundColor("#0f1419")
+      .backgroundColor("#181818")
       .nodeId("id")
       .nodeLabel(tooltip)
       .nodeColor(nodeColor)
@@ -183,7 +183,7 @@
     const kinds = ["calls", "bridges", "binds", "dispatches", "uses", "defines"]
       .map((k) => `<div><b class="line" style="background:${LINK_COLORS[k]}"></b>${k}</div>`).join("");
     document.getElementById("legend").innerHTML =
-      `${langs}<div><i style="background:#c9d1d9"></i>file</div><div><i style="background:#f2c94c"></i>root</div><hr style="border-color:#2d3743">${kinds}`;
+      `${langs}<div><i style="background:#c9d1d9"></i>file</div><div><i style="background:#f2c94c"></i>root</div><hr style="border-color:#3a3a3a">${kinds}`;
   }
 
   document.getElementById("fit").onclick = () => { if (graph) graph.zoomToFit(600, 40); };
