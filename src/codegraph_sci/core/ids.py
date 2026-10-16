@@ -22,7 +22,8 @@ def fortran_uid(name: str, module: str | None = None) -> str:
 
 
 def fortran_module_uid(module: str) -> str:
-    return f"f:{module.lower()}"
+    """Fortran modules have their own prefix: a module and a procedure may share a name."""
+    return f"fmod:{module.lower()}"
 
 
 def c_uid(name: str, static_file: str | None = None) -> str:

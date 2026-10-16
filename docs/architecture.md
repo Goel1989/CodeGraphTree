@@ -1187,6 +1187,8 @@ Le cœur (`src/codegraph_sci/`, hors packs génériques) ne contient aucun ident
 | D15 | Construction Linux sur une base glibc 2.28 : compatible Ubuntu 20.04+ et RHEL/Rocky 8+ |
 | D16 | Algorithmes de graphe écrits dans le projet (Tarjan itératif, ensembles de bits) ; NetworkX retiré |
 | D17 | Parseur Fortran choisi par un banc comparatif sur fichiers réels, parmi des candidats sous licence permissive ; fxtran (GPL-3.0) exclu de la distribution par défaut |
+| D18 | *(lot 4)* Parseur Fortran principal : **analyseur d'instructions logiques écrit dans le projet** (formats fixe et libre, continuations, branches du préprocesseur conservées, positions exactes). Banc sur les fixtures (`docs/bench/fortran_parsers.md`) : seul candidat à 100 % de rappel et de précision ; tree-sitter-fortran échoue sur le format fixe (texte au-delà de la colonne 72, commentaires `C`/`*`) et ne garde pas les branches `#ifdef` ; fparser échoue sur 4 fichiers sur 23 et est 25 fois plus lent ; LFortran non évalué (binaire absent). Repli et double extraction : extracteur à motifs indépendant. **À confirmer sur un échantillon de fichiers réels du cas de test n°1** (`python tools/bench_fortran.py <dossier>`) |
+| D19 | *(lot 0)* Grammaires tree-sitter : roues individuelles `tree-sitter-fortran`, `-python`, `-c`, `-cpp` ; `tree-sitter-language-pack` ≥ 1.0 est exclu car il télécharge les grammaires à l'exécution (contraire à C2) |
 
 ### 8.2. Questions ouvertes
 

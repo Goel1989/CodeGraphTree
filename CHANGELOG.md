@@ -26,3 +26,9 @@
 - Générateur de dépôt synthétique multi-langages déterministe (`tests/synthetic/generate.py`).
 - Inventaire : un `.h` inclus uniquement par du Fortran est du Fortran.
 - Annexe D de l'architecture : conventions d'extraction précisées.
+
+## Lot 4 — Adaptateur Fortran
+- Banc comparatif des parseurs (`tools/bench_fortran.py`, rapport `docs/bench/fortran_parsers.md`) ; décision D18 : analyseur d'instructions logiques du projet.
+- `extract/fortran/` : préparation (formats fixe/libre, colonnes 1-72, continuations, `;`, chaînes masquées, branches `#if` conservées avec leurs conditions, `#include`/`INCLUDE` résolus), unités de programme (modules, procédures internes, interfaces génériques, types et procédures liées, variantes `#2`), symboles locaux (arguments, tableaux, `EXTERNAL`, `COMMON`, déclarations des fichiers inclus), règle `nom(...)` du §3.7, fonctions intrinsèques.
+- Extracteur à motifs indépendant (repli et double extraction) ; test de fuzzing (hypothesis).
+- Les 9 fixtures Fortran donnent exactement les faits attendus.
