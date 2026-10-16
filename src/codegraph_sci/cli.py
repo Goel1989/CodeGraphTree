@@ -34,6 +34,33 @@ def _cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_inventory(args: argparse.Namespace) -> int:
+    import json
+
+    from codegraph_sci.core.project import open_project
+    from codegraph_sci.inventory.profile_io import load_profile, profile_from_inventory, save_profile
+    from codegraph_sci.inventory.report import inventory_dict, inventory_table
+    from codegraph_sci.inventory.run import run_inventory
+
+    root = Path(args.root)
+    if not root.is_dir():
+        print(f"error: {root} is not a directory", file=sys.stderr)
+        return 2
+    project = open_project(root, args.project)
+    previous = load_profile(project.profile_path) if project.profile_path.is_file() else None
+    result = run_inventory(root, previous)
+    profile = profile_from_inventory(result, previous)
+    if not args.no_write:
+        save_profile(project.profile_path, profile)
+    if args.json:
+        sys.stdout.write(json.dumps(inventory_dict(result), indent=1, ensure_ascii=False) + "\n")
+    else:
+        sys.stdout.write(inventory_table(result))
+        if not args.no_write:
+            print(f"Profile: {project.profile_path} (version {profile.profile_version})")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cgs", description="CodeGraph-Sci command line.")
     parser.add_argument("--version", action="version", version=f"CodeGraph-Sci {APP_VERSION}")
@@ -41,6 +68,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("selftest", help="check that this installation works offline")
     p.set_defaults(func=_cmd_selftest)
+
+    p = sub.add_parser("inventory", help="detect the languages of a repository and write the profile")
+    p.add_argument("root", help="repository folder")
+    p.add_argument("--project", help="project folder (default: in the user data folder)")
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--no-write", action="store_true", help="do not write the analysis profile")
+    p.set_defaults(func=_cmd_inventory)
 
     p = sub.add_parser("export", help="canonical export of a project database")
     p.add_argument("format", choices=["json"])

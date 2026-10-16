@@ -13,3 +13,10 @@
 - `store/` : schéma SQLite (§3.6) versionné, écriture groupée dans un fichier temporaire puis remplacement atomique, index en fin, mode WAL en incrémental (une transaction), cache des faits ; refus d'une version de schéma inconnue.
 - `cgs export json` : export canonique trié.
 - Mesure : 1 000 000 de sites d'appel écrits en 5,4 s (Windows, SSD).
+
+## Lot 2 — Inventaire des langages et profil d'analyse
+- `inventory/` : parcours (`.gitignore`, répertoires exclus, liens symboliques en boucle, fichiers illisibles), table des extensions configurable (`extensions.yaml`), binaires, signatures de contenu (`#!`, lignes de mode, mots-clés pondérés), contexte du dépôt (`.h` C/C++, `.inc` Fortran), chemins d'inclusion, variantes (fixe/libre, préprocesseur, Python 2), rapport de couverture.
+- `analysis_profile.yaml` : chargement sûr (`yaml.safe_load`) et schéma JSON strict ; version incrémentée seulement si le contenu change.
+- `cgs inventory <dossier>` (tableau ou `--json`) ; dossier de projet hors du dépôt (`core/project.py`).
+- Fixture `inventory_mixed`.
+- Mesure : inventaire de 15 000 fichiers en 13,9 s (Windows).

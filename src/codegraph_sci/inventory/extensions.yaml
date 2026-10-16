@@ -1,0 +1,128 @@
+# Extension table of the inventory (§3.2). Configurable: a project can extend it.
+format_version: 1
+
+# Languages read by a native adapter. Extensions are matched case-sensitively first,
+# then lowercased; a Fortran extension containing an upper-case letter means "preprocessed".
+languages:
+  fortran:
+    adapter: native:fortran
+    extensions: {".f": fixed, ".for": fixed, ".f77": fixed, ".ftn": fixed,
+                 ".f90": free, ".f95": free, ".f03": free, ".f08": free}
+  python:
+    adapter: native:python
+    extensions: {".py": null, ".pyw": null}
+  c:
+    adapter: native:c
+    extensions: {".c": null}
+  cpp:
+    adapter: native:cpp
+    extensions: {".cc": null, ".cpp": null, ".cxx": null, ".c++": null, ".hpp": null, ".hh": null,
+                 ".hxx": null, ".h++": null, ".ipp": null, ".tpp": null, ".txx": null}
+
+# Case-sensitive exceptions (checked before the lowercase table).
+exact_extensions:
+  ".C": cpp
+  ".H": cpp
+
+# Ambiguous extensions, decided by content and repository context.
+ambiguous:
+  ".h": [c, cpp]
+  ".inc": [fortran, other]
+  ".fi": [fortran, other]
+  ".fh": [fortran, other]
+
+# Known languages without an adapter in the first version (reported, not analysed).
+not_covered:
+  ".pyx": cython
+  ".pxd": cython
+  ".pxi": cython
+  ".cu": cuda
+  ".cuh": cuda
+  ".m": matlab_or_objc
+  ".jl": julia
+  ".rs": rust
+  ".java": java
+  ".js": javascript
+  ".ts": typescript
+  ".go": go
+  ".sh": shell
+  ".bash": shell
+  ".csh": shell
+  ".pl": perl
+  ".r": r
+  ".lua": lua
+  ".cmake": cmake
+  ".tcl": tcl
+  ".f2py": f2py
+  ".pyf": f2py
+
+# Non-source files: explicitly classified as ignored.
+ignored_extensions: [".txt", ".md", ".rst", ".json", ".yaml", ".yml", ".xml", ".html", ".htm", ".css",
+                     ".csv", ".dat", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".bmp", ".ico", ".pdf",
+                     ".ini", ".cfg", ".toml", ".lock", ".tex", ".bib", ".log", ".out", ".zip", ".gz",
+                     ".tgz", ".bz2", ".xz", ".tar", ".o", ".a", ".so", ".dll", ".dylib", ".exe", ".pyc",
+                     ".mod", ".whl", ".egg", ".sqlite", ".db", ".patch", ".diff", ".in", ".am", ".ac",
+                     ".gitignore", ".gitattributes", ".gitmodules", ".editorconfig"]
+ignored_names: ["Makefile", "makefile", "GNUmakefile", "README", "LICENSE", "COPYING", "AUTHORS",
+                "CHANGELOG", "NEWS", "INSTALL", "NOTICE", "Dockerfile", "CMakeLists.txt", "wscript",
+                "configure", "MANIFEST"]
+
+# Directories never walked.
+excluded_dirs: [".git", ".hg", ".svn", "__pycache__", ".venv", "venv", ".tox", "node_modules",
+                ".mypy_cache", ".pytest_cache", ".ruff_cache", ".idea", ".vscode", "build", "_build",
+                "cmake-build-debug", "cmake-build-release", ".eggs"]
+
+# Content signatures: weights of characteristic keywords (first lines only).
+signatures:
+  max_lines: 200
+  fortran:
+    - ['(?im)^\s*(recursive\s+|pure\s+|elemental\s+)*subroutine\s+\w+', 4]
+    - ['(?im)^\s*end\s*(subroutine|function|module|program)\b', 4]
+    - ['(?im)^\s*end\s*do\b', 2]
+    - ['(?im)^\s*implicit\s+none\b', 4]
+    - ['(?im)^\s*(integer|real|double\s+precision|logical|character)\s*(\*\d+|\(.*\))?\s*(::|\w)', 2]
+    - ['(?im)^\s*call\s+\w+', 2]
+    - ['(?im)^\s*common\s*/', 3]
+    - ['(?im)^\s*(parameter|dimension)\s*\(', 2]
+    - ['(?im)^\s*use\s+\w+\s*(,|$)', 1]
+  cpp:
+    - ['(?m)^\s*namespace\s+\w+', 4]
+    - ['(?m)^\s*template\s*<', 4]
+    - ['(?m)^\s*class\s+\w+[^;]*$', 3]
+    - ['(?m)\bstd::', 3]
+    - ['(?m)^\s*(public|private|protected)\s*:', 3]
+    - ['(?m)\w::\w', 1]
+    - ['(?m)^\s*#\s*include\s*<(iostream|vector|string|memory|map)>', 3]
+  c:
+    - ['(?m)^\s*#\s*include\s*[<"]', 1]
+    - ['(?m)^\s*typedef\s+struct\b', 2]
+    - ['(?m)^\s*(static\s+)?(int|void|double|char|float|long)\s+\**\w+\s*\([^;]*$', 2]
+    - ['(?m)\bmalloc\s*\(|\bprintf\s*\(', 2]
+  python:
+    - ['(?m)^\s*def\s+\w+\s*\(.*\)\s*:', 4]
+    - ['(?m)^\s*(import\s+\w+|from\s+[\w.]+\s+import\b)', 3]
+    - ['(?m)^\s*class\s+\w+(\(.*\))?\s*:', 3]
+    - ['(?m)\bself\.', 1]
+    - ['(?m)^\s*elif\b', 3]
+    - ['(?m)^\s*if\s+__name__\s*==', 4]
+
+# Shebang interpreters and editor modes.
+shebang:
+  python: python
+  python2: python
+  python3: python
+  pypy: python
+  sh: shell
+  bash: shell
+  csh: shell
+  tcsh: shell
+  perl: perl
+  julia: julia
+modes:
+  f90: fortran
+  fortran: fortran
+  f77: fortran
+  python: python
+  c: c
+  c++: cpp
+  cpp: cpp

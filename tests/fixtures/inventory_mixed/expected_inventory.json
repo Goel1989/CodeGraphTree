@@ -1,0 +1,27 @@
+{
+  "files": {
+    "c/c_api.h": {"lang": "c", "variant": null, "status": "source"},
+    "c/io.c": {"lang": "c", "variant": null, "status": "source"},
+    "cpp/engine.cpp": {"lang": "cpp", "variant": null, "status": "source"},
+    "cpp/engine.h": {"lang": "cpp", "variant": null, "status": "source"},
+    "cpp/geom.h": {"lang": "cpp", "variant": null, "status": "source"},
+    "cuda/kernel.cu": {"lang": "cuda", "variant": null, "status": "not_covered"},
+    "data/blob.bin": {"lang": null, "variant": null, "status": "binary"},
+    "data/mesh.xyz": {"lang": null, "variant": null, "status": "unknown"},
+    "data/other.xyz": {"lang": null, "variant": null, "status": "unknown"},
+    "docs/readme.txt": {"lang": null, "variant": null, "status": "ignored"},
+    "include/consts.inc": {"lang": "fortran", "variant": "fixed", "status": "source"},
+    "legacy/solver.f": {"lang": "fortran", "variant": "fixed", "status": "source"},
+    "modern/mesh.f90": {"lang": "fortran", "variant": "free", "status": "source"},
+    "modern/prep.F90": {"lang": "fortran", "variant": "free+preprocessed", "status": "source"},
+    "py/driver.py": {"lang": "python", "variant": null, "status": "source"},
+    "py/old_tool.py": {"lang": "python", "variant": "python2", "status": "source"},
+    "scripts/runjob": {"lang": "python", "variant": null, "status": "source"}
+  },
+  "include_paths": ["c", "cpp", "include"],
+  "unknown_groups": {".xyz": 2},
+  "generated": {
+    "data/blob.bin": "binary file created by the test (NUL bytes)",
+    "loop": "symbolic link to the root created by the test when the OS allows it"
+  }
+}

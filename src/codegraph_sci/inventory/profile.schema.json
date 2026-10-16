@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "analysis_profile.yaml",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profile_version"],
+  "properties": {
+    "profile_version": {"type": "integer", "minimum": 1},
+    "format_version": {"const": 1},
+    "scope": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "include": {"type": "array", "items": {"type": "string"}},
+        "exclude": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "languages": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false, "required": ["adapter"],
+        "properties": {
+          "files": {"type": "integer", "minimum": 0},
+          "lines": {"type": "integer", "minimum": 0},
+          "adapter": {"type": "string", "pattern": "^(native:[a-z0-9_]+|keywords:[a-z0-9_]+|none)$"},
+          "variants": {"type": "array", "items": {"type": "string"}},
+          "source": {"enum": ["ai", "manual"]},
+          "status": {"enum": ["proposed", "approved", "rejected"]}
+        }
+      }
+    },
+    "include_paths": {"type": "array", "items": {"type": "string"}},
+    "preprocessor": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "defines": {"type": "object", "additionalProperties": {"type": ["string", "integer"]}},
+        "keep_all_branches": {"type": "boolean"}
+      }
+    },
+    "file_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["glob", "language"],
+        "properties": {
+          "glob": {"type": "string"}, "language": {"type": "string"},
+          "reason": {"type": "string"}, "variant": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "ignored": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["ext"],
+        "properties": {"ext": {"type": "string"}, "files": {"type": "integer"}, "reason": {"type": "string"}}
+      }
+    },
+    "exclude_dirs": {"type": "array", "items": {"type": "string"}},
+    "packs": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9_]+$"}},
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "kind", "source", "status", "file"],
+        "properties": {
+          "id": {"type": "string"}, "kind": {"enum": ["bridge", "language"]},
+          "source": {"enum": ["ai", "manual"]},
+          "status": {"enum": ["proposed", "approved", "rejected"]},
+          "file": {"type": "string"}
+        }
+      }
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["version", "change", "by"],
+        "properties": {"version": {"type": "integer"}, "change": {"type": "string"}, "by": {"type": "string"}}
+      }
+    }
+  }
+}
