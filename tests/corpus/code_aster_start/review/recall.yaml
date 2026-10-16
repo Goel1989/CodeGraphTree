@@ -224,14 +224,27 @@ entries:
   file: bibc/supervis/aster_module.c
   line: 144
   code: CALL_ASABRT( &ier );
-  extracted: []
+  extracted:
+  - asabrt_
   actual: null
 - id: r-c-449
   group: c
   file: bibc/supervis/aster_module.c
   line: 195
   code: DEBUG_ASSERT( mfc != (char *)0 );
-  extracted: []
+  extracted:
+  - abort
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - printf
+  - printf
   actual: null
 - id: r-c-456
   group: c
@@ -379,6 +392,7 @@ entries:
   line: 1136
   code: CALL_GETCON( nomsd32, &j, &ishf, &ilng, &ctype, &lcon, &iaddr, nomob );
   extracted:
+  - getcon_
   - strlen
   - strlen
   actual: null
@@ -406,6 +420,7 @@ entries:
   extracted:
   - strlen
   - strlen
+  - tailsd_
   actual: null
 - id: r-c-881
   group: c
@@ -447,6 +462,11 @@ entries:
   extracted:
   - _end_try
   - _raiseException
+  - fflush
+  - fflush
+  - fprintf
+  - printf
+  - printf
   actual: null
 - id: r-c-914
   group: c
@@ -454,6 +474,7 @@ entries:
   line: 1369
   code: CALL_RSACPA( nomsd32, &numva, &icode, nomva, &ctype, ival, rval, kval, &ier );
   extracted:
+  - rsacpa_
   - strlen
   - strlen
   - strlen
@@ -478,7 +499,8 @@ entries:
   file: bibc/supervis/aster_module.c
   line: 1445
   code: CALL_JEDEMA();
-  extracted: []
+  extracted:
+  - jedema_
   actual: null
 - id: r-c-953
   group: c
@@ -525,6 +547,7 @@ entries:
   line: 1768
   code: CALL_JEEXIN( tmpbuf, &intval );
   extracted:
+  - jeexin_
   - strlen
   actual: null
 - id: r-c-1078
@@ -657,7 +680,12 @@ entries:
   file: bibc/supervis/aster_mpi.c
   line: 311
   code: 'DEBUG_MPI( "MPI_Gather: ... in %f sec %s\n", ( end - start ), " " );'
-  extracted: []
+  extracted:
+  - fflush
+  - fflush
+  - fprintf
+  - printf
+  - printf
   actual: null
 - id: r-c-1328
   group: c
@@ -682,6 +710,12 @@ entries:
   - abort
   - fflush
   - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fprintf
+  - fprintf
+  - fprintf
   - fprintf
   - printf
   - printf
@@ -699,7 +733,12 @@ entries:
   file: bibc/supervis/aster_mpi.c
   line: 628
   code: 'DEBUG_MPI( "MPI_Recv: ... in %f sec %s\n", ( end - start ), " " );'
-  extracted: []
+  extracted:
+  - fflush
+  - fflush
+  - fprintf
+  - printf
+  - printf
   actual: null
 - id: r-c-1470
   group: c
@@ -714,6 +753,7 @@ entries:
   line: 708
   code: AS_MPICHECK( MPI_Sendrecv( (void *)buffer_send, *count_send, MPI_DOUBLE_COMPLEX, *recipient,
   extracted:
+  - MPI_Sendrecv
   - abort
   - abort
   - abort
@@ -732,6 +772,42 @@ entries:
   - fflush
   - fflush
   - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
   - fprintf
   - fprintf
   - fprintf
@@ -787,14 +863,24 @@ entries:
   file: bibc/supervis/aster_mpi.c
   line: 912
   code: 'DEBUG_MPI( "MPI_Reduce: %d integer4 reduced values by all ...%s\n", *count, " " );'
-  extracted: []
+  extracted:
+  - fflush
+  - fflush
+  - fprintf
+  - printf
+  - printf
   actual: null
 - id: r-c-1554
   group: c
   file: bibc/supervis/aster_mpi.c
   line: 917
   code: 'DEBUG_MPI( "MPI_Reduce: ... in %f sec %s\n", ( end - start ), " " );'
-  extracted: []
+  extracted:
+  - fflush
+  - fflush
+  - fprintf
+  - printf
+  - printf
   actual: null
 - id: r-c-1556
   group: c
@@ -816,6 +902,7 @@ entries:
   line: 972
   code: AS_MPICHECK(
   extracted:
+  - MPI_Allreduce
   - abort
   - abort
   - abort
@@ -834,6 +921,42 @@ entries:
   - fflush
   - fflush
   - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
   - fprintf
   - fprintf
   - fprintf
@@ -867,6 +990,7 @@ entries:
   line: 1109
   code: AS_MPICHECK( MPI_Allgather( (void *)sendbuf, *sendcnt, MPI_DOUBLE_PRECISION, (void *)recvbuf,
   extracted:
+  - MPI_Allgather
   - abort
   - abort
   - abort
@@ -885,6 +1009,42 @@ entries:
   - fflush
   - fflush
   - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
+  - fprintf
   - fprintf
   - fprintf
   - fprintf
@@ -926,7 +1086,14 @@ entries:
   file: bibc/supervis/aster_mpi.c
   line: 1393
   code: COMM_DEBUG( aster_mpi_world );
-  extracted: []
+  extracted:
+  - fflush
+  - fflush
+  - fprintf
+  - printf
+  - printf
+  - printf
+  - printf
   actual: null
 - id: r-c-1729
   group: c
@@ -1495,6 +1662,12 @@ entries:
   - abort
   - fflush
   - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fprintf
+  - fprintf
+  - fprintf
   - fprintf
   - printf
   - printf
@@ -1758,6 +1931,9 @@ entries:
   code: CALL_REDETR( getName() );
   extracted:
   - getName
+  - getName
+  - redetr_
+  - getName
   actual: null
 - id: r-cpp-9722
   group: cpp
@@ -1841,6 +2017,12 @@ entries:
   - abort
   - fflush
   - fflush
+  - fflush
+  - fflush
+  - fflush
+  - fprintf
+  - fprintf
+  - fprintf
   - fprintf
   - printf
   - printf

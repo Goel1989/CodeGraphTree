@@ -7,7 +7,7 @@ from codegraph_sci.core.plugins import ExtractContext
 from codegraph_sci.extract.cfamily import CFamilyExtractor
 
 ADAPTER = "cpp"
-VERSION = "1.0"
+VERSION = "1.1"
 
 
 class CppAdapter:

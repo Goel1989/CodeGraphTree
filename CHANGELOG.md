@@ -81,3 +81,8 @@
 - Fortran : accès aux données (lecture/écriture), branches `SELECT CASE`, interfaces imbriquées dans un corps d'interface.
 - Fixtures `pack_acme` et `fortran_data` (avec pack) exactes ; test d'isolation du cœur (§6.4).
 - Code_Aster 17.5.7 (corpus de démarrage) : 0 échec, rappel des définitions 99,6 %, rappel des `CALL` Fortran 100 %, non-résolus 9,2 % (idiomes Python/C++ relevant du pack).
+
+## Validation Code_Aster — suite
+- C/C++ : vrai développement des macros du préprocesseur (`extract/cmacro.py` : paramètres, `#`, `##`, `__VA_ARGS__`, première définition gagnante) ; fonctions déclarées par macro nommées d'après leur développement (`DEFS(X, x, …)` → `x_`). Effet sur Code_Aster : 720 appels C/C++ → Fortran reliés par le pont `fortran_c` (macros `CALL_*`/`CALLO_*`).
+- Link : au-delà de 8 candidats, un site ambigu ne garde aucun candidat (fin des faux hubs `get`).
+- Mesures (corpus de démarrage 17.5.7, packs génériques) : 0 échec, rappel des définitions 99,2 %, rappel des `CALL` Fortran 100 %, non-résolus 8,5 % ; ré-analyse incrémentale ~50 s. Hubs détectés : `assert`, `utmess`, `jeveuo`, `jemarq`, `jedema`… Fiches de vérification régénérées (`tests/corpus/code_aster_start/review/`).

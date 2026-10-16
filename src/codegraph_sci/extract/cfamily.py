@@ -24,6 +24,7 @@ from codegraph_sci.core.facts import (
 )
 from codegraph_sci.core.ids import c_uid, cpp_uid, file_uid, normalize_cpp_params
 from codegraph_sci.core.plugins import ExtractContext
+from codegraph_sci.extract.cmacro import Macro, callees_of, declared_name, expand_text
 from codegraph_sci.extract.preproc import line_conditions
 
 _PARSERS: dict[str, tree_sitter.Parser] = {}
@@ -49,13 +50,6 @@ def _t(node: tree_sitter.Node | None) -> str:
     if node is None or node.text is None:
         return ""
     return node.text.decode("utf-8", errors="replace")
-
-
-@dataclass
-class Macro:
-    name: str
-    params: list[str] | None
-    body: str
 
 
 @dataclass
@@ -86,6 +80,10 @@ def collect_macros(text: str) -> dict[str, Macro]:
         m = _DEFINE.match(line)
         if m:
             params = [p.strip() for p in m.group(3).split(",")] if m.group(2) else None
+            # The first definition wins: the first preprocessor branch (usually the Unix one).
+            if m.group(1) in macros:
+                i += 1
+                continue
             macros[m.group(1)] = Macro(m.group(1), [p for p in params if p] if params is not None else None,
                                        m.group(4).strip())
         i += 1
@@ -412,6 +410,10 @@ class CFamilyExtractor:
             return  # = default, = delete, pure virtual: declarations, not definitions
         name_node = fdecl.child_by_field_name("declarator")
         raw_name = _t(name_node).replace(" ", "")
+        decl_macro = self.macros.get(raw_name)
+        if decl_macro is not None and decl_macro.params is not None:
+            # Function declared through a macro (e.g. a Fortran-callable wrapper): its name is in the expansion.
+            raw_name = declared_name(_t(fdecl), self.macros) or raw_name
         type_node = node.child_by_field_name("type")
         params_node = fdecl.child_by_field_name("parameters")
         # A macro block such as PYBIND11_MODULE(name, m) { ... } is not a function.
@@ -553,7 +555,10 @@ class CFamilyExtractor:
             name = _t(fn)
             macro = self.macros.get(name)
             if macro is not None:
-                self.expand_macro(macro, line, col, st, base_hint, args, 0)
+                for callee in callees_of(expand_text(_t(node), self.macros), self.macros):
+                    self.references.append(Reference(st.src, callee, "call", line, col, args=args,
+                                                     condition=self.cond(line),
+                                                     hint={**base_hint, "name": callee, "macro": name}))
                 return
             kind = "dynamic_call" if name in st.locals else "call"
             self.references.append(Reference(st.src, name, kind, line, col, args=args, condition=self.cond(line),
@@ -582,21 +587,3 @@ class CFamilyExtractor:
         text = re.sub(r"\s+", "", _t(fn))
         self.references.append(Reference(st.src, text, "dynamic_call", line, col, args=args,
                                          condition=self.cond(line), hint=base_hint))
-
-    def expand_macro(self, macro: Macro, line: int, col: int, st: _State, base_hint: dict[str, Any],
-                     args: list[ArgFact], depth: int) -> None:
-        if depth > 3:
-            return
-        body = re.sub(r'"(?:\\.|[^"\\])*"', '""', macro.body)
-        params = set(macro.params or [])
-        for m in _CALL_IN_BODY.finditer(body):
-            callee = m.group(1)
-            if callee in params or callee in _C_KEYWORDS:
-                continue
-            inner = self.macros.get(callee)
-            if inner is not None and inner.name != macro.name:
-                self.expand_macro(inner, line, col, st, base_hint, args, depth + 1)
-                continue
-            self.references.append(Reference(st.src, callee, "call", line, col, args=args,
-                                             condition=self.cond(line),
-                                             hint={**base_hint, "name": callee, "macro": macro.name}))
