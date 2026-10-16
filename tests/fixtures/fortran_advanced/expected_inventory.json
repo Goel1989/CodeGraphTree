@@ -1,0 +1,11 @@
+{
+ "files": {
+  "adv.f90": {
+   "lang": "fortran",
+   "variant": "free",
+   "status": "source"
+  }
+ },
+ "include_paths": [],
+ "unknown_groups": {}
+}

@@ -20,3 +20,9 @@
 - `cgs inventory <dossier>` (tableau ou `--json`) ; dossier de projet hors du dépôt (`core/project.py`).
 - Fixture `inventory_mixed`.
 - Mesure : inventaire de 15 000 fichiers en 13,9 s (Windows).
+
+## Lot 3 — Mini-codes de référence
+- 15 fixtures (Fortran x8, Python, C, C++ x2, mini_hybrid, partial_scope, robustness) avec `src/`, `expected_inventory.json` et `expected_graph.json` écrits à la main ; schémas JSON des fichiers attendus.
+- Générateur de dépôt synthétique multi-langages déterministe (`tests/synthetic/generate.py`).
+- Inventaire : un `.h` inclus uniquement par du Fortran est du Fortran.
+- Annexe D de l'architecture : conventions d'extraction précisées.

@@ -1,0 +1,33 @@
+{
+ "files": {
+  "app/run.py": {
+   "lang": "python",
+   "variant": null,
+   "status": "source"
+  },
+  "csrc/solver.c": {
+   "lang": "c",
+   "variant": null,
+   "status": "source"
+  },
+  "csrc/solver_api.h": {
+   "lang": "cpp",
+   "variant": null,
+   "status": "source"
+  },
+  "ext/bindings.cpp": {
+   "lang": "cpp",
+   "variant": null,
+   "status": "source"
+  },
+  "fsrc/kernel.f90": {
+   "lang": "fortran",
+   "variant": "free",
+   "status": "source"
+  }
+ },
+ "include_paths": [
+  "csrc"
+ ],
+ "unknown_groups": {}
+}

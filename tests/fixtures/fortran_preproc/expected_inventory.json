@@ -1,0 +1,23 @@
+{
+ "files": {
+  "config.inc": {
+   "lang": "fortran",
+   "variant": "free",
+   "status": "source"
+  },
+  "drv.F90": {
+   "lang": "fortran",
+   "variant": "free+preprocessed",
+   "status": "source"
+  },
+  "solvers.F90": {
+   "lang": "fortran",
+   "variant": "free+preprocessed",
+   "status": "source"
+  }
+ },
+ "include_paths": [
+  "."
+ ],
+ "unknown_groups": {}
+}

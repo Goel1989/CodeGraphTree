@@ -1,0 +1,33 @@
+{
+  "description": "COMMON, module variables, INTENT. Data accesses are checked with the generic_fortran pack (lot 12).",
+  "nodes": [
+    {"uid": "f:advance", "kind": "routine", "subtype": "f_subroutine", "file": "data.f90", "line_start": 7, "line_end": 16},
+    {"uid": "f:report_state", "kind": "routine", "subtype": "f_subroutine", "file": "data.f90", "line_start": 18, "line_end": 23},
+    {"uid": "fmod:state", "kind": "module", "subtype": "f_module", "file": "data.f90", "line_start": 1, "line_end": 5}
+  ],
+  "call_sites": [
+    {"src": "f:advance", "file": "data.f90", "line": 8, "col": 7, "ref_kind": "use", "target_text": "state", "dst": "fmod:state", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:report_state", "file": "data.f90", "line": 19, "col": 7, "ref_kind": "use", "target_text": "state", "dst": "fmod:state", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"}
+  ],
+  "edges": [
+    {"src": "f:advance", "dst": "fmod:state", "kind": "uses", "site_count": 1},
+    {"src": "f:report_state", "dst": "fmod:state", "kind": "uses", "site_count": 1}
+  ],
+  "with_pack": {
+    "pack": "generic_fortran",
+    "data_nodes": [
+      {"uid": "data:common:counters", "kind": "data", "subtype": "common_block"},
+      {"uid": "data:module:state::nsteps", "kind": "data", "subtype": "module_variable"},
+      {"uid": "data:module:state::temperature", "kind": "data", "subtype": "module_variable"}
+    ],
+    "data_accesses": [
+      {"src": "f:advance", "data": "data:module:state::temperature", "mode": "reads", "key_kind": "literal", "line": 13},
+      {"src": "f:advance", "data": "data:module:state::temperature", "mode": "writes", "key_kind": "literal", "line": 13},
+      {"src": "f:advance", "data": "data:module:state::nsteps", "mode": "reads", "key_kind": "literal", "line": 14},
+      {"src": "f:advance", "data": "data:module:state::nsteps", "mode": "writes", "key_kind": "literal", "line": 14},
+      {"src": "f:advance", "data": "data:common:counters", "mode": "reads", "key_kind": "literal", "line": 15},
+      {"src": "f:advance", "data": "data:common:counters", "mode": "writes", "key_kind": "literal", "line": 15},
+      {"src": "f:report_state", "data": "data:module:state::temperature", "mode": "reads", "key_kind": "literal", "line": 22}
+    ]
+  }
+}

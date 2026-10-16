@@ -1,0 +1,21 @@
+{
+ "files": {
+  "main.f90": {
+   "lang": "fortran",
+   "variant": "free",
+   "status": "source"
+  },
+  "mesh_mod.f90": {
+   "lang": "fortran",
+   "variant": "free",
+   "status": "source"
+  },
+  "solve.f90": {
+   "lang": "fortran",
+   "variant": "free",
+   "status": "source"
+  }
+ },
+ "include_paths": [],
+ "unknown_groups": {}
+}

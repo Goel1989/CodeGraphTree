@@ -81,6 +81,13 @@ def _resolve_include(includer: str, target: str, by_suffix: dict[str, list[str]]
     ]
 
 
+def _includer_form(path: str, included_by: dict[str, set[str]], entries: dict[str, InventoryEntry]) -> str | None:
+    """Source form (fixed/free) shared by every Fortran file including ``path``, if unique."""
+    forms = {(entries[i].variant or "").split("+")[0] for i in included_by.get(path, ())
+             if entries[i].lang == "fortran"}
+    return forms.pop() if len(forms) == 1 else None
+
+
 def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
                   table: ExtensionTable | None = None,
                   keyword_extensions: dict[str, str] | None = None) -> InventoryResult:
@@ -189,7 +196,11 @@ def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
             includer_langs = {entries[i].lang for i in included_by.get(path, ())}
             text = texts.get(path, "")
             new: tuple[str | None, str, str | None, float]
-            if "cpp" in candidates:
+            fortran_form = _includer_form(path, included_by, entries)
+            if "cpp" in candidates and "fortran" in candidates and includer_langs == {"fortran"}:
+                new = ("fortran", "context:included_by_fortran",
+                       fortran_variant(fortran_form, "", text).split("+")[0], 1.0)
+            elif "cpp" in candidates:
                 if "cpp" in includer_langs:
                     new = ("cpp", "context:included_by_cpp", None, 1.0)
                 elif _CPP_HEADER_HINT.search(text):
@@ -200,11 +211,8 @@ def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
                     new = ("c", "default:c", None, 0.7)
             else:  # fortran or other
                 if "fortran" in includer_langs:
-                    forms = {(entries[i].variant or "").split("+")[0] for i in included_by[path]
-                             if entries[i].lang == "fortran"}
-                    form = forms.pop() if len(forms) == 1 else None
                     new = ("fortran", "context:included_by_fortran",
-                           fortran_variant(form, "", text).split("+")[0], 1.0)
+                           fortran_variant(fortran_form, "", text).split("+")[0], 1.0)
                 else:
                     det_lang, conf, rule = detect_by_content(table, text, ["fortran"])
                     if det_lang == "fortran":

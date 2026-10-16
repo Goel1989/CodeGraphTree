@@ -1,0 +1,26 @@
+{
+  "description": "Generic interface, type-bound procedure, procedure pointer, abstract interface, RECURSIVE",
+  "nodes": [
+    {"uid": "f:shapes::circle", "kind": "type", "subtype": "f_derived_type", "file": "adv.f90", "line_start": 3, "line_end": 7},
+    {"uid": "f:shapes::circle_area", "kind": "routine", "subtype": "f_function", "file": "adv.f90", "line_start": 18, "line_end": 21},
+    {"uid": "f:shapes::scale", "kind": "interface", "subtype": "f_generic_interface", "file": "adv.f90", "line_start": 8, "line_end": 10},
+    {"uid": "f:shapes::scale_int", "kind": "routine", "subtype": "f_subroutine", "file": "adv.f90", "line_start": 22, "line_end": 25},
+    {"uid": "f:shapes::scale_real", "kind": "routine", "subtype": "f_subroutine", "file": "adv.f90", "line_start": 26, "line_end": 29},
+    {"uid": "f:shapes::walk", "kind": "routine", "subtype": "f_subroutine", "file": "adv.f90", "line_start": 30, "line_end": 38},
+    {"uid": "fmod:shapes", "kind": "module", "subtype": "f_module", "file": "adv.f90", "line_start": 1, "line_end": 39}
+  ],
+  "call_sites": [
+    {"src": "f:shapes::walk", "file": "adv.f90", "line": 34, "col": 25, "ref_kind": "call", "target_text": "walk", "dst": "f:shapes::walk", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:shapes::walk", "file": "adv.f90", "line": 35, "col": 10, "ref_kind": "call", "target_text": "scale", "dst": null, "resolution": "ambiguous", "confidence": "ambiguous", "origin": "native:fortran", "candidates": ["f:shapes::scale_int", "f:shapes::scale_real"]},
+    {"src": "f:shapes::walk", "file": "adv.f90", "line": 36, "col": 9, "ref_kind": "call", "target_text": "c%area", "dst": "f:shapes::circle_area", "resolution": "resolved", "confidence": "resolved", "origin": "native:fortran"},
+    {"src": "f:shapes::walk", "file": "adv.f90", "line": 37, "col": 10, "ref_kind": "dynamic_call", "target_text": "op_ptr", "dst": null, "resolution": "unresolved", "confidence": "heuristic", "origin": "native:fortran"}
+  ],
+  "edges": [
+    {"src": "f:shapes::scale", "dst": "f:shapes::scale_int", "kind": "implements", "site_count": 0},
+    {"src": "f:shapes::scale", "dst": "f:shapes::scale_real", "kind": "implements", "site_count": 0},
+    {"src": "f:shapes::walk", "dst": "f:shapes::circle_area", "kind": "calls", "site_count": 1},
+    {"src": "f:shapes::walk", "dst": "f:shapes::scale_int", "kind": "calls", "site_count": 1},
+    {"src": "f:shapes::walk", "dst": "f:shapes::scale_real", "kind": "calls", "site_count": 1},
+    {"src": "f:shapes::walk", "dst": "f:shapes::walk", "kind": "calls", "site_count": 1}
+  ]
+}

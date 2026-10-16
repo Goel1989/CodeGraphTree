@@ -1,0 +1,29 @@
+{
+  "description": "#ifdef/#else/#if, #include, conditions carried by sites, same routine in two branches (variants)",
+  "nodes": [
+    {"uid": "f:driver", "kind": "routine", "subtype": "f_subroutine", "file": "drv.F90", "line_start": 2, "line_end": 12},
+    {"uid": "f:kernel", "kind": "routine", "subtype": "f_subroutine", "file": "solvers.F90", "line_start": 13, "line_end": 15},
+    {"uid": "f:kernel#2", "kind": "routine", "subtype": "f_subroutine", "file": "solvers.F90", "line_start": 17, "line_end": 20},
+    {"uid": "f:par_solve", "kind": "routine", "subtype": "f_subroutine", "file": "solvers.F90", "line_start": 2, "line_end": 5},
+    {"uid": "f:seq_solve", "kind": "routine", "subtype": "f_subroutine", "file": "solvers.F90", "line_start": 7, "line_end": 10}
+  ],
+  "call_sites": [
+    {"src": "file:drv.F90", "file": "drv.F90", "line": 1, "col": 11, "ref_kind": "include", "target_text": "config.inc", "dst": "file:config.inc", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:driver", "file": "drv.F90", "line": 5, "col": 8, "ref_kind": "call", "target_text": "par_solve", "dst": "f:par_solve", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran", "condition": "defined(HAVE_MPI)"},
+    {"src": "f:driver", "file": "drv.F90", "line": 7, "col": 8, "ref_kind": "call", "target_text": "seq_solve", "dst": "f:seq_solve", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran", "condition": "!defined(HAVE_MPI)"},
+    {"src": "f:driver", "file": "drv.F90", "line": 10, "col": 8, "ref_kind": "call", "target_text": "gpu_kernel", "dst": null, "resolution": "unresolved", "confidence": "heuristic", "origin": "native:fortran", "condition": "defined(USE_GPU) && USE_GPU > 1"},
+    {"src": "f:par_solve", "file": "solvers.F90", "line": 4, "col": 8, "ref_kind": "call", "target_text": "kernel", "dst": "f:kernel", "resolution": "resolved", "confidence": "resolved", "origin": "native:fortran", "condition": "defined(HAVE_MPI)", "candidates": ["f:kernel", "f:kernel#2"]},
+    {"src": "f:seq_solve", "file": "solvers.F90", "line": 9, "col": 8, "ref_kind": "call", "target_text": "kernel", "dst": "f:kernel", "resolution": "resolved", "confidence": "resolved", "origin": "native:fortran", "candidates": ["f:kernel", "f:kernel#2"]},
+    {"src": "f:kernel#2", "file": "solvers.F90", "line": 19, "col": 8, "ref_kind": "call", "target_text": "legacy_kernel", "dst": null, "resolution": "unresolved", "confidence": "heuristic", "origin": "native:fortran", "condition": "!defined(DOUBLE)"}
+  ],
+  "edges": [
+    {"src": "f:driver", "dst": "f:par_solve", "kind": "calls", "site_count": 1},
+    {"src": "f:driver", "dst": "f:seq_solve", "kind": "calls", "site_count": 1},
+    {"src": "f:par_solve", "dst": "f:kernel", "kind": "calls", "site_count": 1},
+    {"src": "f:par_solve", "dst": "f:kernel#2", "kind": "calls", "site_count": 1},
+    {"src": "f:seq_solve", "dst": "f:kernel", "kind": "calls", "site_count": 1},
+    {"src": "f:seq_solve", "dst": "f:kernel#2", "kind": "calls", "site_count": 1},
+    {"src": "file:drv.F90", "dst": "file:config.inc", "kind": "uses", "site_count": 1}
+  ],
+  "definition_conditions": {"f:par_solve": "defined(HAVE_MPI)", "f:kernel": "defined(DOUBLE)", "f:kernel#2": "!defined(DOUBLE)"}
+}

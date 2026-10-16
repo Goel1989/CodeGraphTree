@@ -1,0 +1,18 @@
+{
+ "files": {
+  "arrays.f": {
+   "lang": "fortran",
+   "variant": "fixed",
+   "status": "source"
+  },
+  "vars.inc": {
+   "lang": "fortran",
+   "variant": "fixed",
+   "status": "source"
+  }
+ },
+ "include_paths": [
+  "."
+ ],
+ "unknown_groups": {}
+}

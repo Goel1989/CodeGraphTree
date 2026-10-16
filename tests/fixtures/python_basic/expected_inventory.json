@@ -1,0 +1,26 @@
+{
+ "files": {
+  "legacy/old.py": {
+   "lang": "python",
+   "variant": "python2",
+   "status": "source"
+  },
+  "pkg/__init__.py": {
+   "lang": "python",
+   "variant": null,
+   "status": "source"
+  },
+  "pkg/app.py": {
+   "lang": "python",
+   "variant": null,
+   "status": "source"
+  },
+  "pkg/core.py": {
+   "lang": "python",
+   "variant": null,
+   "status": "source"
+  }
+ },
+ "include_paths": [],
+ "unknown_groups": {}
+}

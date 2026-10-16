@@ -26,7 +26,7 @@ exact_extensions:
 
 # Ambiguous extensions, decided by content and repository context.
 ambiguous:
-  ".h": [c, cpp]
+  ".h": [c, cpp, fortran]
   ".inc": [fortran, other]
   ".fi": [fortran, other]
   ".fh": [fortran, other]

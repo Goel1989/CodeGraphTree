@@ -1,0 +1,18 @@
+{
+ "files": {
+  "shape.cpp": {
+   "lang": "cpp",
+   "variant": null,
+   "status": "source"
+  },
+  "shape.hpp": {
+   "lang": "cpp",
+   "variant": null,
+   "status": "source"
+  }
+ },
+ "include_paths": [
+  "."
+ ],
+ "unknown_groups": {}
+}

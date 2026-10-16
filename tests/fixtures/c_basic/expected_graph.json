@@ -1,0 +1,33 @@
+{
+  "description": "Functions, macros (one hides a call), two static functions with the same name in two files, libc",
+  "nodes": [
+    {"uid": "c:helper@util_a.c", "kind": "routine", "subtype": "c_function", "file": "util_a.c", "line_start": 3, "line_end": 3},
+    {"uid": "c:helper@util_b.c", "kind": "routine", "subtype": "c_function", "file": "util_b.c", "line_start": 3, "line_end": 3},
+    {"uid": "c:main", "kind": "routine", "subtype": "c_function", "file": "main.c", "line_start": 4, "line_end": 8},
+    {"uid": "c:util_a", "kind": "routine", "subtype": "c_function", "file": "util_a.c", "line_start": 5, "line_end": 5},
+    {"uid": "c:util_b", "kind": "routine", "subtype": "c_function", "file": "util_b.c", "line_start": 5, "line_end": 8},
+    {"uid": "ext:libc:printf", "kind": "external", "subtype": "libc", "file": null, "line_start": null, "line_end": null}
+  ],
+  "call_sites": [
+    {"src": "file:main.c", "file": "main.c", "line": 2, "col": 11, "ref_kind": "include", "target_text": "util.h", "dst": "file:util.h", "resolution": "resolved", "confidence": "exact", "origin": "native:c"},
+    {"src": "c:main", "file": "main.c", "line": 5, "col": 13, "ref_kind": "call", "target_text": "util_b", "dst": "c:util_b", "resolution": "resolved", "confidence": "exact", "origin": "native:c"},
+    {"src": "c:main", "file": "main.c", "line": 5, "col": 25, "ref_kind": "call", "target_text": "util_a", "dst": "c:util_a", "resolution": "resolved", "confidence": "resolved", "origin": "native:c"},
+    {"src": "c:main", "file": "main.c", "line": 6, "col": 5, "ref_kind": "call", "target_text": "printf", "dst": "ext:libc:printf", "resolution": "external", "confidence": "exact", "origin": "native:c"},
+    {"src": "file:util_a.c", "file": "util_a.c", "line": 1, "col": 11, "ref_kind": "include", "target_text": "util.h", "dst": "file:util.h", "resolution": "resolved", "confidence": "exact", "origin": "native:c"},
+    {"src": "c:util_a", "file": "util_a.c", "line": 5, "col": 28, "ref_kind": "call", "target_text": "helper", "dst": "c:helper@util_a.c", "resolution": "resolved", "confidence": "exact", "origin": "native:c"},
+    {"src": "file:util_b.c", "file": "util_b.c", "line": 1, "col": 11, "ref_kind": "include", "target_text": "util.h", "dst": "file:util.h", "resolution": "resolved", "confidence": "exact", "origin": "native:c"},
+    {"src": "c:util_b", "file": "util_b.c", "line": 6, "col": 13, "ref_kind": "call", "target_text": "helper", "dst": "c:helper@util_b.c", "resolution": "resolved", "confidence": "exact", "origin": "native:c"},
+    {"src": "c:util_b", "file": "util_b.c", "line": 7, "col": 12, "ref_kind": "call", "target_text": "util_a", "dst": "c:util_a", "resolution": "resolved", "confidence": "exact", "origin": "native:c"}
+  ],
+  "edges": [
+    {"src": "c:main", "dst": "c:util_a", "kind": "calls", "site_count": 1},
+    {"src": "c:main", "dst": "c:util_b", "kind": "calls", "site_count": 1},
+    {"src": "c:main", "dst": "ext:libc:printf", "kind": "calls", "site_count": 1},
+    {"src": "c:util_a", "dst": "c:helper@util_a.c", "kind": "calls", "site_count": 1},
+    {"src": "c:util_b", "dst": "c:helper@util_b.c", "kind": "calls", "site_count": 1},
+    {"src": "c:util_b", "dst": "c:util_a", "kind": "calls", "site_count": 1},
+    {"src": "file:main.c", "dst": "file:util.h", "kind": "uses", "site_count": 1},
+    {"src": "file:util_a.c", "dst": "file:util.h", "kind": "uses", "site_count": 1},
+    {"src": "file:util_b.c", "dst": "file:util.h", "kind": "uses", "site_count": 1}
+  ]
+}

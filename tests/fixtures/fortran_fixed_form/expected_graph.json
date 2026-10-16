@@ -1,0 +1,18 @@
+{
+  "description": "F77 fixed form: columns 1-72, continuation in column 6, comments C and *",
+  "nodes": [
+    {"uid": "f:assemb", "kind": "routine", "subtype": "f_subroutine", "file": "legacy.f", "line_start": 2, "line_end": 11},
+    {"uid": "f:bound", "kind": "routine", "subtype": "f_subroutine", "file": "legacy.f", "line_start": 19, "line_end": 23},
+    {"uid": "f:elemk", "kind": "routine", "subtype": "f_subroutine", "file": "legacy.f", "line_start": 13, "line_end": 17}
+  ],
+  "call_sites": [
+    {"src": "f:assemb", "file": "legacy.f", "line": 6, "col": 12, "ref_kind": "call", "target_text": "ELEMK", "dst": "f:elemk", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:assemb", "file": "legacy.f", "line": 9, "col": 12, "ref_kind": "call", "target_text": "BOUND", "dst": "f:bound", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:bound", "file": "legacy.f", "line": 22, "col": 12, "ref_kind": "call", "target_text": "ELEMK", "dst": "f:elemk", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"}
+  ],
+  "edges": [
+    {"src": "f:assemb", "dst": "f:bound", "kind": "calls", "site_count": 1},
+    {"src": "f:assemb", "dst": "f:elemk", "kind": "calls", "site_count": 1},
+    {"src": "f:bound", "dst": "f:elemk", "kind": "calls", "site_count": 1}
+  ]
+}

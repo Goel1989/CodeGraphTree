@@ -1252,3 +1252,17 @@ Le cœur (`src/codegraph_sci/`, hors packs génériques) ne contient aucun ident
 13. L'interface n'accède aux données que par `GraphQuery` ; aucune requête longue dans le thread principal.
 14. Toute fonction IA doit être testable avec le modèle factice.
 15. Python 3.12 typé (mypy strict), formaté avec ruff ; identifiants, code et commentaires en anglais.
+
+## Annexe D — Conventions d'extraction précisées (lot 3)
+
+Ces conventions complètent les §3.5 et §3.7 ; les graphes attendus des fixtures (`tests/fixtures/*/expected_graph.json`) les appliquent.
+
+- **Identités complémentaires :** module Fortran `fmod:<module>` (distinct des procédures, qui peuvent porter le même nom) ; type dérivé, interface générique et procédure interne `f:<hôte>::<nom>` ; méthode Python `py:<module>.<Classe>.<méthode>`, fonction imbriquée `py:<module>.<fonction>.<interne>` ; externes `ext:intrinsic:<nom>`, `ext:libc:<nom>`, `ext:python:<module>[.<nom>]`, `ext:mpi:<nom>`, `ext:blas:<nom>`.
+- **Nœuds :** chaque fichier source a un nœud `file:<chemin>` ; les déclarations (prototypes C/C++, blocs `INTERFACE` explicites ou abstraits, fonctions virtuelles pures) ne créent pas de définition. Un bloc de macro au niveau fichier (ex. `PYBIND11_MODULE(...) { }`) n'est pas une fonction : ses appels ont pour source le nœud fichier.
+- **Position d'un site :** ligne et colonne (à partir de 1) du début du texte de la cible tel qu'écrit (`target_text`) : `ELEMK`, `c%area`, `self.check`, `ops::scale`. Pour un appel masqué par une macro, position de la macro et `target_text` = fonction appelée après expansion. Pour une inclusion, position du nom de fichier inclus ; la source est le nœud fichier.
+- **Confiance :** `exact` = cible unique trouvée par son nom ; `resolved` = cible choisie par une règle (type du receveur, arité ou types des arguments, `maybe_call` tranché par Link, macro, variantes préprocesseur) ; `heuristic` = appel dynamique (variable, `getattr`) ou site non résolu ; `ambiguous` = plusieurs candidats.
+- **Variantes préprocesseur :** un appel vers une routine définie en plusieurs variantes (`f:x`, `f:x#2`) est `resolved` vers la première, avec toutes les variantes en candidats ; une arête est créée vers chaque variante.
+- **Conditions :** `#ifdef X` → `defined(X)`, `#ifndef X` / `#else` → `!defined(X)`, `#if E` → `E` (espaces normalisés) ; conditions imbriquées jointes par ` && `.
+- **Appels sans cible statique :** procédure reçue en argument, pointeur de procédure, variable Python → `dynamic_call`, `unresolved` (ou `resolved`/`heuristic` si une propagation simple trouve la cible, ex. `h = getattr(m, "f")`).
+- **Bibliothèques :** appel Python vers un module hors dépôt → `external` vers `ext:python:…` ; appel de méthode sur un receveur inconnu sans aucune méthode de ce nom dans le dépôt → `external` sans nœud cible.
+- **Arêtes :** `calls` (sites `call`, `maybe_call`, `dynamic_call` ayant une cible, y compris `external`, `out_of_scope` et chaque candidat d'un site ambigu), `uses` (`use`, `include`), `inherits`, `implements` (interface générique → procédures spécifiques, sans site), `contains` (structure).

@@ -1,0 +1,23 @@
+{
+  "description": "f(i) function or array, EXTERNAL, explicit interface (not a definition), dummy procedure",
+  "nodes": [
+    {"uid": "f:compute", "kind": "routine", "subtype": "f_subroutine", "file": "amb.f90", "line_start": 1, "line_end": 21},
+    {"uid": "f:helper", "kind": "routine", "subtype": "f_function", "file": "amb.f90", "line_start": 23, "line_end": 26},
+    {"uid": "f:shape_fn", "kind": "routine", "subtype": "f_function", "file": "amb.f90", "line_start": 28, "line_end": 31}
+  ],
+  "call_sites": [
+    {"src": "f:compute", "file": "amb.f90", "line": 14, "col": 11, "ref_kind": "dynamic_call", "target_text": "fn", "dst": null, "resolution": "unresolved", "confidence": "heuristic", "origin": "native:fortran"},
+    {"src": "f:compute", "file": "amb.f90", "line": 15, "col": 11, "ref_kind": "call", "target_text": "ext_f", "dst": null, "resolution": "unresolved", "confidence": "heuristic", "origin": "native:fortran"},
+    {"src": "f:compute", "file": "amb.f90", "line": 16, "col": 11, "ref_kind": "call", "target_text": "shape_fn", "dst": "f:shape_fn", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:compute", "file": "amb.f90", "line": 17, "col": 11, "ref_kind": "maybe_call", "target_text": "helper", "dst": "f:helper", "resolution": "resolved", "confidence": "resolved", "origin": "native:fortran"},
+    {"src": "f:compute", "file": "amb.f90", "line": 18, "col": 11, "ref_kind": "maybe_call", "target_text": "mystery", "dst": null, "resolution": "ambiguous", "confidence": "ambiguous", "origin": "native:fortran"},
+    {"src": "f:compute", "file": "amb.f90", "line": 20, "col": 8, "ref_kind": "call", "target_text": "apply", "dst": null, "resolution": "unresolved", "confidence": "heuristic", "origin": "native:fortran"}
+  ],
+  "edges": [
+    {"src": "f:compute", "dst": "f:helper", "kind": "calls", "site_count": 1},
+    {"src": "f:compute", "dst": "f:shape_fn", "kind": "calls", "site_count": 1}
+  ],
+  "local_symbols": {
+    "f:compute": [["ext_f", "external"], ["fn", "dummy_procedure"], ["n", "dummy"], ["s", "scalar"], ["shape_fn", "external"], ["v", "array"], ["w", "array"]]
+  }
+}

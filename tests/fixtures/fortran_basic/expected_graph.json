@@ -1,0 +1,31 @@
+{
+  "description": "SUBROUTINE, FUNCTION, MODULE, PROGRAM, CALL, USE; EXTERNAL function; intrinsic",
+  "nodes": [
+    {"uid": "ext:intrinsic:real", "kind": "external", "subtype": "intrinsic", "file": null, "line_start": null, "line_end": null},
+    {"uid": "f:main", "kind": "routine", "subtype": "f_program", "file": "main.f90", "line_start": 1, "line_end": 8},
+    {"uid": "f:mesh_mod::build_mesh", "kind": "routine", "subtype": "f_subroutine", "file": "mesh_mod.f90", "line_start": 4, "line_end": 7},
+    {"uid": "f:mesh_mod::refine", "kind": "routine", "subtype": "f_subroutine", "file": "mesh_mod.f90", "line_start": 9, "line_end": 12},
+    {"uid": "f:norm2v", "kind": "routine", "subtype": "f_function", "file": "solve.f90", "line_start": 10, "line_end": 14},
+    {"uid": "f:report", "kind": "routine", "subtype": "f_subroutine", "file": "solve.f90", "line_start": 16, "line_end": 19},
+    {"uid": "f:solve", "kind": "routine", "subtype": "f_subroutine", "file": "solve.f90", "line_start": 1, "line_end": 8},
+    {"uid": "fmod:mesh_mod", "kind": "module", "subtype": "f_module", "file": "mesh_mod.f90", "line_start": 1, "line_end": 13}
+  ],
+  "call_sites": [
+    {"src": "f:main", "file": "main.f90", "line": 2, "col": 7, "ref_kind": "use", "target_text": "mesh_mod", "dst": "fmod:mesh_mod", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:main", "file": "main.f90", "line": 6, "col": 8, "ref_kind": "call", "target_text": "build_mesh", "dst": "f:mesh_mod::build_mesh", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:main", "file": "main.f90", "line": 7, "col": 8, "ref_kind": "call", "target_text": "solve", "dst": "f:solve", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:mesh_mod::build_mesh", "file": "mesh_mod.f90", "line": 6, "col": 10, "ref_kind": "call", "target_text": "refine", "dst": "f:mesh_mod::refine", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:solve", "file": "solve.f90", "line": 6, "col": 7, "ref_kind": "call", "target_text": "norm2v", "dst": "f:norm2v", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:solve", "file": "solve.f90", "line": 7, "col": 8, "ref_kind": "call", "target_text": "report", "dst": "f:report", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:norm2v", "file": "solve.f90", "line": 13, "col": 12, "ref_kind": "maybe_call", "target_text": "real", "dst": "ext:intrinsic:real", "resolution": "external", "confidence": "exact", "origin": "native:fortran"}
+  ],
+  "edges": [
+    {"src": "f:main", "dst": "f:mesh_mod::build_mesh", "kind": "calls", "site_count": 1},
+    {"src": "f:main", "dst": "f:solve", "kind": "calls", "site_count": 1},
+    {"src": "f:main", "dst": "fmod:mesh_mod", "kind": "uses", "site_count": 1},
+    {"src": "f:mesh_mod::build_mesh", "dst": "f:mesh_mod::refine", "kind": "calls", "site_count": 1},
+    {"src": "f:norm2v", "dst": "ext:intrinsic:real", "kind": "calls", "site_count": 1},
+    {"src": "f:solve", "dst": "f:norm2v", "kind": "calls", "site_count": 1},
+    {"src": "f:solve", "dst": "f:report", "kind": "calls", "site_count": 1}
+  ]
+}

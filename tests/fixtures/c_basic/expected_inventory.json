@@ -1,0 +1,28 @@
+{
+ "files": {
+  "main.c": {
+   "lang": "c",
+   "variant": null,
+   "status": "source"
+  },
+  "util.h": {
+   "lang": "c",
+   "variant": null,
+   "status": "source"
+  },
+  "util_a.c": {
+   "lang": "c",
+   "variant": null,
+   "status": "source"
+  },
+  "util_b.c": {
+   "lang": "c",
+   "variant": null,
+   "status": "source"
+  }
+ },
+ "include_paths": [
+  "."
+ ],
+ "unknown_groups": {}
+}

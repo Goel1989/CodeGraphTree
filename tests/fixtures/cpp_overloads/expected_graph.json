@@ -1,0 +1,26 @@
+{
+  "description": "Distinct overload identities; overloads chosen by arity, declared types or literals; undecidable call -> ambiguous",
+  "nodes": [
+    {"uid": "cpp:apply(T)", "kind": "routine", "subtype": "cpp_function", "file": "ops.cpp", "line_start": 8, "line_end": 10},
+    {"uid": "cpp:ops::scale(double)", "kind": "routine", "subtype": "cpp_function", "file": "ops.cpp", "line_start": 3, "line_end": 3},
+    {"uid": "cpp:ops::scale(int)", "kind": "routine", "subtype": "cpp_function", "file": "ops.cpp", "line_start": 2, "line_end": 2},
+    {"uid": "cpp:ops::scale(int,int)", "kind": "routine", "subtype": "cpp_function", "file": "ops.cpp", "line_start": 4, "line_end": 4},
+    {"uid": "cpp:run(int,double)", "kind": "routine", "subtype": "cpp_function", "file": "ops.cpp", "line_start": 12, "line_end": 18}
+  ],
+  "call_sites": [
+    {"src": "cpp:apply(T)", "file": "ops.cpp", "line": 9, "col": 5, "ref_kind": "call", "target_text": "ops::scale", "dst": null, "resolution": "ambiguous", "confidence": "ambiguous", "origin": "native:cpp", "candidates": ["cpp:ops::scale(double)", "cpp:ops::scale(int)"]},
+    {"src": "cpp:run(int,double)", "file": "ops.cpp", "line": 13, "col": 5, "ref_kind": "call", "target_text": "ops::scale", "dst": "cpp:ops::scale(int)", "resolution": "resolved", "confidence": "resolved", "origin": "native:cpp"},
+    {"src": "cpp:run(int,double)", "file": "ops.cpp", "line": 14, "col": 5, "ref_kind": "call", "target_text": "ops::scale", "dst": "cpp:ops::scale(double)", "resolution": "resolved", "confidence": "resolved", "origin": "native:cpp"},
+    {"src": "cpp:run(int,double)", "file": "ops.cpp", "line": 15, "col": 5, "ref_kind": "call", "target_text": "ops::scale", "dst": "cpp:ops::scale(int,int)", "resolution": "resolved", "confidence": "resolved", "origin": "native:cpp"},
+    {"src": "cpp:run(int,double)", "file": "ops.cpp", "line": 16, "col": 5, "ref_kind": "call", "target_text": "ops::scale", "dst": "cpp:ops::scale(double)", "resolution": "resolved", "confidence": "resolved", "origin": "native:cpp"},
+    {"src": "cpp:run(int,double)", "file": "ops.cpp", "line": 17, "col": 5, "ref_kind": "call", "target_text": "apply", "dst": "cpp:apply(T)", "resolution": "resolved", "confidence": "exact", "origin": "native:cpp"}
+  ],
+  "edges": [
+    {"src": "cpp:apply(T)", "dst": "cpp:ops::scale(double)", "kind": "calls", "site_count": 1},
+    {"src": "cpp:apply(T)", "dst": "cpp:ops::scale(int)", "kind": "calls", "site_count": 1},
+    {"src": "cpp:run(int,double)", "dst": "cpp:apply(T)", "kind": "calls", "site_count": 1},
+    {"src": "cpp:run(int,double)", "dst": "cpp:ops::scale(double)", "kind": "calls", "site_count": 2},
+    {"src": "cpp:run(int,double)", "dst": "cpp:ops::scale(int)", "kind": "calls", "site_count": 1},
+    {"src": "cpp:run(int,double)", "dst": "cpp:ops::scale(int,int)", "kind": "calls", "site_count": 1}
+  ]
+}

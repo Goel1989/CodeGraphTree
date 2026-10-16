@@ -1,0 +1,20 @@
+{
+  "description": "call in comments and strings, mixed case, two statements on one line, continuation, Latin-1, CRLF",
+  "nodes": [
+    {"uid": "f:continued", "kind": "routine", "subtype": "f_subroutine", "file": "traps.f90", "line_start": 21, "line_end": 23},
+    {"uid": "f:mixed_case", "kind": "routine", "subtype": "f_subroutine", "file": "traps.f90", "line_start": 13, "line_end": 15},
+    {"uid": "f:second_on_line", "kind": "routine", "subtype": "f_subroutine", "file": "traps.f90", "line_start": 17, "line_end": 19},
+    {"uid": "f:traps", "kind": "routine", "subtype": "f_subroutine", "file": "traps.f90", "line_start": 2, "line_end": 11}
+  ],
+  "call_sites": [
+    {"src": "f:traps", "file": "traps.f90", "line": 8, "col": 8, "ref_kind": "call", "target_text": "Mixed_Case", "dst": "f:mixed_case", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:traps", "file": "traps.f90", "line": 8, "col": 28, "ref_kind": "call", "target_text": "second_on_line", "dst": "f:second_on_line", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:traps", "file": "traps.f90", "line": 10, "col": 5, "ref_kind": "call", "target_text": "continued", "dst": "f:continued", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"}
+  ],
+  "edges": [
+    {"src": "f:traps", "dst": "f:continued", "kind": "calls", "site_count": 1},
+    {"src": "f:traps", "dst": "f:mixed_case", "kind": "calls", "site_count": 1},
+    {"src": "f:traps", "dst": "f:second_on_line", "kind": "calls", "site_count": 1}
+  ],
+  "file_encoding": {"traps.f90": "latin-1"}
+}

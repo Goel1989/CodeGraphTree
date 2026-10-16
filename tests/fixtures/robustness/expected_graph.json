@@ -1,0 +1,18 @@
+{
+  "description": "Malformed files, path with spaces and accents; the test also generates a very large file and a path longer than 260 characters. Nothing may block the analysis.",
+  "partial": true,
+  "nodes": [
+    {"uid": "f:accented_path", "kind": "routine", "subtype": "f_subroutine", "file": "dir with spaces/élément.f90", "line_start": 1, "line_end": 3},
+    {"uid": "f:ok_helper", "kind": "routine", "subtype": "f_subroutine", "file": "ok.f90", "line_start": 5, "line_end": 6},
+    {"uid": "f:ok_routine", "kind": "routine", "subtype": "f_subroutine", "file": "ok.f90", "line_start": 1, "line_end": 3}
+  ],
+  "call_sites": [
+    {"src": "f:accented_path", "file": "dir with spaces/élément.f90", "line": 2, "col": 8, "ref_kind": "call", "target_text": "ok_helper", "dst": "f:ok_helper", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:ok_routine", "file": "ok.f90", "line": 2, "col": 8, "ref_kind": "call", "target_text": "ok_helper", "dst": "f:ok_helper", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"}
+  ],
+  "edges": [
+    {"src": "f:accented_path", "dst": "f:ok_helper", "kind": "calls", "site_count": 1},
+    {"src": "f:ok_routine", "dst": "f:ok_helper", "kind": "calls", "site_count": 1}
+  ],
+  "file_status": {"broken.f90": ["fallback", "failed"], "broken.py": ["fallback", "failed"], "broken.cpp": ["ok", "fallback", "failed"]}
+}

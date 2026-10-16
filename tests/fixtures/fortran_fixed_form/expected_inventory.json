@@ -1,0 +1,11 @@
+{
+ "files": {
+  "legacy.f": {
+   "lang": "fortran",
+   "variant": "fixed",
+   "status": "source"
+  }
+ },
+ "include_paths": [],
+ "unknown_groups": {}
+}

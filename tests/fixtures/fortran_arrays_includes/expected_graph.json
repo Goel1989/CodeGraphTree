@@ -1,0 +1,26 @@
+{
+  "description": "Arrays declared in an included file and in a COMMON block, intrinsics, known_arrays",
+  "extract_options": {"known_arrays": ["zr"]},
+  "nodes": [
+    {"uid": "ext:intrinsic:abs", "kind": "external", "subtype": "intrinsic", "file": null, "line_start": null, "line_end": null},
+    {"uid": "ext:intrinsic:max", "kind": "external", "subtype": "intrinsic", "file": null, "line_start": null, "line_end": null},
+    {"uid": "ext:intrinsic:sqrt", "kind": "external", "subtype": "intrinsic", "file": null, "line_start": null, "line_end": null},
+    {"uid": "f:update", "kind": "routine", "subtype": "f_subroutine", "file": "arrays.f", "line_start": 1, "line_end": 10}
+  ],
+  "call_sites": [
+    {"src": "file:arrays.f", "file": "arrays.f", "line": 3, "col": 16, "ref_kind": "include", "target_text": "vars.inc", "dst": "file:vars.inc", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:update", "file": "arrays.f", "line": 6, "col": 29, "ref_kind": "maybe_call", "target_text": "SQRT", "dst": "ext:intrinsic:sqrt", "resolution": "external", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:update", "file": "arrays.f", "line": 7, "col": 16, "ref_kind": "maybe_call", "target_text": "MAX", "dst": "ext:intrinsic:max", "resolution": "external", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:update", "file": "arrays.f", "line": 7, "col": 31, "ref_kind": "maybe_call", "target_text": "ABS", "dst": "ext:intrinsic:abs", "resolution": "external", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:update", "file": "arrays.f", "line": 8, "col": 15, "ref_kind": "call", "target_text": "FLUSHB", "dst": null, "resolution": "unresolved", "confidence": "heuristic", "origin": "native:fortran"}
+  ],
+  "edges": [
+    {"src": "f:update", "dst": "ext:intrinsic:abs", "kind": "calls", "site_count": 1},
+    {"src": "f:update", "dst": "ext:intrinsic:max", "kind": "calls", "site_count": 1},
+    {"src": "f:update", "dst": "ext:intrinsic:sqrt", "kind": "calls", "site_count": 1},
+    {"src": "file:arrays.f", "dst": "file:vars.inc", "kind": "uses", "site_count": 1}
+  ],
+  "local_symbols": {
+    "f:update": [["i", "scalar"], ["ibuf", "scalar"], ["n", "dummy"], ["rbuf", "array"], ["tbl", "array"], ["xglob", "array"]]
+  }
+}

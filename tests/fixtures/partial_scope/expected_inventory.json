@@ -1,0 +1,16 @@
+{
+ "files": {
+  "core/main.f90": {
+   "lang": "fortran",
+   "variant": "free",
+   "status": "source"
+  },
+  "lib/lib.f90": {
+   "lang": "fortran",
+   "variant": "free",
+   "status": "source"
+  }
+ },
+ "include_paths": [],
+ "unknown_groups": {}
+}

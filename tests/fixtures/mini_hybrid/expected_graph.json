@@ -1,0 +1,30 @@
+{
+  "description": "Python + C++ + C + Fortran, without bridges: each language graph, cross-language sites unresolved or external",
+  "nodes": [
+    {"uid": "c:c_solve", "kind": "routine", "subtype": "c_function", "file": "csrc/solver.c", "line_start": 5, "line_end": 9},
+    {"uid": "cpp:hybrid::solve(int)", "kind": "routine", "subtype": "cpp_function", "file": "ext/bindings.cpp", "line_start": 4, "line_end": 6},
+    {"uid": "ext:intrinsic:dble", "kind": "external", "subtype": "intrinsic", "file": null, "line_start": null, "line_end": null},
+    {"uid": "ext:python:hybrid_ext", "kind": "external", "subtype": "python", "file": null, "line_start": null, "line_end": null},
+    {"uid": "ext:python:hybrid_ext.solve", "kind": "external", "subtype": "python", "file": null, "line_start": null, "line_end": null},
+    {"uid": "f:kernel", "kind": "routine", "subtype": "f_subroutine", "file": "fsrc/kernel.f90", "line_start": 1, "line_end": 5},
+    {"uid": "py:app.run", "kind": "module", "subtype": "py_module", "file": "app/run.py", "line_start": 1, "line_end": 5},
+    {"uid": "py:app.run.run_case", "kind": "routine", "subtype": "py_function", "file": "app/run.py", "line_start": 4, "line_end": 5}
+  ],
+  "call_sites": [
+    {"src": "py:app.run", "file": "app/run.py", "line": 1, "col": 8, "ref_kind": "use", "target_text": "hybrid_ext", "dst": "ext:python:hybrid_ext", "resolution": "external", "confidence": "exact", "origin": "native:python"},
+    {"src": "py:app.run.run_case", "file": "app/run.py", "line": 5, "col": 12, "ref_kind": "call", "target_text": "hybrid_ext.solve", "dst": "ext:python:hybrid_ext.solve", "resolution": "external", "confidence": "exact", "origin": "native:python"},
+    {"src": "file:csrc/solver.c", "file": "csrc/solver.c", "line": 1, "col": 11, "ref_kind": "include", "target_text": "solver_api.h", "dst": "file:csrc/solver_api.h", "resolution": "resolved", "confidence": "exact", "origin": "native:c"},
+    {"src": "c:c_solve", "file": "csrc/solver.c", "line": 7, "col": 5, "ref_kind": "call", "target_text": "kernel_", "dst": null, "resolution": "unresolved", "confidence": "heuristic", "origin": "native:c"},
+    {"src": "file:ext/bindings.cpp", "file": "ext/bindings.cpp", "line": 1, "col": 11, "ref_kind": "include", "target_text": "solver_api.h", "dst": "file:csrc/solver_api.h", "resolution": "resolved", "confidence": "exact", "origin": "native:cpp"},
+    {"src": "cpp:hybrid::solve(int)", "file": "ext/bindings.cpp", "line": 5, "col": 12, "ref_kind": "call", "target_text": "c_solve", "dst": null, "resolution": "unresolved", "confidence": "heuristic", "origin": "native:cpp"},
+    {"src": "file:ext/bindings.cpp", "file": "ext/bindings.cpp", "line": 10, "col": 5, "ref_kind": "call", "target_text": "m.def", "dst": null, "resolution": "external", "confidence": "exact", "origin": "native:cpp"},
+    {"src": "f:kernel", "file": "fsrc/kernel.f90", "line": 4, "col": 7, "ref_kind": "maybe_call", "target_text": "dble", "dst": "ext:intrinsic:dble", "resolution": "external", "confidence": "exact", "origin": "native:fortran"}
+  ],
+  "edges": [
+    {"src": "f:kernel", "dst": "ext:intrinsic:dble", "kind": "calls", "site_count": 1},
+    {"src": "file:csrc/solver.c", "dst": "file:csrc/solver_api.h", "kind": "uses", "site_count": 1},
+    {"src": "file:ext/bindings.cpp", "dst": "file:csrc/solver_api.h", "kind": "uses", "site_count": 1},
+    {"src": "py:app.run", "dst": "ext:python:hybrid_ext", "kind": "uses", "site_count": 1},
+    {"src": "py:app.run.run_case", "dst": "ext:python:hybrid_ext.solve", "kind": "calls", "site_count": 1}
+  ]
+}

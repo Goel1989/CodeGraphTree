@@ -1,0 +1,238 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "title": "expected_graph.json",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "description",
+  "nodes",
+  "call_sites",
+  "edges"
+ ],
+ "properties": {
+  "description": {
+   "type": "string"
+  },
+  "partial": {
+   "type": "boolean"
+  },
+  "profile": {
+   "type": "object"
+  },
+  "extract_options": {
+   "type": "object"
+  },
+  "nodes": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "uid",
+     "kind"
+    ],
+    "properties": {
+     "uid": {
+      "type": "string",
+      "pattern": "^[a-z]+:"
+     },
+     "kind": {
+      "enum": [
+       "file",
+       "module",
+       "type",
+       "routine",
+       "interface",
+       "binding",
+       "data",
+       "entry_point",
+       "dispatch_target",
+       "test_case",
+       "external"
+      ]
+     },
+     "subtype": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "file": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "line_start": {
+      "type": [
+       "integer",
+       "null"
+      ]
+     },
+     "line_end": {
+      "type": [
+       "integer",
+       "null"
+      ]
+     },
+     "in_scope": {
+      "type": "boolean"
+     }
+    }
+   }
+  },
+  "call_sites": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "src",
+     "file",
+     "line",
+     "col",
+     "ref_kind",
+     "target_text",
+     "dst",
+     "resolution",
+     "confidence",
+     "origin"
+    ],
+    "properties": {
+     "src": {
+      "type": "string"
+     },
+     "file": {
+      "type": "string"
+     },
+     "line": {
+      "type": "integer",
+      "minimum": 1
+     },
+     "col": {
+      "type": "integer",
+      "minimum": 1
+     },
+     "ref_kind": {
+      "enum": [
+       "call",
+       "maybe_call",
+       "use",
+       "include",
+       "inherit",
+       "bind",
+       "dynamic_call"
+      ]
+     },
+     "target_text": {
+      "type": "string"
+     },
+     "dst": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "resolution": {
+      "enum": [
+       "resolved",
+       "ambiguous",
+       "external",
+       "out_of_scope",
+       "unresolved"
+      ]
+     },
+     "confidence": {
+      "enum": [
+       "exact",
+       "resolved",
+       "heuristic",
+       "ambiguous"
+      ]
+     },
+     "origin": {
+      "type": "string"
+     },
+     "condition": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "candidates": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  },
+  "edges": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "src",
+     "dst",
+     "kind",
+     "site_count"
+    ],
+    "properties": {
+     "src": {
+      "type": "string"
+     },
+     "dst": {
+      "type": "string"
+     },
+     "kind": {
+      "enum": [
+       "contains",
+       "calls",
+       "uses",
+       "inherits",
+       "binds",
+       "bridges",
+       "implements",
+       "dispatches",
+       "reads",
+       "writes",
+       "creates",
+       "destroys",
+       "exercises"
+      ]
+     },
+     "site_count": {
+      "type": "integer",
+      "minimum": 0
+     }
+    }
+   }
+  },
+  "definition_conditions": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "string"
+   }
+  },
+  "local_symbols": {
+   "type": "object"
+  },
+  "with_pack": {
+   "type": "object"
+  },
+  "file_encoding": {
+   "type": "object"
+  },
+  "fallback_files": {
+   "type": "array"
+  },
+  "file_status": {
+   "type": "object"
+  },
+  "bridges": {
+   "type": "object"
+  }
+ }
+}

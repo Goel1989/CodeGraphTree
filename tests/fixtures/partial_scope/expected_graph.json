@@ -1,0 +1,19 @@
+{
+  "description": "Analysis limited to core/: calls to routines defined outside the scope are out_of_scope, not unresolved",
+  "profile": {"scope": {"include": ["core/"], "exclude": []}},
+  "nodes": [
+    {"uid": "f:core_helper", "kind": "routine", "subtype": "f_subroutine", "file": "core/main.f90", "line_start": 7, "line_end": 8, "in_scope": true},
+    {"uid": "f:core_main", "kind": "routine", "subtype": "f_subroutine", "file": "core/main.f90", "line_start": 1, "line_end": 5, "in_scope": true},
+    {"uid": "f:lib_inner", "kind": "routine", "subtype": "f_subroutine", "file": "lib/lib.f90", "line_start": 5, "line_end": 6, "in_scope": false},
+    {"uid": "f:lib_routine", "kind": "routine", "subtype": "f_subroutine", "file": "lib/lib.f90", "line_start": 1, "line_end": 3, "in_scope": false}
+  ],
+  "call_sites": [
+    {"src": "f:core_main", "file": "core/main.f90", "line": 2, "col": 8, "ref_kind": "call", "target_text": "core_helper", "dst": "f:core_helper", "resolution": "resolved", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:core_main", "file": "core/main.f90", "line": 3, "col": 8, "ref_kind": "call", "target_text": "lib_routine", "dst": "f:lib_routine", "resolution": "out_of_scope", "confidence": "exact", "origin": "native:fortran"},
+    {"src": "f:core_main", "file": "core/main.f90", "line": 4, "col": 8, "ref_kind": "call", "target_text": "missing_routine", "dst": null, "resolution": "unresolved", "confidence": "heuristic", "origin": "native:fortran"}
+  ],
+  "edges": [
+    {"src": "f:core_main", "dst": "f:core_helper", "kind": "calls", "site_count": 1},
+    {"src": "f:core_main", "dst": "f:lib_routine", "kind": "calls", "site_count": 1}
+  ]
+}

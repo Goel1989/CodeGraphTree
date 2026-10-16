@@ -1,0 +1,31 @@
+{
+ "files": {
+  "broken.cpp": {
+   "lang": "cpp",
+   "variant": null,
+   "status": "source"
+  },
+  "broken.f90": {
+   "lang": "fortran",
+   "variant": "free",
+   "status": "source"
+  },
+  "broken.py": {
+   "lang": "python",
+   "variant": null,
+   "status": "source"
+  },
+  "dir with spaces/élément.f90": {
+   "lang": "fortran",
+   "variant": "free",
+   "status": "source"
+  },
+  "ok.f90": {
+   "lang": "fortran",
+   "variant": "free",
+   "status": "source"
+  }
+ },
+ "include_paths": [],
+ "unknown_groups": {}
+}

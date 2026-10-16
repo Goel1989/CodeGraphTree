@@ -1,0 +1,61 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "title": "expected_inventory.json",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "files"
+ ],
+ "properties": {
+  "files": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "lang",
+     "variant",
+     "status"
+    ],
+    "properties": {
+     "lang": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "variant": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "status": {
+      "enum": [
+       "source",
+       "not_covered",
+       "unknown",
+       "ignored",
+       "binary"
+      ]
+     }
+    }
+   }
+  },
+  "include_paths": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "unknown_groups": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "integer"
+   }
+  },
+  "generated": {
+   "type": "object"
+  }
+ }
+}
