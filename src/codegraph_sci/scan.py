@@ -7,7 +7,6 @@ and never blocks the analysis. Facts are cached (key: file + included files + ad
 
 from __future__ import annotations
 
-import concurrent.futures as cf
 import os
 import posixpath
 import subprocess
@@ -41,6 +40,7 @@ from codegraph_sci.extract.context import make_include_resolver
 from codegraph_sci.extract.cpp import CppAdapter
 from codegraph_sci.extract.fortran import FortranAdapter
 from codegraph_sci.extract.python import PythonAdapter
+from codegraph_sci.extract_pool import TIMEOUT_PREFIX, run_tasks
 from codegraph_sci.inventory.noncode import non_code_stats
 from codegraph_sci.inventory.profile_io import (
     load_profile,
@@ -55,7 +55,6 @@ from codegraph_sci.store.cache import cache_key, get_facts, load_cache, previous
 from codegraph_sci.store.writer import write_full, write_incremental
 
 Progress = Callable[[dict[str, Any]], None]
-IN_PROCESS_LIMIT = 48
 MAX_FILE_BYTES = 8 * 1024 * 1024  # above: analysis limited (definitions not extracted) and reported
 
 
@@ -93,11 +92,13 @@ class ScanCancelled(Exception):
 @dataclass
 class ScanOptions:
     jobs: int = max(1, (os.cpu_count() or 2) - 1)
-    timeout_s: float = 60.0
+    timeout_s: float = 60.0  # deadline of each file (rule 12); <= 0 extracts in-process, without deadline
     full: bool = False  # ignore the cache
     extra_known_arrays: set[str] = field(default_factory=set)
     cancel: Callable[[], bool] | None = None
     native_bridges: bool = True
+    # Extraction function run in the workers (tests inject a blocking one); default: _extract_job.
+    extract_job: Callable[[str, str, str | None], tuple[str, bytes | None, str | None]] | None = None
     bridge_rules: list[dict[str, Any]] = field(default_factory=list)
     keyword_profiles: list[Path] = field(default_factory=list)
     packs: list[str] = field(default_factory=list)
@@ -173,9 +174,11 @@ _WORKER: dict[str, Any] = {}
 
 
 def _worker_init(root: str, include_paths: list[str], defines: dict[str, str], known_arrays: list[str],
-                 py_paths: list[str], keyword_profiles: list[str] | None = None) -> None:
+                 py_paths: list[str], keyword_profiles: list[str] | None = None, keep_all_branches: bool = True) -> None:
+    """Extraction context of a worker: the same parameters as the cache key (``ExtractContext.params``)."""
     root_path = Path(root)
     _WORKER["ctx"] = ExtractContext(include_paths=include_paths, defines=defines, known_arrays=set(known_arrays),
+                                    keep_all_branches=keep_all_branches,
                                     resolve_include=make_include_resolver(root_path, include_paths),
                                     module_name=python_module_namer(py_paths))
     _WORKER["root"] = root_path
@@ -198,42 +201,6 @@ def _extract_job(path: str, lang: str, variant: str | None) -> tuple[str, bytes 
 def _failed_facts(path: str, lang: str, message: str) -> FileFacts:
     return FileFacts(path=path, lang=lang, encoding="unknown", adapter=lang, adapter_version="-",
                      errors=[ParseError(message)])
-
-
-def _run_parallel(jobs: list[tuple[str, str, str | None]], init_args: tuple[Any, ...], workers: int,
-                  timeout_s: float, on_done: Callable[[str, bytes | None, str | None], None],
-                  cancel: Callable[[], bool] | None) -> None:
-    pending = list(jobs)
-    while pending:
-        executor = cf.ProcessPoolExecutor(max_workers=workers, initializer=_worker_init, initargs=init_args)
-        futures = {executor.submit(_extract_job, *job): job for job in pending}
-        pending = []
-        remaining = set(futures)
-        stalled = False
-        try:
-            while remaining:
-                if cancel is not None and cancel():
-                    raise ScanCancelled()
-                done, remaining = cf.wait(remaining, timeout=timeout_s, return_when=cf.FIRST_COMPLETED)
-                for fut in done:
-                    path, blob, err = fut.result()
-                    on_done(path, blob, err)
-                if not done:
-                    # No progress during the time limit: running files are stuck. Mark them failed
-                    # and restart a fresh pool for the others.
-                    for fut in remaining:
-                        job = futures[fut]
-                        if fut.running():
-                            on_done(job[0], None, f"timeout after {timeout_s:.0f} s")
-                        else:
-                            pending.append(job)
-                    stalled = True
-                    break
-        finally:
-            if stalled:
-                for proc in list(getattr(executor, "_processes", {}).values()):
-                    proc.kill()
-            executor.shutdown(wait=not stalled, cancel_futures=True)
 
 
 # ------------------------------------------------------------------- scan
@@ -334,18 +301,18 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
 
     lang_of: dict[str, str] = {e.path: str(e.lang) for e in sources}
     say({"event": "extract", "done": 0, "total": total, "cached": reused})
-    if total <= IN_PROCESS_LIMIT or options.jobs <= 1:
+    init_args = (str(root), profile.include_paths, dict(profile.preprocessor.defines), sorted(known_arrays), py_paths,
+                 kw_paths, profile.preprocessor.keep_all_branches)
+    if options.timeout_s > 0:
+        # Worker processes, one deadline per file: a stuck file never blocks or fails the others.
+        run_tasks(to_extract, workers=options.jobs, timeout_s=options.timeout_s, on_done=on_done,
+                  job=options.extract_job or _extract_job, init=_worker_init, init_args=init_args, check=check_cancel)
+    else:  # explicit opt-out (debugging): in-process, no deadline
         _WORKER.clear()
-        _worker_init(str(root), profile.include_paths, dict(profile.preprocessor.defines),
-                     sorted(known_arrays), py_paths, kw_paths)
-        _WORKER["ctx"] = ctx
+        _worker_init(*init_args)
         for path, lang, variant in to_extract:
             check_cancel()
-            on_done(*_extract_job(path, lang, variant))
-    else:
-        init_args = (str(root), profile.include_paths, dict(profile.preprocessor.defines),
-                     sorted(known_arrays), py_paths, kw_paths)
-        _run_parallel(to_extract, init_args, options.jobs, options.timeout_s, on_done, options.cancel)
+            on_done(*(options.extract_job or _extract_job)(path, lang, variant))
     for path, _lang, _variant in to_extract:
         if path not in errors and path in facts_by_path:
             keys[path] = key_for(facts_by_path[path], shas[path], lang_of[path])
@@ -404,7 +371,7 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
         f = facts_by_path.get(e.path)
         status = "ok"
         if e.path in errors:
-            status = "failed"
+            status = "timeout" if errors[e.path].startswith(TIMEOUT_PREFIX) else "failed"
         elif f is not None and f.used_fallback:
             status = "fallback"
         elif e.lang not in adapters:
