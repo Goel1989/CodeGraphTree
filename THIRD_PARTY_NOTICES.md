@@ -51,7 +51,7 @@ the `dev` extra (pytest, pytest-qt, pytest-socket, hypothesis, ruff, mypy, impor
 | :--- | :--- | :--- |
 | llama-cpp-python (llama.cpp) | MIT | Runs a local AI model when installed |
 | pypdf | BSD-3-Clause | Reads PDF documents given to the AI |
-| Local AI model (`.gguf`) | Apache-2.0 or MIT only (`models.lock`) | When a model is bundled, its license text and any `NOTICE` file are shipped with it; models under noncommercial licenses are never bundled |
+| Local AI model (`.gguf`) | Apache-2.0 or MIT only (`models.lock`, planned) | When a model is bundled, its license text and any `NOTICE` file are shipped with it; models under noncommercial licenses are never bundled |
 | fxtran | GPL-3.0 | Never bundled; usable only as a separately installed external tool after license review |
 
 ## Analysed code bases

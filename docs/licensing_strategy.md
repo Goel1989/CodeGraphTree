@@ -120,8 +120,8 @@ or packs) can be merged. The CLA text, or the choice of a DCO instead, is pendin
 - Apache 2.0 and MIT licenses permit redistribution provided the license text, author notices (and `NOTICE` file for
   Apache 2.0, if any) are included and trademarks are not misused. If quantized by the publisher, the modification is
   stated.
-- The model's license continues to apply to the end user, which is why the "Apache 2.0 or MIT only" rule is enforced
-  via `models.lock`.
+- The model's license continues to apply to the end user, which is why the "Apache 2.0 or MIT only" rule is to be enforced
+  via `models.lock` (planned, Lot 15).
 - Noncommercial models (e.g. Qwen2.5-3B and Qwen2.5-Coder-3B under the *Qwen Research* license) are never bundled or
   offered.
 

@@ -823,52 +823,55 @@ Every new dependency must be vetted through this list and through license audit 
 ### 3.16. Repository structure
 
 ```text
-codegraph-sci/                         development repo (private until release)
-├── AGENTS.md                          agent guidelines (Appendix C)
-├── CHANGELOG.md
+codegraph-sci/                         repository
+├── README.md, CHANGELOG.md, AGENTS.md (Appendix C), CONTRIBUTING.md
+├── LICENSE, NOTICE, LICENSING.md, COMMERCIAL_LICENSE.md, THIRD_PARTY_NOTICES.md
 ├── pyproject.toml
 ├── requirements.lock                  pinned runtime dependencies (tools/lock_dependencies.py; hashes added at release)
 ├── requirements-dev.lock              pinned build and development tools
-├── models.lock                        approved models (Apache 2.0 / MIT)
+├── models.lock                        approved models (Apache 2.0 / MIT) — planned (Lot 15), not created yet
+├── Start_CodeGraph-Sci.bat            Windows launcher of the development environment
 ├── docs/
 │   ├── architecture.md                this document
 │   ├── licensing_strategy.md
-│   ├── legal/                     drafts for legal review (not in force)
-│   └── packs/<code>.md                one file per analyzed codebase
+│   ├── legal/                         drafts for legal review (not in force)
+│   ├── packs/<code>.md                one file per analyzed codebase
+│   ├── bench/                         parser benchmark (lot 4), scan benchmarks (cgs benchmark)
+│   ├── validation/                    corpus validation reports with provenance
+│   └── repository_migration_assessment.md
 ├── src/
-│   ├── codegraph_sci/                 core (released under PolyForm NC)
-│   │   ├── core/
-│   │   ├── algo/                      tarjan.py, closure.py, paths.py
-│   │   ├── inventory/                 extensions.yaml, signatures, context, profile
-│   │   ├── extract/                   fortran/  python/  c/  cpp/  keywords/
-│   │   ├── link/                      symbols.py, bridges/
-│   │   ├── enrich/                    pack engine, schemas/, generic_noise/, generic_fortran/
-│   │   ├── store/                     schema.sql, writer.py, reader.py, cache.py
-│   │   ├── query/
-│   │   ├── layout/
-│   │   ├── audit/                     baseline, diff, sample, recall_sample, invariants
-│   │   ├── scan.py
-│   │   ├── cli.py
-│   │   └── ui/                        app.py, main_window.py, models/, views/, workers.py
+│   └── codegraph_sci/                 the product (one package, D24)
+│       ├── core/                      model, ids, facts, plugins, profile, project, paths, netguard
+│       ├── algo/                      graph.py (Tarjan, condensation, impact), index.py
+│       ├── inventory/                 walk, detect, extensions.yaml, profile schema and I/O, report, non-code files
+│       ├── extract/                   fortran/  python/  c/  cpp/  keywords/, cfamily, cmacro, preproc
+│       ├── link/                      linker.py, externals.py, bridges/
+│       ├── enrich/                    pack engine, noise, schemas/, generic_noise/, generic_fortran/
+│       ├── store/                     schema.sql, indexes.sql, db.py, writer.py, cache.py, export.py
+│       ├── query/                     api.py (GraphQuery), types.py
+│       ├── layout/                    tree layout (not used by the UI since D21)
+│       ├── audit/                     baseline, diff, sample, invariants, report, corpus expectations
 │       ├── ai/                        models.py, worker.py, complete.py (local AI, §3.13)
-│       └── cli_ai.py                  cgs ai-worker, complete, ai-approve
+│       ├── ui/                        app, main_window, shell, theme, graph3d_view, web/ (3D page), view3d/
+│       ├── scan.py, extract_pool.py   analysis pipeline, extraction workers with per-file deadlines
+│       ├── corpus_audit.py, benchmark.py
+│       └── cli.py, cli_query.py, cli_ai.py, selftest.py
 ├── packs/<code>/                      domain packs shipped with the product (data, outside the core, rule 7)
 ├── tests/
 │   ├── unit/
-│   ├── fixtures/<name>/               src/ + expected_inventory.json + expected_graph.json
-│   ├── synthetic/generate.py
-│   ├── corpus/<code>/                 manifest.yaml + expectations.yaml + reference_sample.yaml
-│   ├── ai/                            recorded mock model responses
-│   ├── robustness/                    malformed files, difficult paths, fuzzing
 │   ├── ui/                            pytest-qt
-│   └── portable/                      portable folder checks (network, ports, glibc)
+│   ├── fixtures/<name>/               src/ + expected_inventory.json + expected_graph.json (incl. robustness/)
+│   ├── synthetic/generate.py
+│   ├── corpus/<code>/                 manifest.yaml + expectations.yaml (+ review sheets)
+│   ├── ai/                            recorded mock model responses
+│   └── portable/                      packaged-application checks (network, ports, glibc) — planned (Lot 16)
 ├── tools/
 │   ├── check.py                       ruff + mypy + import-linter + pytest (network blocked)
-│   └── build_portable.py
+│   ├── build_portable.py, lock_dependencies.py, prepare_corpus.py, bench_fortran.py
 └── packaging/
-    ├── codegraph_sci.spec
+    ├── codegraph_sci.spec, entry/
     ├── linux-glibc228.Containerfile
-    └── licenses/
+    └── README.txt                     read-me of the portable folder
 ```
 
 ---
