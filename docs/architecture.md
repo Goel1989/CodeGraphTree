@@ -356,11 +356,19 @@ These rules are enforced by `import-linter` (six contracts: core imports nothing
 | C | `c:<name>`; `static` function: `c:<name>@<file>` | Two `static` functions with same name in two files are distinct symbols |
 | C++ | `cpp:<ns>::<Class>::<method>(<normalized param types>)` | Signature is part of identity; `display_name` omits it |
 | Python | `py:<module>.<qualified name>` | — |
-| Keyword profile | `kw:<language>:<name>` | — |
+| Keyword profile | `kw:<language>:<qualified name>@<file>` | File and lexical scope distinguish homonyms; repeated occurrences receive `#2`, `#3`, etc. |
 | Others | `file:<path>`, `entry:<name>`, `data:<key>`, `test:<id>`, `ext:<library>:<name>` | Paths relative to repository root, using `/` |
 
 - **Preprocessor variants:** if a routine is defined across multiple `#ifdef` branches, each receives a suffix `#2`, `#3`… and preserves its condition.
 - **Overloads and generic interfaces:** when a call cannot disambiguate (types unknown statically), call site retains **all candidate targets** and becomes `ambiguous`.
+
+**Identity of occurrences (D27):** definition nodes record `attrs.symbol_uid` (the adapter's semantic
+identity) and `attrs.occurrence_uid` (SHA-256 of symbol identity, relative file and source span).
+Graph nodes continue to preserve separate definition occurrences; source positions select the owner
+of a call when the same symbol is defined more than once in one file. Existing C/C++ signatures,
+internal linkage and declaration/binding conventions remain unchanged. Keyword names with multiple
+definitions are ambiguous, never resolved by choosing the first file. Lexical qualification preserves
+identity but does not claim complete language-specific scope resolution.
 
 **Call site identity.** Every call or usage observed in code is a **site**: file, line, column, caller routine, target text as written. Site preserves its preprocessor condition, origin, confidence, and resolution state:
 
@@ -447,7 +455,7 @@ layout_cache(key, layout_version, data JSON)                        -- Lot 11 (c
 - **Full analysis:** database is constructed in a temporary file (`<project>.sqlite.tmp`), journal disabled during build (`PRAGMA journal_mode=OFF`, `PRAGMA synchronous=OFF`), bulk inserts (`executemany` in 50,000-row chunks), indexes created at the end, then `ANALYZE` and atomic file rename: UI never sees a half-written DB.
 - **Incremental re-analysis:** WAL mode (`PRAGMA journal_mode=WAL`, `PRAGMA synchronous=NORMAL`); UI continues reading while writing.
 - **Volume:** ~1 million call sites for 15,000 files. One row per site, mostly integers, represents tens of MBs, writes in seconds via bulk inserts, and is read via index for line-by-line inspector navigation.
-- **Facts cache:** key = file SHA-256 + recursive SHA-256 of **all included files** + adapter name and version + profile parameters affecting extraction (language, variant, preprocessor macros, include paths, names known as arrays, `keep_all_branches`) + **extraction mode** (`full` or `outline`; an OUTLINE result is never reused as FULL). Content: canonical JSON compressed with `zlib` (standard library). **Never `pickle`** (security risks and cross-version incompatibility).
+- **Facts cache (D27):** key = cache identity version + facts format version + relative file path + file SHA-256 + included-file hashes + adapter name/version and parser runtime versions + extraction settings (inventory language and variant, preprocessor macros, **ordered** include paths, known arrays, `keep_all_branches`) + effective Python module name + **extraction mode**. Keyword adapter versions contain the SHA-256 of their canonical profile. Every include lookup records its source file, target, resolved path and hash, including nested and unsuccessful lookups. Cache validation repeats those lookups, so a new or shadowing header invalidates the affected facts. Linking always runs again; bridge/resolution-only changes do not invalidate extraction. Content is canonical JSON compressed with `zlib`, never `pickle`. Facts format **2** rejects old blobs explicitly; the next scan rebuilds them, without changing the database schema.
 - The schema carries a version number; an older version database is migrated or re-analyzed.
 
 ### 3.7. Plugin contracts and facts
@@ -516,6 +524,9 @@ class FileFacts:
     used_fallback: bool
     variant: str | None
     extraction_mode: str                         # "full", or "outline" for files outside the scope
+    include_lookups: list[IncludeLookup]         # every include lookup (source, target, resolved path, hash),
+                                                 # including nested and unsuccessful ones: replayed to validate
+                                                 # the cache (facts format 2)
 ```
 
 - Each file's language comes from inventory (profile); adapter does not guess it.
@@ -1274,8 +1285,9 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 | D22 | *(UI look)* Dark & orange theme (`ui/theme.py`: palette, style sheet, icons painted with QPainter, no image file) and a frameless shell (`ui/shell.py`: title bar, resize margins, popovers, hero card) replacing the toolbar, menu and docks. Window move and resize go through the platform (`startSystemMove` / `startSystemResize`) |
 | D23 | *(Whole-project view)* The 3D graphs open on an overview of everything: all nodes and links when they fit under the node ceiling, otherwise one sphere per connected group (separate or parallel programs), so that C4 still holds on large codes. Groups are computed at query time (fast enough, no schema change); non-code files come from the inventory and are stored in the scan statistics; links between folders are flagged |
 | D24 | *(Single product)* CodeGraph-Sci is **one product, one source tree, one feature set**. The former `codegraph_sci_pro` package is merged: the local AI is `codegraph_sci.ai` (commands in `cli_ai.py`), domain packs are data in `packs/` at the root of the repository or of the portable folder (outside the core, rule 7). Free versus commercial use is a **licensing** distinction (community non-commercial license and separate commercial license), never a technical feature gate: no license key, no activation, no telemetry. Supersedes the Pro separation of Lot 16 |
-| D25 | *(Engine reliability, corrective audit P1)* (1) **FULL / OUTLINE extraction**: out-of-scope files are extracted for their definitions and includes only (the Fortran parser skips executable statements except SELECT CASE, whose values feed pack dispatch rules); the extraction mode is part of the facts (`extraction_mode`) and of the cache key, and an OUTLINE result is never reused as FULL. (2) **Per-file deadlines** in worker processes (`extract_pool.py`): a late file kills only its own worker and is stored as `timeout`; extraction never runs without a deadline unless `timeout_s <= 0` is requested explicitly. Cost: about 0.6 s of worker start-up per analysis. (3) **Corpus audit**: PASS/FAIL/SKIP, exit codes 0/1/2/3, authoritative manifest and provenance |
+| D25 | *(Engine reliability, corrective audit P1)* (1) **FULL / OUTLINE extraction**: out-of-scope files are extracted for their definitions and includes only (the Fortran parser skips executable statements except SELECT CASE, whose values feed pack dispatch rules); the extraction mode is part of the facts (`extraction_mode`) and of the cache key, and an OUTLINE result is never reused as FULL. (2) **Per-file deadlines** in worker processes (`extract_pool.py`): a late file kills only its own worker and is stored as `timeout`; extraction never runs without a deadline (the deadline must be finite and positive since D27). Cost: about 0.6 s of worker start-up per analysis. (3) **Corpus audit**: PASS/FAIL/SKIP, exit codes 0/1/2/3, authoritative manifest and provenance |
 | D26 | *(Reproducibility and measurement, corrective audit phase 4)* (1) **Dependency locks**: CI and releases install from `requirements.lock` / `requirements-dev.lock` (generated offline from the reference environment; hashes added at release time with network access), `build_portable` refuses a different environment. (2) **Phase instrumentation**: `phases_ms` and per-mode file counts in every scan, `cgs benchmark` (cold, unchanged and changed rescans); no performance claim without a documented benchmark (`docs/bench/scan_benchmark.md`). (3) **Reference categories** (`GraphQuery.reference_categories`, `cgs health`): every non-resolved site in one of external_known, out_of_scope, ambiguous, dynamic, parser_limitation, unknown — unverified externals are unknown, never known. (4) **Reproducible corpus**: `tools/prepare_corpus.py` fetches the exact revision named by the manifest; validation reports with provenance (`docs/validation/`) |
+| D27 | *(Engine reliability, requirements plan phase 1, October 17, 2026)* (1) **Cache identity**: path, inventory language and variant, ordered include paths, recorded include lookups (replayed, so a new, shadowing or formerly missing header invalidates), effective Python module name, parser runtime versions, extraction mode, facts format 2 and identity version; a cached blob must belong to the same file; linking settings never invalidate extraction. (2) **Stable digests**: SHA-256 instead of Python `hash()` for keyword-profile versions and AI sample partitions. (3) **Deadlines**: workers acknowledge each task; the deadline runs from that acknowledgement, a result produced after it is refused, the deadline must be finite and positive (CLI and API; the in-process path is removed), a worker that cannot initialise stops the run. (4) **Cancellation**: checked up to the last moment before the database is published; a cancelled scan discards its partial results and leaves the previous database unchanged. (5) **Identity**: keyword identities qualified by scope and file (`kw:<language>:<qualified name>@<file>`), homonyms resolved as ambiguous; each definition node records `symbol_uid` and `occurrence_uid`, and a call is owned by the occurrence that contains it |
 
 ### 8.2. Open questions
 

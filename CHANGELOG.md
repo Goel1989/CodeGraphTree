@@ -174,3 +174,11 @@
 - Architecture repository tree matches the repository; planned items (`models.lock`, `tests/portable`) are marked.
 - `docs/migration_report.md`: changes by phase, tests, Definition of Done status, remaining risks, legal-review items and decisions pending with the owner.
 
+## Engine reliability (requirements plan phase 1, decision D27)
+- Cache identity: relative path, inventory variant, ordered include paths, recorded and replayed include lookups (new, shadowing or missing headers invalidate), effective Python module name, parser runtime versions, extraction mode, facts format 2; a cached blob must belong to the same file; linking settings never invalidate extraction. Existing caches are rebuilt once.
+- Stable SHA-256 digests replace Python `hash()` for keyword-profile versions and AI sample partitions.
+- Deadlines: workers acknowledge each task, results produced after the deadline are refused, the deadline must be finite and positive (`cgs scan --timeout` rejects others cleanly), a failing worker initializer stops the run.
+- Cancellation is checked until the database is published; a cancelled scan leaves the previous database unchanged.
+- Identity: keyword routines are qualified by scope and file (`kw:<language>:<qualified name>@<file>`), homonym calls are ambiguous; definition nodes record `symbol_uid` and `occurrence_uid`; repeated definitions keep their own call sites.
+- `docs/validation/phase1_engine_reliability.md`: findings, requirement-to-test map, validation and same-machine benchmark (no measurable regression).
+
