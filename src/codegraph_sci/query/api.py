@@ -506,7 +506,8 @@ class GraphQuery:
         C++ standard library, Python standard library); ``out_of_scope`` defined outside the analysis scope;
         ``ambiguous`` several candidates; ``dynamic`` dynamic call (procedure pointer, dummy procedure) or Python
         attribute call whose target is only known at run time; ``parser_limitation`` site of a file analysed by the
-        fallback extractor; ``unknown`` everything else, including imports and includes not found and Python modules
+        fallback extractor, or C/C++ member call whose receiver type the analysis does not infer; ``unknown``
+        everything else, including imports and includes not found and Python modules
         outside the standard library (assumed third-party, not verified). No site is left out; the resolution stored
         for each site is unchanged.
         """
@@ -522,8 +523,9 @@ class GraphQuery:
         examples: dict[str, list[str]] = {c: [] for c in REFERENCE_CATEGORIES}
         for resolution, kind, target, path, lang, status, line, dst in rows:
             python_attribute = lang == "python" and kind == "call" and "." in str(target)
+            member_call = lang in ("c", "cpp") and ("." in str(target) or "->" in str(target))
             if resolution == "external" and dst is None:
-                cat = "dynamic" if python_attribute else "unknown"
+                cat = "dynamic" if python_attribute else "parser_limitation" if member_call else "unknown"
             elif resolution == "external" and str(dst).startswith("ext:python:"):
                 root_module = str(dst)[len("ext:python:"):].split(".", 1)[0]
                 cat = "external_known" if root_module in stdlib else "unknown"
