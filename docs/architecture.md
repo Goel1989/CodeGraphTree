@@ -1,6 +1,6 @@
 # CodeGraph-Sci — Architecture and Implementation Plan
 
-**Version:** 7.0 — execution document (October 16, 2026)  
+**Version:** 8.0 — execution document, updated to the implementation (October 17, 2026; changes in Appendix A)  
 **Author:** Marian Bogdan Neagoe, PhD  
 **Purpose:** offline desktop application (no cloud service; analysed code never sent to a remote service), identifying languages in a scientific or industrial codebase (Fortran, Python, C, C++ initially), building the "who calls who" graph across these languages, and answering the question "who calls what, and where?".
 
@@ -37,27 +37,27 @@
 | C7 | Extensible | New languages and new codebases added via plugins or keyword profiles, without modifying the core |
 | C8 | No compiler available | Validation of analysis without compilation, through verified samples (§2.1) |
 
-**Implementation order.** Built bottom-up; each lot finishes with a test that must pass before starting the next one (details in §4). Lot 7 is a **stop point**: as long as graph accuracy is not demonstrated, UI development does not start.
+**Implementation order.** Built bottom-up; each lot finishes with a test that must pass before starting the next one (details in §4). Lot 7 is a **stop point**: as long as graph accuracy is not demonstrated, UI development does not start. *Status note:* the UI lots were built while the manual part of Lot 7 (precision and recall review sheets) was still pending; the automatic Lot 7 checks pass, the stop-point criteria are not yet demonstrated (`docs/migration_report.md`).
 
-| Lot | Title | Depends on |
-| :--- | :--- | :--- |
-| 0 | Portable skeleton (USB drive, offline) | — |
-| 1 | Data model and storage | 0 |
-| 2 | Language inventory and analysis profile | 1 |
-| 3 | Reference mini-codebases (tests written before code) | 2 |
-| 4 | Fortran adapter (with parser benchmark) | 3 |
-| 5 | Python, C, and C++ adapters | 3 |
-| 6 | Link, Index, and `cgs scan` command | 4, 5 |
-| 7 | Validation on a real codebase (Bottleneck V1, stop point) | 6 |
-| 8 | Cross-language bridges | 6 |
-| 9 | Query API and command line | 7, 8 |
-| 10 | Desktop application: inventory, search, callers, inspector | 9 |
-| 11 | Files and functions TreeGraph | 10 |
-| 12 | Packs, keyword-based language profiles, noise filtering | 11 |
-| 13 | AI: language identification and keyword completion | 12 |
-| 14 | Test case #1 Pack | 13 |
-| 15 | AI: explanations | 13 |
-| 16 | Dual licensing, license compliance, and final release | 14, 15 |
+| Lot | Title | Depends on | Status (October 17, 2026) |
+| :--- | :--- | :--- | :--- |
+| 0 | Portable skeleton (USB drive, offline) | — | Done; tests on clean machines without network pending (Lot 16) |
+| 1 | Data model and storage | 0 | Done |
+| 2 | Language inventory and analysis profile | 1 | Done (with skipped-folder report and `all_subfolders`) |
+| 3 | Reference mini-codebases (tests written before code) | 2 | Done |
+| 4 | Fortran adapter (with parser benchmark) | 3 | Done (adapter 1.6) |
+| 5 | Python, C, and C++ adapters | 3 | Done |
+| 6 | Link, Index, and `cgs scan` command | 4, 5 | Done (FULL/OUTLINE extraction and per-file deadlines, D25) |
+| 7 | Validation on a real codebase (Bottleneck V1, stop point) | 6 | Partial: tools and automatic checks done, starter corpus 16/16; manual precision/recall review pending |
+| 8 | Cross-language bridges | 6 | Done |
+| 9 | Query API and command line | 7, 8 | Done (query times not measured) |
+| 10 | Desktop application: inventory, search, callers, inspector | 9 | Done (shell of D22) |
+| 11 | Files and functions graph views | 10 | Done as 3D graphs (D21, D23), replacing the TreeGraph |
+| 12 | Packs, keyword-based language profiles, noise filtering | 11 | Done |
+| 13 | AI: language identification and keyword completion | 12 | Partial: pipeline tested with the mock model only |
+| 14 | Test case #1 Pack | 13 | Partial: starter corpus done; full corpus not prepared |
+| 15 | AI: explanations | 13 | Not started |
+| 16 | Dual licensing, license compliance, and final release | 14, 15 | Partial: licensing documents done (D24); compliance audit, SBOM, signing and offline tests of the package pending |
 
 ---
 
@@ -106,7 +106,7 @@ Reference machine: 4-core laptop, 8 GB RAM, no dedicated GPU. These targets are 
 | Expanding a node in a 3D graph | < 200 ms | Not measured |
 | Concurrently rendered nodes | 300 by default (configurable); beyond that, "+N" grouping | Implemented (node ceiling, group spheres) |
 | Application RAM usage, without AI | < 1.5 GB on test case #1 | Not measured |
-| Interface during an analysis | Remains responsive (analysis in separate process) |
+| Interface during an analysis | Remains responsive (analysis in separate process) | Checked by the UI tests (scan in a subprocess); not timed |
 
 ### 1.4. What static analysis can and cannot tell
 
@@ -193,7 +193,7 @@ Addressed **as early as Lot 0**, before any feature: a folder containing Python,
 
 ### 2.3. Bottleneck V3 — Smooth performance on a modest machine
 
-The interface never manipulates the entire graph. Strategies are detailed in §3.12: precomputations during analysis, paginated queries, capped rendered node count, grouping, background layout, level-of-detail zoom. On the storage side, database is built via bulk inserts with indexes created at the end (§3.6).
+The interface never manipulates the entire graph. Strategies are detailed in §3.12: precomputations during analysis, paginated queries, capped rendered node count, an overview by connected groups when a project exceeds the ceiling, a 3D force layout stopped after a few seconds, labels on hover only. On the storage side, database is built via bulk inserts with indexes created at the end (§3.6).
 
 ### 2.4. Bottleneck V4 — Useful AI on CPU without breaking determinism
 
@@ -225,7 +225,8 @@ The interface never manipulates the entire graph. Strategies are detailed in §3
 ┌──────▼──────┐   ┌─────────────▼─────────────┐   ┌──────▼───────┐
 │ Query       │   │ cgs inventory             │   │ AI Worker    │
 │ API         │   │ cgs scan (deterministic)  │   │              │
-│ query/      │   │ reads profile             │   │ GGUF model   │
+│ query/      │   │ reads profile; extraction │   │ GGUF model   │
+│             │   │ workers, 1 deadline/file  │   │              │
 └──────┬──────┘   └─────────────┬─────────────┘   └──────┬───────┘
        │ reads                  │ writes                 │ proposes
        └───────────┬────────────┘                        │
@@ -237,7 +238,7 @@ No network ports, no connections: strictly files, function calls,
 subprocesses, and pipes. cgs scan never calls AI.
 ```
 
-- **Main process:** Qt interface. Never reads source files for analysis and never executes long queries itself.
+- **Main process:** Qt interface (with Qt WebEngine for the 3D graphs). Never reads source files for analysis and never executes long queries itself.
 - **Query threads:** each query (callers, expand, search) runs in a Qt threadpool thread, with its own read-only SQLite connection, returning results via signals.
 - **Analysis process:** interface spawns `cgs inventory` then `cgs scan` (same CLI executable) as subprocesses, reads progress (one JSON line per event), and can cancel them. A parser crash cannot crash the UI; a file exceeding its deadline is stored with `parse_status = timeout` (only that file: its worker process is killed and replaced, the other files continue), and analysis proceeds.
 - **AI process:** dedicated subprocess loading the model; communicates via stdin/stdout (one JSON message per line). **No network ports**, even internally. Never called by `cgs scan`.
@@ -315,10 +316,12 @@ history:
 | **Link** | All facts | Resolved, ambiguous, external, out-of-scope, or unresolved call sites; nodes | `link/` (symbol table + bridges) | Global; normalizes names (casing, mangling) |
 | **Enrich** | Graph | Hiding, data accesses, dispatches, entry points, tests | `enrich/` (packs) | Declarative frozen rules |
 | **Index** | Enriched graph | Aggregated edges, counts, file/directory links, impact size, full-text search | `store/`, `algo/` | Standard Python algorithms (§3.6) |
-| **Diagnostic** | Database | Analysis health; unresolved and ambiguous sites grouped by pattern | `audit/` | Used by user and, if enabled, by AI |
+| **Diagnostic** | Database | Analysis health; unresolved and ambiguous sites grouped by pattern; non-resolved references by category (§3.5) | `audit/`, `query/` | Used by user and, if enabled, by AI |
 
-- **Re-analysis:** the Extract step is only re-run for files whose cache key changed (file, an included file, its adapter, or extraction settings); subsequent steps are re-run entirely, which is fast.
-- **Partial analysis:** if profile restricts `scope`, a lightweight pass still indexes **definitions** across the whole repository (names only). A call to a routine defined outside scope points to an `out_of_scope` node: not counted as "unresolved".
+- **Re-analysis:** the Extract step is only re-run for files whose cache key changed (file, an included file, its adapter, extraction settings, or extraction mode); subsequent steps are re-run entirely. Measured (`docs/bench/scan_benchmark.md`): after 50 changed files, the rebuild after extraction (cache lookup, inventory, index, write) dominates the rescan time.
+- **Partial analysis:** if the profile restricts `scope`, files outside it are extracted in **OUTLINE** mode (D25): definitions with their attributes and includes only, no references, data accesses or directives (the Fortran parser skips executable statements except `SELECT CASE`). A call to a routine defined outside scope points to an `out_of_scope` node: not counted as "unresolved".
+- **Extraction workers:** files are extracted in worker processes (`extract_pool.py`, count = `jobs`, default cores − 1) with **one deadline per file**; a late file kills only its own worker, which is replaced, and is stored with `parse_status = timeout`. Results are kept in memory and written in one database write at the end of the scan.
+- **Statistics:** each scan records in `scan_runs.stats` the counts per resolution, `phases_ms` (inventory, cache lookup, extraction wall time and summed FULL/OUTLINE time, link, enrich, index, total), file counts per extraction mode, the skipped folders and the non-code files (`cgs benchmark` adds the SQLite write time).
 - **Index step computations:** strongly connected components (iterative Tarjan algorithm to avoid Python recursion limits), condensed graph, then impact size of each node by bitset propagation (Python big ints) in topological order; on raw graph and filtered graph.
 
 ### 3.4. Package breakdown and dependency rules
@@ -335,12 +338,13 @@ history:
 | `query` | Query API (§3.10) | `core`, `store`, `algo` |
 | `layout` | Tree layouts (deterministic); not used by the UI since D21 | `core` |
 | `audit` | Diagnostic and validation checks (§2.1) | `core`, `inventory`, `extract`, `store`, `query` |
-| `scan` | Pipeline orchestration | `core`, `algo`, `inventory`, `extract`, `link`, `enrich`, `store` |
-| `cli` | `cgs` command | `inventory`, `scan`, `query`, `audit` |
-| `ui` | Desktop application | `core`, `query`, `layout` — **never** `extract`, `link`, `enrich`, or `store` directly |
-| `ai` | Local AI (§3.13): models, worker process, completion of the profile; commands in `cli_ai.py` | core, inventory, extract, link, enrich, store, query, scan; never imported by `scan`, `audit`, `query`, `ui` or the leaf packages (import contract) |
+| `scan` (`scan.py`, `extract_pool.py`) | Pipeline orchestration; extraction worker processes with per-file deadlines | `core`, `algo`, `inventory`, `extract`, `link`, `enrich`, `store` |
+| `corpus_audit`, `benchmark` | `cgs audit corpus` (authoritative manifest, PASS/FAIL/SKIP), `cgs benchmark` (measured phases) | `scan`, `query`, `audit`, `inventory`, `enrich`, `core` |
+| `cli` (`cli.py`, `cli_query.py`, `cli_ai.py`) | `cgs` command | everything above; `cli_ai` alone imports `ai` |
+| `ui` | Desktop application | `core`, `query`, `layout` — **never** `extract`, `link`, `enrich`, `store`, `scan`, `audit` or `ai` directly (indirect imports allowed) |
+| `ai` | Local AI (§3.13): models, worker process, completion of the profile | `core`, `inventory`, `extract`, `link`, `enrich`, `store`, `query`, `scan` |
 
-These rules are enforced by `import-linter` starting in Lot 0.
+These rules are enforced by `import-linter` (six contracts: core imports nothing internal; leaf packages only use core; leaf packages are independent; query only uses core, store, algo; ui only uses core, query, layout; **the analysis never uses the AI** — `scan`, `audit`, `corpus_audit` and `benchmark` never import `ai` or `cli_ai`).
 
 ### 3.5. Data model
 
@@ -364,11 +368,13 @@ These rules are enforced by `import-linter` starting in Lot 0.
 | :--- | :--- |
 | `resolved` | Unique target in repository |
 | `ambiguous` | Multiple candidate targets |
-| `external` | Known external library (MPI, BLAS…) or intrinsic function |
+| `external` | Outside the repository: known library (MPI, BLAS…), intrinsic function, Python module not found in the repository (assumed external), or method of an unknown receiver (no target node) |
 | `out_of_scope` | Target defined in repository, outside analyzed scope |
 | `unresolved` | No target found |
 
 A graph **edge** aggregates sites sharing (caller, callee, type): carries count, lowest confidence, set of origins, and conditions. Fast queries use edges; line-by-line navigation uses call sites.
+
+**Reference categories (diagnostic, D26).** For reporting, every site not resolved to a routine of the scope is put in exactly one category, first matching rule, without changing its stored resolution: `external_known` (recognised libraries and intrinsics, C++ standard library, Python standard library), `out_of_scope`, `ambiguous`, `dynamic` (dynamic call, procedure pointer or dummy procedure, Python attribute call), `parser_limitation` (file analysed by the fallback extractor, or C/C++ member call whose receiver type is not inferred), `unknown` (everything else, including imports not found and Python modules outside the standard library). An unverified external is never counted as known.
 
 **Node kinds:** `kind` takes a value from a fixed list; `subtype` is open and provided by plugins.
 
@@ -403,7 +409,8 @@ Each access carries its level (`resolution` of access): UI distinguishes "writes
 ```sql
 -- Analyzed content
 files(id INTEGER PRIMARY KEY, path TEXT UNIQUE, lang, variant, sha256, size, encoding,
-      parse_status, adapter, adapter_version, error)
+      parse_status, adapter, adapter_version, error, mtime_ns, cache_key)
+      -- parse_status: ok, fallback, failed, timeout, outline (outside the scope), not_analyzed
 inventory(file_id, lang, variant, confidence, decided_by)
 nodes(id INTEGER PRIMARY KEY, uid TEXT UNIQUE, display_name, kind, subtype, lang,
       file_id, line_start, line_end, in_scope, attrs JSON)
@@ -426,11 +433,11 @@ search_fts                                        -- FTS5: names, paths, header 
 -- Traceability
 plugins(name, type, version)
 scan_runs(id, started_at, finished_at, root, git_rev, profile_version, profile_sha256,
-          plugins JSON, stats JSON)
+          plugins JSON, stats JSON)    -- stats: counts, phases_ms, files per mode, skipped_dirs, non_code
 
 -- Later lots
-summaries(node_id, content_hash, model_id, prompt_version, text)   -- Lot 15
-layout_cache(key, layout_version, data JSON)                        -- Lot 11
+summaries(node_id, content_hash, model_id, prompt_version, text)   -- Lot 15 (created, unused yet)
+layout_cache(key, layout_version, data JSON)                        -- Lot 11 (created, unused since D21)
 ```
 
 **Indexes** (created **after** inserts): `call_sites(src_node)`, `call_sites(dst_node)`, `call_sites(file_id, line)`, `call_sites(resolution, target_text)`, `data_accesses(src_node)`, `data_accesses(data_node)`, `edges(src, kind)`, `edges(dst, kind)`, `nodes(file_id)`.
@@ -440,7 +447,7 @@ layout_cache(key, layout_version, data JSON)                        -- Lot 11
 - **Full analysis:** database is constructed in a temporary file (`<project>.sqlite.tmp`), journal disabled during build (`PRAGMA journal_mode=OFF`, `PRAGMA synchronous=OFF`), bulk inserts (`executemany` in 50,000-row chunks), indexes created at the end, then `ANALYZE` and atomic file rename: UI never sees a half-written DB.
 - **Incremental re-analysis:** WAL mode (`PRAGMA journal_mode=WAL`, `PRAGMA synchronous=NORMAL`); UI continues reading while writing.
 - **Volume:** ~1 million call sites for 15,000 files. One row per site, mostly integers, represents tens of MBs, writes in seconds via bulk inserts, and is read via index for line-by-line inspector navigation.
-- **Facts cache:** key = file SHA-256 + recursive SHA-256 of **all included files** + adapter name and version + profile parameters affecting extraction (language, variant, preprocessor macros, include paths). Content: canonical JSON compressed with `zlib` (standard library). **Never `pickle`** (security risks and cross-version incompatibility).
+- **Facts cache:** key = file SHA-256 + recursive SHA-256 of **all included files** + adapter name and version + profile parameters affecting extraction (language, variant, preprocessor macros, include paths, names known as arrays, `keep_all_branches`) + **extraction mode** (`full` or `outline`; an OUTLINE result is never reused as FULL). Content: canonical JSON compressed with `zlib` (standard library). **Never `pickle`** (security risks and cross-version incompatibility).
 - The schema carries a version number; an older version database is migrated or re-analyzed.
 
 ### 3.7. Plugin contracts and facts
@@ -451,7 +458,8 @@ class LanguageAdapter(Protocol):
     version: str
     languages: list[str]           # inventory languages it can read
     def extract(self, file: SourceFile, ctx: ExtractContext) -> FileFacts: ...
-        # ctx: include paths, macros, timeout, names known as arrays, outline (definitions and includes only)
+        # ctx: include paths, macros, timeout, names known as arrays, keep_all_branches,
+        #      outline (True for files outside the scope: definitions and includes only)
 
 class Bridge(Protocol):
     name: str                      # "pybind11", "fortran_c", "prefix_calls", ...
@@ -483,6 +491,7 @@ class Definition:      # routine, type, module, data...
     uid: str; display_name: str; kind: str; subtype: str; name: str
     span: tuple[int, int]; signature: str | None; doc: str | None
     local_symbols: list[LocalSymbol]
+    attrs: dict        # e.g. select_cases (dispatch), specifics (generic interface), bind names
 
 @dataclass
 class Reference:       # a call or use site, unresolved at this stage
@@ -505,6 +514,8 @@ class FileFacts:
     includes: list[IncludeRef]                   # for cache key and declarations
     errors: list[ParseError]
     used_fallback: bool
+    variant: str | None
+    extraction_mode: str                         # "full", or "outline" for files outside the scope
 ```
 
 - Each file's language comes from inventory (profile); adapter does not guess it.
@@ -648,7 +659,7 @@ class GraphQuery:
         # CallerReport: count, file_count, items = [(caller, sites=[CallSite])]
         # + unresolved_sites, ambiguous_sites: sites not counted in `count` (callees: the routine's open
         #   sites; callers: ambiguous sites listing it as a candidate), always shown next to the count
-    def callees(self, uid: str, *, hide_noise: bool = True) -> CalleeReport: ...
+    def callees(self, uid: str, *, hide_noise: bool = True) -> CallerReport: ...
     def children(self, uid: str, *, direction: Direction, level: Level,
                  edge_kinds: set[str] = CALL_PATH, offset: int = 0, limit: int = 50,
                  hide_noise: bool = True) -> Page[TreeItem]: ...
@@ -679,6 +690,31 @@ class GraphQuery:
                         level: Level = Level.ROUTINE, max_paths: int = 4,
                         max_len: int = 15) -> MainPathReport: ...
         # paths from main to target_uid; fallback to shortest path if > max_paths
+    def files(self) -> list[dict]: ...                                  # file explorer rows
+    def file_symbols(self, path: str) -> list[NodeSummary]: ...
+    def sites_in_file(self, path: str) -> list[CallSite]: ...          # inspector highlights
+
+    # 3D graphs (§3.11, D21, D23)
+    def graph3d(self, root_uid: str, *, mode: str = "functions", depth: int = 2,
+                max_nodes: int = 400, hide_noise: bool = True) -> Graph3D: ...
+        # mode: functions, files, or both (routines + defining files); callers and callees, bounded
+    def graph3d_main_paths(self, target_uid: str, *, mode: str = "functions", max_paths: int = 3,
+                           max_len: int = 15) -> tuple[Graph3D, MainPathReport]: ...
+    def groups(self, level: Level = Level.ROUTINE, *, hide_noise: bool = True) -> GroupsReport: ...
+        # connected groups (union-find over CALL_PATH edges or file_edges), isolated members
+    def graph3d_overview(self, *, mode: str = "functions", max_nodes: int = 300,
+                         hide_noise: bool = True, include_noncode: bool = True) -> Graph3D: ...
+        # everything when it fits, else one sphere per group (+ isolated, + more groups)
+    def graph3d_group(self, group_id: str, *, mode: str = "functions", max_nodes: int = 300,
+                      hide_noise: bool = True) -> Graph3D: ...
+        # group_id: group:<representative>, isolated:<level>, more:<level>:<offset>
+    def non_code_files(self) -> NonCodeReport: ...                      # from the last scan statistics
+        # Graph3DNode: id, label, kind, lang, file, line, fan_in, fan_out, is_root, is_noise, size, note
+        # Graph3DLink: source, target, kind, count, confidence, cross_dir (ends in different folders)
+
+    # Diagnostic (D26)
+    def reference_categories(self) -> ReferenceCategories: ...
+        # counts per category (§3.5), per reference kind, examples, totals
 ```
 
 - All lists are **paginated** (`offset`, `limit`) and stably sorted.
@@ -701,38 +737,43 @@ class GraphQuery:
 | Centre, level 3 | Details panel: the active view; on its right the code inspector and the Callers (N) / Callees (M) panel |
 | Status bar | Analysis in progress, analysis health, active filters |
 
+- **Inventory view:** languages and coverage, unrecognized files, the folders left out of the analysis with their reason and file count, and the "Analyze all subfolders" box (profile option `all_subfolders`, §3.2), "Force language…" and "Ignore extension…" (written to the profile by `cgs profile`, then re-analysis).
+- **Analysis health view:** files per status (including `timeout` and `outline`), call sites per resolution, unresolved rate, non-resolved references by category (§3.5), unresolved and ambiguous patterns, failed and fallback files.
+
 **Qt components**
 
 - Text lists and trees: lazy `QAbstractItemModel` (`canFetchMore` / `fetchMore`) requesting children in pages of 50 from `GraphQuery.children`.
-- **3D graphs** (`ui/graph3d_view.py`, decision D21): `Graph3DView` = toolbar (From main, Paths to main, depth, node ceiling, defining files) + `QWebEngineView` showing the vendored 3d-force-graph page (`ui/web/`), written once per process to a private temporary file. Data comes only from `GraphQuery` in a `QueryRunner` thread: `graph3d(root, mode, depth, max_nodes)` for a neighbourhood, `graph3d(uid, depth=1)` merged on right-click, `graph3d_main_paths(target, mode)` for "Paths to main" (shortest path only when there are too many). Python → page: `runJavaScript("cgs.load(…)" / "cgs.merge(…)")`; page → Python: console messages `CGS:{"event": select | expand | link | ready | loaded | error, …}` read by `QWebEnginePage.javaScriptConsoleMessage`. Offline by construction: page CSP without any network source, Qt's off-the-record default profile, a `QWebEngineUrlRequestInterceptor` blocking every scheme other than `file`, `data`, `blob`, navigation refused elsewhere; no server, no port. Without WebGL (offscreen tests, very old GPU) the page still loads and answers, and says that 3D rendering is unavailable. `AA_ShareOpenGLContexts` is set before the `QApplication` is created, and the window is deleted before it.
+- **3D graphs** (`ui/graph3d_view.py`, decision D21): `Graph3DView` = toolbar (All groups, From main, Paths to main, depth, node ceiling, defining files) + `QWebEngineView` showing the vendored 3d-force-graph page (`ui/web/`), written once per process to a private temporary file. Data comes only from `GraphQuery` in a `QueryRunner` thread: `graph3d(root, mode, depth, max_nodes)` for a neighbourhood, `graph3d(uid, depth=1)` merged on right-click, `graph3d_main_paths(target, mode)` for "Paths to main" (shortest path only when there are too many). Python → page: `runJavaScript("cgs.load(…)" / "cgs.merge(…)")`; page → Python: console messages `CGS:{"event": select | expand | link | ready | loaded | error, …}` read by `QWebEnginePage.javaScriptConsoleMessage`. Offline by construction: page CSP without any network source, Qt's off-the-record default profile, a `QWebEngineUrlRequestInterceptor` blocking every scheme other than `file`, `data`, `blob`, navigation refused elsewhere; no server, no port. Without WebGL (offscreen tests, very old GPU) the page still loads and answers, and says that 3D rendering is unavailable. `AA_ShareOpenGLContexts` is set before the `QApplication` is created, and the window is deleted before it.
 - Inspector: read-only `QPlainTextEdit` + per-language `QSyntaxHighlighter` (rules provided by adapter; for keyword profile, keywords highlighted). If `SourceExcerpt.stale` is true: banner "This file has changed since analysis" and "Re-analyze" button.
-- Path view: each step displays its type (call, bridge, dispatch); dispatch steps are flagged "possible".
-- Background tasks: `QThreadPool` for queries; `QProcess` for inventory, analysis, and AI.
+- Paths: `cgs path` lists each step with its type (call, bridge, dispatch; dispatch steps flagged "possible"); in the window, "Paths to main" of the 3D graphs shows the paths from `main` to the selection.
+- Background tasks: `QThreadPool` for queries; `QProcess` for inventory and analysis (the AI runs from `cgs complete` and `cgs ai-worker`, not from the window yet).
 - Settings: `QSettings` in INI format, in the data folder (§3.14).
 - **Groups and overview** (D23): `GraphQuery.groups(level)` computes the connected groups at query time (union-find over call edges `CALL_PATH`, or `file_edges`; about 1 s on Code_Aster, so no schema change); utility routines are left out when hidden, since they would glue unrelated programs together. `graph3d_overview(mode, max_nodes)` returns everything or the group spheres, `graph3d_group(id)` the content of a sphere (`group:<representative>`, `isolated:<level>`, `more:<level>:<offset>`), `non_code_files()` the non-code files recorded by the last analysis (scan statistics key `non_code`: exact counts per category, at most 5,000 paths). `Graph3DNode` gains `size` and `note`, `Graph3DLink` gains `cross_dir` (ends in different folders).
 - **Standalone 3D window** (`ui/view3d/`, `cgs view3d`, optional): the same page in a **PyWebView** window running in its **own process** (PyWebView has its own GUI loop), for use outside the main window. Data: `GraphQuery.graph3d(root, mode=functions|files|both, depth, max_nodes)` — a bounded, deterministic neighbourhood (callers and callees) plus, in `both` mode, the files defining the routines (`defines` links) and the links between those files. The page is self-contained (vendored JavaScript, data inline) and carries a Content-Security-Policy forbidding every network access; there is **no HTTP server and no port** (`http_server=False`, file URL, `js_api` bridge). Right-click expands a node on demand (`View3DApi.expand`); a click prints one JSON line `{"event": "select", "uid": …}` on stdout. `--export page.html` writes the same page without a window.
 
-**Workflow when opening a folder:** inventory → display languages and their coverage → if elements are missing and AI is available, prompt "Complete with AI" → analysis → auto-detection of `main` and display of its neighbourhood in `Functions 3D` and `Files 3D` → click on a node → panels and inspector follow; right-click → its neighbours are added (or, with "Paths to main", only the paths from `main`).
+**Workflow when opening a folder:** inventory → display languages, coverage and skipped folders → analysis (`cgs inventory`, then `cgs scan`, subprocesses; opening another project stops a running one) → `Functions 3D` and `Files 3D` open on the **overview of the whole project** (every node and link, or one sphere per group, D23), `main` being detected for "From main" and "Paths to main" → selecting a routine (search, file explorer, graph click) updates the hero card, the inspector and the Callers / Callees panel; a click on a sphere opens its group; right-click adds the neighbours of a node. The "Complete with AI" prompt of Lot 13 is available from the command line (`cgs complete`) and not yet in the window.
 
 ### 3.12. Graphical performance strategies (CPU only)
 
 1. **Never the whole graph in UI:** only what is displayed, fetched from database.
 2. **Precomputations during analysis:** caller/callee counts (raw and filtered), impact size, file and directory links (`file_edges`, `dir_edges`).
-3. **Pagination:** 50 children per expansion; beyond that, a "+N more" node expanding on demand.
-4. **Rendered node ceiling** (300 by default): beyond that, UI proposes switching to file or directory level.
-5. **Aggregation levels:** directory → file → routine; step down one level via double-click.
+3. **Pagination:** 50 children per expansion in the tree list; at most 150 nodes added per right-click in the 3D graphs.
+4. **Rendered node ceiling** (300 by default, configurable): a project above it is shown as one sphere per connected group (D23), a group above it is drawn up to the ceiling and flagged "limit reached".
+5. **Aggregation levels:** functions and files views; groups of linked routines or files; isolated members and smaller groups gathered in buckets that open on demand.
 6. **Hubs and data families hidden by default** in the graphs, with the hidden count shown.
 7. **3D force layout** in the WebGL page (3d-force-graph), stopped after 6 s (`cooldownTime`) so that a modest CPU is not kept busy; the camera is fitted once the layout settles. The deterministic tree layout of `layout/tree.py` is no longer used by the UI (D21).
 8. **Labels on hover only** (tooltips), no text sprites: the cost of a frame does not grow with label length.
 9. **Lightweight rendering on large views:** a right-click adds at most 150 nodes and never goes past the node ceiling; directional particles only on bridges and bindings, and can be switched off.
-10. **Unobtrusive analysis:** analysis process at low priority, worker count = cores − 1, facts streamed to database.
+10. **Unobtrusive analysis:** analysis in a separate process; extraction worker count = cores − 1 (configurable `jobs`); results written to the database once, at the end (atomic replacement for a full write, WAL for incremental). The process priority is not lowered.
 11. **Partial analysis:** ability to restrict detailed analysis to specific directories (§3.3).
 
 ### 3.13. Local AI
 
+**Status (October 17, 2026):** roles 1 and 2 are implemented (`codegraph_sci/ai/`, `cgs ai-worker`, `cgs complete`, `cgs ai-approve`) and tested with the **mock model** only; no real model has been benchmarked or bundled yet; role 3 is not started (Lot 15).
+
 **Execution:** `cgs ai-worker` subprocess loading a GGUF model with `llama-cpp-python`, on CPU (threads = cores − 1), with 4 to 8k token context. JSON communication over stdin/stdout; streamed responses; zero temperature and fixed seed. Inference library selects CPU instruction set dynamically at startup (§2.2).
 
-**Models:** strictly Apache 2.0 or MIT licensed, listed in `models.lock` (file, SHA-256, license). Initial CPU candidates: Qwen2.5-Coder-1.5B-Instruct (Apache 2.0) and Phi-4-mini-instruct (MIT), Q4 quantized. Final choice decided on Lot 13 benchmark.
+**Models:** strictly Apache 2.0 or MIT licensed, to be listed in `models.lock` (file, SHA-256, license; planned, Lot 15). Initial CPU candidates: Qwen2.5-Coder-1.5B-Instruct (Apache 2.0) and Phi-4-mini-instruct (MIT), Q4 quantized. Final choice decided on Lot 13 benchmark.
 
 **Role 1 — Identify unknown languages (Lot 13)**
 
@@ -783,17 +824,17 @@ CodeGraph-Sci-1.0-linux-x86_64/          (or -windows-x64)
 ├── CodeGraph-Sci                         desktop application (CodeGraph-Sci.exe on Windows)
 ├── cgs                                   CLI (cgs.exe on Windows)
 ├── _internal/                            embedded Python, Qt, libraries
-├── packs/                                installed packs (rules.yaml)
+├── packs/                                domain packs shipped with the product (copied from packs/)
 ├── models/                               optional bundled .gguf model + license + provenance.json
-├── licenses/                             licenses & notices of all components, LGPL source offer
+├── licenses/                             LICENSE, NOTICE, LICENSING, COMMERCIAL_LICENSE, THIRD_PARTY_NOTICES
 ├── data/                                 projects and settings (portable mode)
 └── README.txt
 ```
 
-- **Two portable variants of the same software** (same features, D24): without a bundled model (~300 MB, measured in Lot 0; a model can be added later) and with a bundled model (1 to 3 GB additional depending on model), built with `tools/build_portable.py --with-model`.
+- **Two portable variants of the same software** (same features, D24): without a bundled model (about 620 MB measured with Qt WebEngine, D21; 129 MB in Lot 0 before it; a model can be added later) and with a bundled model (1 to 3 GB additional depending on model), built with `tools/build_portable.py --with-model`.
 - **Two executables** sharing the same `_internal/` directory, produced by a single PyInstaller spec: desktop app and CLI.
-- **Data location:** default on local disk (`~/.codegraph-sci/` on Linux, `%LOCALAPPDATA%\CodeGraph-Sci\` on Windows) because SQLite is slow on USB drives. "Portable mode" option writes to `data/` next to the app.
-- **Build:** `tools/build_portable.py` (PyInstaller) produces the directory, archive, and SHA-256 hash. Linux: glibc 2.28 container (§2.2); Windows: CI Windows runner. Network is only used at build time; finished folder makes zero network access.
+- **Data location:** default on local disk (`~/.codegraph-sci/` on Linux, `%LOCALAPPDATA%\CodeGraph-Sci\` on Windows; `CGS_DATA_DIR` overrides it) because SQLite is slow on USB drives. "Portable mode" (`data/portable.flag`) writes to `data/` next to the app. Corpus audits use `<data>/audits/<corpus>` unless a project folder is given.
+- **Build:** `tools/build_portable.py` (PyInstaller) produces the directory, archive, and SHA-256 hash, from an environment matching `requirements.lock` / `requirements-dev.lock` (refused otherwise). Linux: glibc 2.28 container (§2.2); Windows: CI Windows runner. Network is only used at build time; the finished folder is designed to work without network (C2) — its tests on machines without network are pending (Lot 16).
 - **Bundled model:** the variant with a bundled model contains model file and license text, as required by Apache 2.0 and MIT (§7).
 
 ### 3.15. Technical choices and dependencies
@@ -805,20 +846,19 @@ CodeGraph-Sci-1.0-linux-x86_64/          (or -windows-x64)
 | Qt WebEngine (part of PySide6, Chromium) | Embedded 3D graphs of the main window (§3.11, D21); about +300 MB in the portable folder | LGPL-3.0 (+ Chromium notices) |
 | pywebview *(optional extra `view3d`)* + bottle, proxy_tools, pythonnet (Windows) | Standalone 3D window `cgs view3d` (§3.11), separate process, no server | BSD-3-Clause / MIT |
 | 3d-force-graph 1.80.1 (bundles three.js r186) | 3D rendering, vendored in `ui/web/vendor/` with its licences (SHA-256 `13088340…23be9`) | MIT |
-| py-tree-sitter + Fortran, C, C++, Python grammars | Parsers (Python 2: fallback to tree-sitter grammar) | MIT (`tree-sitter-fortran` wheel verified; otherwise `tree-sitter-language-pack` or build at packaging) |
+| py-tree-sitter + Fortran, C, C++, Python grammars | C and C++ parsers; Python 2 fallback; the Fortran grammar is only used by `cgs selftest` and the parser benchmark (D18) | MIT |
 | `ast` (standard library) | Python 3 parser | PSF |
 | sqlite3 + FTS5, `zlib`, `json` (standard library) | Project DB, full-text search, compressed cache | Public domain / PSF |
 | In-house graph algorithms (`algo/`) | Iterative Tarjan, condensation, bitsets, bounded traversals | — (project code; NetworkX no longer needed) |
 | PyYAML (`safe_load` only), jsonschema | Profiles, packs, and strict validation | MIT |
 | fparser, LFortran *(Fortran benchmark candidates, Lot 4)* | Alternative Fortran parsers | BSD-3 |
 | fxtran *(excluded from default distribution)* | Fortran parser, external tool only after license review | GPL-3.0 |
-| PyInstaller | Portable folder bundling | GPL-2.0 with exception allowing proprietary distribution |
+| PyInstaller (build only, `requirements-dev.lock`) | Portable folder bundling | GPL-2.0 with exception allowing proprietary distribution |
 | llama-cpp-python *(Lot 13)* | CPU model execution | MIT |
 | pypdf *(Lot 13)* | Parsing user-supplied technical docs | BSD-3 |
-| cryptography *(Lot 16)* | Ed25519 license keys | Apache-2.0 / BSD |
 | pytest, pytest-qt, pytest-socket, hypothesis, ruff, mypy, import-linter | Development and testing | MIT / BSD / MPL-2.0 (hypothesis) |
 
-Every new dependency must be vetted through this list and through license audit (Lot 16).
+Every new dependency must be vetted through this list and through license audit (Lot 16), and added to the locks (`tools/lock_dependencies.py --write`) and to `THIRD_PARTY_NOTICES.md` when redistributed. Exact versions: `requirements.lock`, `requirements-dev.lock` (D26).
 
 ### 3.16. Repository structure
 
@@ -945,7 +985,7 @@ Do not start the next lot.
 ### Lot 6 — Link, Index, and `cgs scan` command
 
 - **Objective:** transform a multi-language codebase folder into a complete database.
-- **Deliverables:** `link/` (per-language symbol table — case-insensitive for Fortran —, site resolution, `maybe_call` decision, generic interfaces, external and intrinsic symbols, lightweight out-of-scope definition index and `out_of_scope` state); `algo/` (iterative Tarjan, condensation, bitset impact size, bounded traversals); Index step (aggregated edges, `node_stats`, `file_edges`, `dir_edges`, FTS5); `scan.py` (profile reading, parallelism, per-file timeout, cache key incorporating included files, JSON progress); `cgs scan <folder>` command.
+- **Deliverables:** `link/` (per-language symbol table — case-insensitive for Fortran —, site resolution, `maybe_call` decision, generic interfaces, external and intrinsic symbols, lightweight out-of-scope definition index — OUTLINE extraction since D25 — and `out_of_scope` state); `algo/` (iterative Tarjan, condensation, bitset impact size, bounded traversals); Index step (aggregated edges, `node_stats`, `file_edges`, `dir_edges`, FTS5); `scan.py` (profile reading, parallelism, per-file timeout, cache key incorporating included files, JSON progress); `cgs scan <folder>` command.
 - **Validation tests:** each fixture, including `mini_hybrid` without bridges, produces a graph and sites identical to `expected_graph.json`; consecutive runs produce identical export; re-analysis without changes re-extracts zero files; modifying one file re-extracts only that file, **modifying an included file re-extracts all files including it**; `partial_scope`: calls outside scope become `out_of_scope`, not `unresolved`; `robustness`: no file stalls analysis; synthetic repo analyzes within target time (§1.3), and impact size computed across 15,000 routines within logged time and memory.
 - **Depends on:** Lots 4 and 5.
 
@@ -978,7 +1018,7 @@ Do not start the next lot.
 - **Validation tests:** pytest-qt model tests; user scenarios S1, S2, S7, S8, S10 (§5.6); interface remains responsive during starter corpus analysis.
 - **Depends on:** Lot 9.
 
-### Lot 11 — Files and functions TreeGraph
+### Lot 11 — Files and functions graph views (TreeGraph, replaced by 3D graphs)
 
 - **Objective:** two visual graph views.
 - **Deliverables:** `layout/tree.py` (deterministic tree layout); TreeGraph view (`QGraphicsView`) in both directions (callees, callers) and routine, file, directory levels; color per language; "+N" pagination, "↺ already shown" marks, hubs and data families hidden by default, level of detail, layout cache. *(The TreeGraph view was replaced by the embedded 3D graphs, decision D21.)*
@@ -1134,14 +1174,17 @@ metrics:
 | Determinism | Same repo + same profile → identical canonical exports on Linux and Windows |
 | AI outside analysis | `cgs scan` never spawns AI process (verified) |
 | Offline code level | Entire test suite runs with network socket blocked (pytest-socket) |
-| Offline distributed app | On Linux, app launches and functions in network namespace (`unshare -n`); on Linux and Windows, zero listening ports during analysis, UI navigation, and inference |
+| Offline distributed app | On Linux, app launches and functions in network namespace (`unshare -n`); on Linux and Windows, zero listening ports during analysis, UI navigation, and inference — **planned (Lot 16), not run yet** |
 | Safe loading | `yaml.safe_load` exclusively; YAML files with Python object tags rejected; strict schemas; zero `pickle` |
-| Robustness | Malformed sources, very large files (beyond limit, analysis truncated and logged), tricky paths, symlink loops, unreadable files, timeouts; random data sent to adapters (hypothesis fuzzing) without crashing |
+| Robustness | Malformed sources, very large files (beyond limit, analysis truncated and logged), tricky paths, symlink loops, unreadable files; per-file deadlines (blocked, slow, simultaneous and crashing extractors, `test_extract_timeouts`); random data sent to adapters (hypothesis fuzzing) without crashing |
 | Inspector consistency | File modified after analysis flagged "stale" |
 | Cache | Modifying an included file invalidates files that include it |
 | Isolation | Zero pack-declared identifiers in core (§6.4) |
 | Package dependencies | §3.4 rules enforced by import-linter |
-| Performance | §1.3 targets measured on synthetic repo and starter corpus |
+| Performance | §1.3 targets measured with `cgs benchmark` on the synthetic repo and the starter corpus (`docs/bench/`) |
+| Corpus audit | PASS/FAIL/SKIP and exit codes 0/1/2/3, manifest authority and provenance (`test_corpus_audit`) |
+| Extraction modes | FULL in scope, OUTLINE outside, cache identity per mode, identical definitions (`test_outline_extraction`) |
+| Repository hygiene | English-only project content (`test_english_only`), no control character in sources (`test_source_hygiene`), environment matching the locks (`test_dependency_lock`) |
 | Licensing | All dependencies tracked in §3.15 list (automated audit in Lot 16) |
 
 ### 5.6. User scenarios
@@ -1153,7 +1196,7 @@ metrics:
 | S3 | Functions 3D graph across 4 callee levels (right-click expansions) | Expansions in < 200 ms, each node drawn once |
 | S4 | Files 3D graph of a file, then dive into routines | Weighted links, language colors, detailed calls on link click |
 | S5 | Hide then reveal utilities | "+N" badge, decluttered graph |
-| S6 | Path between two routines in different languages | Path displayed and highlighted, step types visible, dispatches marked "possible" |
+| S6 | Path between two routines in different languages | Path listed with step types and dispatches marked "possible" (`cgs path`); in the window, "Paths to main" of the 3D graphs |
 | S7 | Modify file, re-analyze | Re-analysis in < 30 s, views updated |
 | S8 | Run application from USB drive with network disconnected | Boots and functions completely |
 | S9 | Repository with unknown language; "Complete with AI" | Language identified, keyword profile proposed with effect preview; approved/rejected; links marked "AI" |
@@ -1183,7 +1226,7 @@ metrics:
 
 ### 6.4. Isolation rule
 
-The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifiers specific to an analyzed codebase. Each pack declares its `identifiers`; a test fails the build if they appear in core. Fixtures use neutral names. AI-proposed rules for a project reside in that project's folder, never in core.
+The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifiers specific to an analyzed codebase; domain packs live in `packs/<code>/` at the root of the repository or of the portable folder (D24). Each pack declares its `identifiers`; a test fails the build if they appear in core. Fixtures use neutral names. AI-proposed rules for a project reside in that project's folder, never in core.
 
 ---
 
@@ -1195,15 +1238,15 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 - **AI models:** strictly Apache 2.0 or MIT. The variant with a bundled model includes the model file **and license text** (along with `NOTICE` file if present): redistribution requirement of these licenses.
 - **Analyzed codebases:** exact revision and origin of any snippet in demos are recorded, with code license notice; no source code from analyzed codebases is bundled into commercial distribution without prior review.
 - **User-supplied technical documents:** read locally, never copied into rules beyond brief rationale snippets.
-- **External contributions:** Contributor License Agreement (CLA) signed prior to integration.
-- **License key:** never locks core functionality or data (Lot 16).
+- **External contributions:** Contributor License Agreement (CLA) signed prior to integration; the CLA text (or a DCO) is pending legal review, and external pull requests are not merged until then (`CONTRIBUTING.md`).
+- **No license mechanism in the software** (D24): no license key, no activation, no telemetry; nothing in the code checks a license or changes a feature.
 - Commercial and legal details: `LICENSING.md`, `COMMERCIAL_LICENSE.md`, `docs/licensing_strategy.md`; license texts and notices: `LICENSE` (PolyForm Noncommercial 1.0.0, unmodified), `NOTICE`, `THIRD_PARTY_NOTICES.md`; contribution rights: `CONTRIBUTING.md`.
 
 ---
 
 ## 8. Decisions and open questions
 
-### 8.1. Decisions made (October 16, 2026)
+### 8.1. Decisions made (D1–D18: October 16, 2026; D19–D26: during implementation, up to October 17, 2026)
 
 | # | Decision |
 | :--- | :--- |
@@ -1215,7 +1258,7 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 | D6 | Default question: how many routines call a routine, and which ones |
 | D7 | Two graph views: files and functions (3D since D21) |
 | D8 | No compiler: validation without compilation, via verified samples (§2.1) |
-| D9 | Dual license: PolyForm NC + commercial license |
+| D9 | Dual license: PolyForm NC + commercial license, for the same software and features (D24) |
 | D10 | Portable variant with a bundled model includes the model and its license — *hypothesis to confirm* |
 | D11 | First test case mixes Fortran, Python, and C/C++: language inventory and four adapters starting in Lots 2–5 |
 | D12 | *(updated in v7, to confirm)* AI identifies unrecognized languages and defines missing keywords; by default, user validates in one click after link preview; automatic adoption mode enabled per project |
@@ -1225,14 +1268,14 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 | D16 | Graph algorithms written in-house (iterative Tarjan, bitsets); NetworkX removed |
 | D17 | Fortran parser chosen via comparative benchmark on real files, among permissive candidates; fxtran (GPL-3.0) excluded from default distribution |
 | D18 | *(Lot 4)* Main Fortran parser: **in-house logical statement analyzer** (fixed and free form, continuations, preprocessor branches preserved, exact positions). Benchmark on fixtures (`docs/bench/fortran_parsers.md`): only candidate with 100% recall and precision; tree-sitter-fortran fails on fixed form (text past col 72, `C`/`*` comments) and loses `#ifdef` branches; fparser fails on 4/23 files and is 25x slower; LFortran not evaluated (binary missing). Fallback and dual extraction: independent pattern extractor. **To confirm on real sample files from test case #1** (`python tools/bench_fortran.py <folder>`) |
-| D26 | *(Reproducibility and measurement, corrective audit phase 4)* (1) **Dependency locks**: CI and releases install from `requirements.lock` / `requirements-dev.lock` (generated offline from the reference environment; hashes added at release time with network access), `build_portable` refuses a different environment. (2) **Phase instrumentation**: `phases_ms` and per-mode file counts in every scan, `cgs benchmark` (cold, unchanged and changed rescans); no performance claim without a documented benchmark (`docs/bench/scan_benchmark.md`). (3) **Reference categories** (`GraphQuery.reference_categories`, `cgs health`): every non-resolved site in one of external_known, out_of_scope, ambiguous, dynamic, parser_limitation, unknown — unverified externals are unknown, never known. (4) **Reproducible corpus**: `tools/prepare_corpus.py` fetches the exact revision named by the manifest; validation reports with provenance (`docs/validation/`) |
-| D25 | *(Engine reliability, corrective audit P1)* (1) **FULL / OUTLINE extraction**: out-of-scope files are extracted for their definitions and includes only (the Fortran parser skips executable statements except SELECT CASE, whose values feed pack dispatch rules); the extraction mode is part of the facts (`extraction_mode`) and of the cache key, and an OUTLINE result is never reused as FULL. (2) **Per-file deadlines** in worker processes (`extract_pool.py`): a late file kills only its own worker and is stored as `timeout`; extraction never runs without a deadline unless `timeout_s <= 0` is requested explicitly. Cost: about 0.6 s of worker start-up per analysis. (3) **Corpus audit**: PASS/FAIL/SKIP, exit codes 0/1/2/3, authoritative manifest and provenance |
-| D24 | *(Single product)* CodeGraph-Sci is **one product, one source tree, one feature set**. The former `codegraph_sci_pro` package is merged: the local AI is `codegraph_sci.ai` (commands in `cli_ai.py`), domain packs are data in `packs/` at the root of the repository or of the portable folder (outside the core, rule 7). Free versus commercial use is a **licensing** distinction (community non-commercial license and separate commercial license), never a technical feature gate: no license key, no activation, no telemetry. Supersedes the Pro separation of Lot 16 |
-| D23 | *(Whole-project view)* The 3D graphs open on an overview of everything: all nodes and links when they fit under the node ceiling, otherwise one sphere per connected group (separate or parallel programs), so that C4 still holds on large codes. Groups are computed at query time (fast enough, no schema change); non-code files come from the inventory and are stored in the scan statistics; links between folders are flagged |
-| D22 | *(UI look)* Dark & orange theme (`ui/theme.py`: palette, style sheet, icons painted with QPainter, no image file) and a frameless shell (`ui/shell.py`: title bar, resize margins, popovers, hero card) replacing the toolbar, menu and docks. Window move and resize go through the platform (`startSystemMove` / `startSystemResize`) |
-| D21 | *(3D in the main window)* The two 2D TreeGraphs (`QGraphicsView`) are **replaced** by two embedded 3D graphs (functions, files) drawn by the vendored 3d-force-graph page in a **`QWebEngineView`**: the user prefers the 3D display, and it fits in the current Qt UI, so **no web UI** is needed (C1 kept). Offline guarantees: CSP, off-the-record profile, request interceptor, no server, no port (C2). Cost: Qt WebEngine is now shipped in the portable build (about +300 MB). The PyWebView window of D20 remains as the optional `cgs view3d` command |
-| D20 | *(3D view)* 3D visualization with 3d-force-graph in a **PyWebView** window running in a separate process, without HTTP server or port, JavaScript vendored. **Streamlit rejected**: it is a web application serving on a local port (violates C1 and C2). QtWebEngine not used at the time (size): revised by D21 |
 | D19 | *(Lot 0)* Tree-sitter grammars: standalone wheels `tree-sitter-fortran`, `-python`, `-c`, `-cpp`; `tree-sitter-language-pack` ≥ 1.0 excluded because it downloads grammars at runtime (violates C2) |
+| D20 | *(3D view)* 3D visualization with 3d-force-graph in a **PyWebView** window running in a separate process, without HTTP server or port, JavaScript vendored. **Streamlit rejected**: it is a web application serving on a local port (violates C1 and C2). QtWebEngine not used at the time (size): revised by D21 |
+| D21 | *(3D in the main window)* The two 2D TreeGraphs (`QGraphicsView`) are **replaced** by two embedded 3D graphs (functions, files) drawn by the vendored 3d-force-graph page in a **`QWebEngineView`**: the user prefers the 3D display, and it fits in the current Qt UI, so **no web UI** is needed (C1 kept). Offline guarantees: CSP, off-the-record profile, request interceptor, no server, no port (C2). Cost: Qt WebEngine is now shipped in the portable build (about +300 MB). The PyWebView window of D20 remains as the optional `cgs view3d` command |
+| D22 | *(UI look)* Dark & orange theme (`ui/theme.py`: palette, style sheet, icons painted with QPainter, no image file) and a frameless shell (`ui/shell.py`: title bar, resize margins, popovers, hero card) replacing the toolbar, menu and docks. Window move and resize go through the platform (`startSystemMove` / `startSystemResize`) |
+| D23 | *(Whole-project view)* The 3D graphs open on an overview of everything: all nodes and links when they fit under the node ceiling, otherwise one sphere per connected group (separate or parallel programs), so that C4 still holds on large codes. Groups are computed at query time (fast enough, no schema change); non-code files come from the inventory and are stored in the scan statistics; links between folders are flagged |
+| D24 | *(Single product)* CodeGraph-Sci is **one product, one source tree, one feature set**. The former `codegraph_sci_pro` package is merged: the local AI is `codegraph_sci.ai` (commands in `cli_ai.py`), domain packs are data in `packs/` at the root of the repository or of the portable folder (outside the core, rule 7). Free versus commercial use is a **licensing** distinction (community non-commercial license and separate commercial license), never a technical feature gate: no license key, no activation, no telemetry. Supersedes the Pro separation of Lot 16 |
+| D25 | *(Engine reliability, corrective audit P1)* (1) **FULL / OUTLINE extraction**: out-of-scope files are extracted for their definitions and includes only (the Fortran parser skips executable statements except SELECT CASE, whose values feed pack dispatch rules); the extraction mode is part of the facts (`extraction_mode`) and of the cache key, and an OUTLINE result is never reused as FULL. (2) **Per-file deadlines** in worker processes (`extract_pool.py`): a late file kills only its own worker and is stored as `timeout`; extraction never runs without a deadline unless `timeout_s <= 0` is requested explicitly. Cost: about 0.6 s of worker start-up per analysis. (3) **Corpus audit**: PASS/FAIL/SKIP, exit codes 0/1/2/3, authoritative manifest and provenance |
+| D26 | *(Reproducibility and measurement, corrective audit phase 4)* (1) **Dependency locks**: CI and releases install from `requirements.lock` / `requirements-dev.lock` (generated offline from the reference environment; hashes added at release time with network access), `build_portable` refuses a different environment. (2) **Phase instrumentation**: `phases_ms` and per-mode file counts in every scan, `cgs benchmark` (cold, unchanged and changed rescans); no performance claim without a documented benchmark (`docs/bench/scan_benchmark.md`). (3) **Reference categories** (`GraphQuery.reference_categories`, `cgs health`): every non-resolved site in one of external_known, out_of_scope, ambiguous, dynamic, parser_limitation, unknown — unverified externals are unknown, never known. (4) **Reproducible corpus**: `tools/prepare_corpus.py` fetches the exact revision named by the manifest; validation reports with provenance (`docs/validation/`) |
 
 ### 8.2. Open questions
 
@@ -1244,6 +1287,8 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 6. Test case #2: which codebase, and what new challenge should it exercise?
 7. Is a Windows runner available for Lot 0 tests, or is a virtual machine required?
 8. Trademark and name availability for "CodeGraph-Sci" (trademark, domain name, PyPI).
+9. Legal review of the dual licensing (definitions of commercial use, CLA or DCO, LGPL and Chromium obligations, the Code_Aster lines quoted by the review sheets): checklist in `docs/licensing_strategy.md` §4.
+10. Owner decisions listed in `docs/migration_report.md`: original root documents (`architecture_codegraph_sci_v7.md`, `pack_code_aster.md`, `strategie_licence.md`), tracking of the review sheets, commercial contact channel.
 
 ---
 
@@ -1257,7 +1302,8 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 | v4 | Generic document: extensions (languages, bridges, packs); separate test cases |
 | v5 | Execution document: PySide6 desktop app, offline, portable; bottlenecks; validation without compiler; lot-based plan |
 | v6 | Language inventory and analysis profile; multi-language repos from start; AI identifying languages and defining missing keywords; keyword profiles; 17 lots without calendar milestones |
-| **v7** | **Integration of two external reviews:** call sites as ground truth and symbol identity (C++ signatures, `static` functions, variants); SQLite bulk writes, deferred indexing, atomic replacement, WAL for incremental; compressed JSON cache factoring in included files; local symbols and Fortran `name(...)` rule (included file and `COMMON` arrays, intrinsics); data at three precision levels; strict pack format spec and safe loading; explicit bridge prefix semantics and negative tests; partial analysis with `out_of_scope` state; separated metrics and stratified samples with confidence intervals, replayed reference sample; stop point at Lot 7; comparative benchmark of permissive Fortran parsers, fxtran (GPL-3.0) excluded by default; Linux build on glibc 2.28 and CPU AI compatible with older processors; NetworkX replaced by in-house algorithms; explicit edge kinds for paths; freshness check in inspector; one-click AI proposal validation by default; robustness, safe-loading, and network tests on distributed package; license compliance as explicit Lot 16 task |
+| v7 | **Integration of two external reviews:** call sites as ground truth and symbol identity (C++ signatures, `static` functions, variants); SQLite bulk writes, deferred indexing, atomic replacement, WAL for incremental; compressed JSON cache factoring in included files; local symbols and Fortran `name(...)` rule (included file and `COMMON` arrays, intrinsics); data at three precision levels; strict pack format spec and safe loading; explicit bridge prefix semantics and negative tests; partial analysis with `out_of_scope` state; separated metrics and stratified samples with confidence intervals, replayed reference sample; stop point at Lot 7; comparative benchmark of permissive Fortran parsers, fxtran (GPL-3.0) excluded by default; Linux build on glibc 2.28 and CPU AI compatible with older processors; NetworkX replaced by in-house algorithms; explicit edge kinds for paths; freshness check in inspector; one-click AI proposal validation by default; robustness, safe-loading, and network tests on distributed package; license compliance as explicit Lot 16 task |
+| **v8** | **Updated to the implementation (October 17, 2026):** lot status column; 3D graphs in the main window replacing the TreeGraph (D21), dark & orange frameless shell (D22), whole-project overview by connected groups, links between folders and non-code files (D23); one product package with the local AI in `codegraph_sci.ai`, domain packs in `packs/`, dual licensing as a legal distinction only (D24); FULL/OUTLINE extraction, per-file deadlines in worker processes, corpus audit with PASS/FAIL/SKIP, exit codes and an authoritative manifest (D25); dependency locks, phase instrumentation and `cgs benchmark`, reference categories, reproducible corpus preparation and validation reports (D26); skipped-folder report and `all_subfolders`; precise offline wording; performance targets with their measured values; Query API, schema, facts, package rules, repository tree and agent rule 12 updated |
 
 ## Appendix B — Glossary
 
@@ -1277,6 +1323,10 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 - **Reference sample:** manually verified links and locations, recorded and replayed automatically.
 - **Hub:** routine (or data family) connected to a very high number of routines, typically a utility.
 - **TreeGraph:** visual expandable tree view, node by node, at function or file level (replaced by the 3D graphs, D21).
+- **FULL / OUTLINE extraction:** complete facts for files in the analysis scope; definitions and includes only for the others (D25).
+- **Group (3D overview):** set of routines or files linked to each other and to nothing outside the set; separate groups are separate or parallel programs (D23).
+- **Reference category:** classification of a non-resolved reference site for reporting (§3.5, D26).
+- **Dependency lock:** exact versions of the runtime and build dependencies (`requirements.lock`, `requirements-dev.lock`).
 - **Portable folder:** standalone folder (including embedded Python) functioning when copied anywhere, including a USB drive.
 - **Mock model:** AI replacement returning recorded responses for deterministic testing without inference engine.
 - **GGUF:** model file format executed by llama.cpp.
@@ -1296,7 +1346,7 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 9. A file's language comes from the inventory; no adapter guesses it.
 10. Every observed call becomes a call site with file, line, column, condition, and origin; never merge two call sites in a way that loses this information.
 11. Configuration files: `yaml.safe_load` and schema validation only; never `pickle`.
-12. Every analyzed file has a maximum timeout; a failure is logged, never blocking.
+12. Every analyzed file has a deadline: it is extracted in a worker process that is killed beyond it, and the file is stored as `timeout`; a failure is logged, never blocking, and never affects another file.
 13. The UI accesses data only through `GraphQuery`; no long-running query on the main thread.
 14. Every AI feature must be testable with the mock model.
 15. Typed Python 3.12 (`mypy` strict), formatted with `ruff`; identifiers, code, UI, comments, and documentation in English. English is the only project language even when instructions are given in another language: translate the intent, never copy the wording. Exceptions: analysed source code and fixtures that intentionally represent foreign-language code. Checked by `tests/unit/test_english_only.py`.
@@ -1313,7 +1363,7 @@ These conventions supplement §3.5 and §3.7; expected fixture graphs (`tests/fi
 - **Preprocessor variants:** a call toward a routine defined across multiple variants (`f:x`, `f:x#2`) is `resolved` to the first, with all variants as candidates; an edge is created to each variant.
 - **Conditions:** `#ifdef X` → `defined(X)`, `#ifndef X` / `#else` → `!defined(X)`, `#if E` → `E` (normalized spacing); nested conditions joined by ` && `.
 - **Calls without static target:** procedure received as argument, procedure pointer, Python variable → `dynamic_call`, `unresolved` (or `resolved`/`heuristic` if simple propagation finds target, e.g. `h = getattr(m, "f")`).
-- **Libraries:** Python call to module outside repo → `external` to `ext:python:…`; method call on unknown receiver with no method of that name in repo → `external` without target node.
+- **Libraries:** Python call to module outside repo → `external` to `ext:python:…`; method call on unknown receiver with no method of that name in repo → `external` without target node. For reporting (§3.5), the first counts as `external_known` only for the Python standard library, the second as `dynamic` (Python) or `parser_limitation` (C/C++).
 - **Edges:** `calls` (`call`, `maybe_call`, `dynamic_call` sites having a target, including `external`, `out_of_scope`, and each candidate of ambiguous site), `uses` (`use`, `include`), `inherits`, `implements` (generic interface → specific procedures, without site), `contains` (structure).
 - **Bridges (Lot 8):** `binding` nodes extracted from sources — `bind:pybind11:<module>[.<name>]` (`PYBIND11_MODULE`, `m.def`), `bind:pyext:<module>[.<name>]` (Python C-API: `PyInit_<module>`, `PyMethodDef` tables), `bind:decl:<name>@<file>` (rule declaration patterns). A site resolved by a bridge preserves its `ref_kind` and takes origin `bridge:<bridge>` (`bridge:prefix_calls@<rule>` for profile rule) and `resolved` confidence; its edge is `binds` for `pybind11` and `python_extension` (Python → compiled code), `bridges` for `fortran_c`, `c_cpp`, and `prefix_calls`. A structural `binds` edge links each `binding` node to its implementation. Native bridges (`pybind11`, `python_extension`, `c_cpp`, `fortran_c`) are active by default; they act only on unresolved or external sites.
 - **Packs (Lot 12):** additional format key `data: {fortran_common, fortran_module_variables}` (generic pack `generic_fortran`). New profiles enable `generic_noise` and `generic_fortran`. Rule templates: `catalogs[].entry`/`target` and `entry_points[].target`/`fallback_target` are `str.format` templates (entry fields, named regex groups, `{file_stem}`). Memory keys: literal object `data:mem:<name>`, local object `data:mem:<routine>:<name>` (`local_prefix_pattern`, priority over `literal`), symbolic `data:mem:<routine>:<expression>`, family `data:mem:*<suffix>` (hidden by default). An ambiguous site with > 8 candidates retains zero candidates (no edge).

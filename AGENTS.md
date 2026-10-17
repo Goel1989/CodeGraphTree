@@ -13,7 +13,7 @@
 9. A file's language comes from the inventory; no adapter guesses it.
 10. Every observed call becomes a call site with file, line, column, condition, and origin; never merge two call sites in a way that loses this information.
 11. Configuration files: `yaml.safe_load` and schema validation only; never `pickle`.
-12. Every analyzed file has a maximum timeout; a failure is logged, never blocking.
+12. Every analyzed file has a deadline: it is extracted in a worker process that is killed beyond it, and the file is stored as `timeout`; a failure is logged, never blocking, and never affects another file.
 13. The UI accesses data only through `GraphQuery`; no long-running query on the main thread.
 14. Every AI feature must be testable with the mock model.
 15. Typed Python 3.12 (`mypy` strict), formatted with `ruff`; identifiers, code, UI, comments, and documentation in English. English is the only project language even when instructions are given in another language: translate the intent, never copy the wording. Exceptions: analysed source code and fixtures that intentionally represent foreign-language code. Checked by `tests/unit/test_english_only.py`.
