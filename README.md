@@ -8,7 +8,7 @@ stores it in a local SQLite database. Every observed call is kept as a call site
 condition, confidence, origin). The desktop window answers "who calls this routine, and how many?", what it calls,
 how files are linked, the path between two routines and the impact of a change, with 3D views of functions and files.
 
-- **100% offline**: no network access, no open port (verified at start-up).
+- **Offline**: CodeGraph-Sci does not require a cloud service and does not send analysed source code to a remote service. Analysis and optional local AI execution run on the user's machine. Its processes refuse network sockets (a Python-level guard, not an operating-system sandbox) and open no port.
 - **Modest machines**: CPU only, the interface never loads the whole graph.
 - **Source-available, dual-licensed**: see [License](#license).
 
@@ -59,11 +59,14 @@ contracts, decisions) before changing the code. Each analysed codebase is descri
 
 ## Status and limits
 
-- Validated on the fixture mini-codebases and on a Code_Aster sample (18,446 files, 0 failed files).
-- The precision of the call graph on real code has **not been measured yet**: the manual review sheets of
-  `tests/corpus/code_aster_start/review/` are still to be filled; the unresolved rate on Code_Aster (8.5 %) is above
-  the 2 % target.
+- Checked on the fixture mini-codebases (exact expected graphs) and on a Code_Aster 17.5.7 sample (18,438 source
+  files, none failed, 16/16 corpus expectations): see `docs/validation/code_aster_start.md`.
+- The precision and recall of the call graph on real code have **not been measured yet**: the manual review sheets of
+  `tests/corpus/code_aster_start/review/` are still to be filled. The unresolved rate on Code_Aster (8.53 % of call
+  sites) is above the 2 % target; `cgs health` splits non-resolved references by category.
+- Performance figures are measurements on one development machine (`docs/bench/scan_benchmark.md`), not guarantees.
 - AI features are tested with the mock model only.
+- The offline behaviour of the packaged application without network has not been tested yet (Lot 16).
 
 ## License
 

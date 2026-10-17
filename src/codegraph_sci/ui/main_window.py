@@ -56,7 +56,8 @@ ABOUT_TEXT = (
     f"<h3>CodeGraph-Sci {APP_VERSION}</h3>"
     "<p>Call-graph explorer for multi-language scientific code "
     "(Fortran, Python, C, C++).</p>"
-    "<p>100% offline desktop application.</p>"
+    "<p>Offline desktop application: no cloud service is needed and analysed source code is never sent to a "
+    "remote service.</p>"
     "<p>Public source code under PolyForm Noncommercial 1.0.0 license; "
     "separate commercial license.</p>"
 )

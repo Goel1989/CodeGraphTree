@@ -2,7 +2,7 @@
 
 **Version:** 7.0 — execution document (October 16, 2026)  
 **Author:** Marian Bogdan Neagoe, PhD  
-**Purpose:** desktop application, 100% offline, identifying languages in a scientific or industrial codebase (Fortran, Python, C, C++ initially), building the "who calls who" graph across these languages, and answering the question "who calls what, and where?".
+**Purpose:** offline desktop application (no cloud service; analysed code never sent to a remote service), identifying languages in a scientific or industrial codebase (Fortran, Python, C, C++ initially), building the "who calls who" graph across these languages, and answering the question "who calls what, and where?".
 
 > **How to use this document.**
 >
@@ -29,7 +29,7 @@
 | # | Constraint | Technical consequence |
 | :--- | :--- | :--- |
 | C1 | Desktop application, no web app | Python + Qt (PySide6) interface; neither browser nor server |
-| C2 | 100% offline | No network access, no open ports, verified on the distributed application |
+| C2 | Offline | No cloud service needed; analysed source code never sent to a remote service; analysis and optional local AI run on the user's machine. CodeGraph-Sci processes refuse network sockets (Python-level guard, `core/netguard.py`, and `pytest-socket` in tests) and open no port; web pages are restricted by CSP and a request interceptor. This is not an operating-system network sandbox: an absolute "network access impossible" guarantee would be a separate OS-level confinement requirement. Tests of the packaged application without network: Lot 16 |
 | C3 | Full version transferable on a USB drive | Portable folder with embedded Python, one per OS: Linux x86_64 (target: Ubuntu) and Windows x64 |
 | C4 | Modest machine, CPU only | Interface never loads the entire graph; everything is precomputed and paginated; AI is only invoked on samples |
 | C5 | Deterministic structure | Same repo + same analysis profile + same versions = same graph; AI prepares the profile, it never intervenes during analysis |
@@ -93,19 +93,19 @@ Both 3D graphs **open on the overview of the whole project** (decision D23): eve
 
 ### 1.3. Non-functional requirements
 
-Reference machine: 4-core laptop, 8 GB RAM, no dedicated GPU. These targets are **metrics to measure** (lots 2, 6, 7, 9, 11, 13); they will be adjusted based on actual measurements.
+Reference machine: 4-core laptop, 8 GB RAM, no dedicated GPU. These targets are **metrics to measure** (lots 2, 6, 7, 9, 11, 13); they will be adjusted based on actual measurements. No target is a promise until it is reproduced in a documented benchmark (`cgs benchmark`, `docs/bench/`); measurements so far were made on an 8-CPU development machine, **not on the reference machine**.
 
-| Metric | Target |
-| :--- | :--- |
-| Language inventory of a ~15,000 file repository | < 1 min |
-| Full analysis of the same repository | < 15 min |
-| Re-analysis after modifying at most 50 files | < 30 s |
-| AI-assisted preparation (identification + completion) | At most 3 iterations of 10 model calls; each call < 60 s |
-| Opening an already analyzed project | < 3 s |
-| Callers of a routine (count + list) | < 100 ms |
-| Expanding a node in a 3D graph | < 200 ms |
-| Concurrently rendered nodes | 300 by default (configurable); beyond that, "+N" grouping |
-| Application RAM usage, without AI | < 1.5 GB on test case #1 |
+| Metric | Target | Measured (documented) |
+| :--- | :--- | :--- |
+| Language inventory of a ~15,000 file repository | < 1 min | 13.9 s for 15,000 files (lot 2); 4.8–5.1 s on the 18,438-file Code_Aster sample (`docs/bench/scan_benchmark.md`) |
+| Full analysis of the same repository | < 15 min | 87.5 s on the Code_Aster sample (cold, `docs/bench/scan_benchmark.md`) |
+| Re-analysis after modifying at most 50 files | < 30 s | 10.8–10.9 s (synthetic, 3,000 files) and 25.9 s (Code_Aster sample) (`docs/bench/scan_benchmark.md`) |
+| AI-assisted preparation (identification + completion) | At most 3 iterations of 10 model calls; each call < 60 s | Not measured (only the mock model is tested) |
+| Opening an already analyzed project | < 3 s | Not measured |
+| Callers of a routine (count + list) | < 100 ms | Not measured |
+| Expanding a node in a 3D graph | < 200 ms | Not measured |
+| Concurrently rendered nodes | 300 by default (configurable); beyond that, "+N" grouping | Implemented (node ceiling, group spheres) |
+| Application RAM usage, without AI | < 1.5 GB on test case #1 | Not measured |
 | Interface during an analysis | Remains responsive (analysis in separate process) |
 
 ### 1.4. What static analysis can and cannot tell
@@ -1206,7 +1206,7 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 | :--- | :--- |
 | D1 | Desktop application Python + Qt (PySide6); no web application |
 | D2 | Operating systems: Linux x86_64 (target: Ubuntu) and Windows x64 |
-| D3 | 100% offline operation; full version transferable on USB drive |
+| D3 | Offline operation (no cloud service, analysed code never sent); full version transferable on USB drive |
 | D4 | Modest machines, CPU only: graphical lightweighting mandatory |
 | D5 | Deterministic graph for a given analysis profile; AI prepares profile, never intervenes during analysis |
 | D6 | Default question: how many routines call a routine, and which ones |

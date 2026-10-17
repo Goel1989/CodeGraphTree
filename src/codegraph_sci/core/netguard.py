@@ -1,4 +1,9 @@
-"""Process-wide guard that forbids any network socket (constraint C2: 100 % offline)."""
+"""Process-wide guard that forbids any network socket in a CodeGraph-Sci Python process (constraint C2).
+
+It replaces ``socket.socket``: Python code of the process cannot open a network socket. It is not an operating-system
+sandbox (native libraries and child processes are not confined by it); embedded web pages are restricted separately
+(Content-Security-Policy and a request interceptor, ``ui/graph3d_view.py``).
+"""
 
 from __future__ import annotations
 

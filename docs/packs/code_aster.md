@@ -3,8 +3,8 @@
 **Repository location:** `docs/packs/code_aster.md`  
 **Pack:** `code_aster` (domain pack shipped with the product, `packs/code_aster/`)  
 **Document version:** 0.2 (October 16, 2026) — incorporates two external reviews  
-**Reference codebase version:** 17.5.7 (validated in §10)  
-**Status:** verified on starter corpus 17.5.7.
+**Reference codebase version:** 17.5.7 (checks in §10)  
+**Status:** starter corpus 17.5.7: 16/16 expectations (`docs/validation/code_aster_start.md`); precision and recall not measured yet (manual review pending).
 
 > **This file is codebase-specific.** It is only used when working on the `code_aster` pack and its corpora. Nothing below may appear in the core (`src/codegraph_sci/`): the isolation rule in `docs/architecture.md` (§6.4) applies strictly. If a rule cannot be expressed in the generic pack format (`docs/architecture.md`, §3.8), extend the pack format **generically**, never the core for a single codebase.
 
