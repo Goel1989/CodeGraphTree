@@ -33,6 +33,18 @@ Run the whole check before proposing a change:
 
 Use small, thematic commits with English messages.
 
+## Dependencies
+
+Releases and CI are built from `requirements.lock` (runtime and redistributed) and `requirements-dev.lock` (build and
+development tools); `pyproject.toml` keeps compatible constraints for developers. Updating a dependency is a deliberate
+change of its own:
+
+1. upgrade it in the reference environment and run `python tools/lock_dependencies.py --write`;
+2. run `tools/check.py`, `cgs benchmark` on the fixtures and on a real corpus, and `cgs audit corpus` — mandatory
+   after any tree-sitter or grammar upgrade, which can change extraction results;
+3. update `THIRD_PARTY_NOTICES.md` when a redistributed component or its license changes;
+4. for a release, add hashes to the pins on a machine with network access (see `tools/lock_dependencies.py`).
+
 ## Contribution rights
 
 CodeGraph-Sci is dual-licensed (`LICENSING.md`). The copyright holder must therefore hold, for every contribution,

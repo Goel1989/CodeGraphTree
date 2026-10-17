@@ -40,7 +40,20 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--with-model", action="store_true",
                         help="name the folder for the variant with a bundled model (same software, same features)")
+    parser.add_argument("--allow-unlocked", action="store_true",
+                        help="build even if the environment differs from requirements.lock (never for a release)")
     args = parser.parse_args()
+    sys.path.insert(0, str(ROOT / "tools"))
+    from lock_dependencies import DEV_LOCK, RUNTIME_LOCK, check
+
+    problems = check([RUNTIME_LOCK, DEV_LOCK])
+    if problems:
+        for problem in problems:
+            print(problem)
+        if not args.allow_unlocked:
+            print("error: the environment differs from the dependency locks (tools/lock_dependencies.py --check)")
+            return 1
+        print("warning: building from an unlocked environment")
     sys.path.insert(0, str(ROOT / "src"))
     from codegraph_sci.core.versions import APP_VERSION
 
