@@ -10,3 +10,4 @@ dist/
 *.sqlite-wal
 *.sqlite-shm
 corpus_src/
+/build/
