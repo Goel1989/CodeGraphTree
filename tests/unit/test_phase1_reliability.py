@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -73,6 +76,14 @@ def test_link_settings_do_not_invalidate_extraction(tmp_path: Path) -> None:
     project = _project(tmp_path, {"a.py": "def hello(): pass\n"})
     scan(project, ScanOptions(jobs=1))
     assert scan(project, ScanOptions(jobs=1, native_bridges=False)).stats["files_cached"] == 1
+
+
+def test_bridge_partition_is_stable_across_hash_seeds() -> None:
+    script = ("from codegraph_sci.ai.complete import _sample_half; "
+              "print([_sample_half(f'file{i}.py') for i in range(30)])")
+    results = [subprocess.check_output([sys.executable, "-c", script],
+               env={**os.environ, "PYTHONHASHSEED": str(seed)}, text=True) for seed in (1, 2)]
+    assert results[0] == results[1]
 
 
 def test_inventory_variant_invalidates_extraction(tmp_path: Path) -> None:

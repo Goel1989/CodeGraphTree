@@ -18,7 +18,7 @@ import yaml
 
 from codegraph_sci.ai.worker import AIClient
 from codegraph_sci.core.facts import FileFacts, SourceFile, decode_facts
-from codegraph_sci.core.plugins import ExtractContext, decode_bytes
+from codegraph_sci.core.plugins import ExtractContext, decode_bytes, sha256_text
 from codegraph_sci.core.profile import FileOverride, HistoryEntry, LanguageEntry, RuleRef
 from codegraph_sci.core.project import Project
 from codegraph_sci.enrich.packs import _schema as pack_schema
@@ -31,6 +31,13 @@ from codegraph_sci.scan import ScanOptions, in_scope, load_bridge_rules, native_
 from codegraph_sci.store.cache import load_cache
 
 NATIVE = ("fortran", "python", "c", "cpp")
+
+
+def _sample_half(path: str) -> int:
+    """Stable file partition; independent of the interpreter's randomized hash seed."""
+    return int(sha256_text(path), 16) % 2
+
+
 IDENTIFY_SCHEMA: dict[str, Any] = {
     "type": "object", "additionalProperties": False, "required": ["language", "use_adapter", "rationale"],
     "properties": {"language": {"type": "string", "pattern": "^[a-z0-9_]+$"},
@@ -246,7 +253,7 @@ class Completion:
         to_lang = str(rule.get("to"))
         prefix = {"fortran": "f:", "c": "c:", "cpp": "cpp:", "python": "py:"}.get(to_lang, "")
         plausible = sum(1 for k in gained if str(new[k]).startswith(prefix)) / len(gained) if gained else 0.0
-        halves = [[k for k in targeted if hash(k[0]) % 2 == i] for i in (0, 1)]
+        halves = [[k for k in targeted if _sample_half(k[0]) == i] for i in (0, 1)]
         rates = [sum(1 for k in h if new.get(k) is not None) / len(h) for h in halves if h]
         kloc = max(1.0, sum(1 for _ in facts) / 10)
         checks = {"targeted": len(targeted), "gain": len(gained) / len(targeted) if targeted else 0.0,
