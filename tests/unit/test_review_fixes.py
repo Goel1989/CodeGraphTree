@@ -150,3 +150,25 @@ def test_closed_pipe_on_windows_does_not_crash(tmp_path: Path, monkeypatch: pyte
     finally:
         netguard.uninstall()
 
+
+
+def test_nested_select_case_values_stay_with_their_selector() -> None:
+    """``end select`` closes the inner SELECT CASE: later CASE values belong to the outer selector again."""
+    from codegraph_sci.core.plugins import ExtractContext
+    from codegraph_sci.extract.fortran.parser import extract_fortran
+
+    text = """subroutine disp(i, j)
+  integer :: i, j
+  select case (i)
+  case (1)
+    select case (j)
+    case (10)
+      continue
+    end select
+  case (2)
+    continue
+  end select
+end subroutine disp
+"""
+    facts = extract_fortran("d.f90", text, "utf-8", "free", ExtractContext())
+    assert facts.definitions[0].attrs["select_cases"] == {"i": ["1", "2"], "j": ["10"]}

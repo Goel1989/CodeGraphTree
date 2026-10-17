@@ -26,7 +26,7 @@ from codegraph_sci.extract.fortran.intrinsics import INTRINSICS
 from codegraph_sci.extract.fortran.source import PreparedSource, Statement, prepare
 
 ADAPTER = "fortran"
-VERSION = "1.5"
+VERSION = "1.6"
 
 
 class HardParseError(Exception):
@@ -797,7 +797,7 @@ class FortranParser:
         s = stripped
         if not s:
             return
-        if re.match(r"end\s*select", s):
+        if re.match(r"end\s*select\b", s):
             if self.selects:
                 self.selects.pop()
             return
