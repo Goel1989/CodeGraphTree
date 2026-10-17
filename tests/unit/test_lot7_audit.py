@@ -115,10 +115,10 @@ expect:
   - hidden: "f:report"
 """)
     results = check_expectations(db, expectations)
-    status = {r["item"]: r["ok"] for r in results}
-    assert status["node: f:solve"] is True and status["node: f:does_not_exist"] is False
-    assert status["callers_count: {'node': 'f:report', 'min': 1, 'max': 1}"] is True
-    assert status["hidden: f:report"] is False  # f:report is not a utility
+    status = {r["item"]: r["status"] for r in results}
+    assert status["node: f:solve"] == "PASS" and status["node: f:does_not_exist"] == "FAIL"
+    assert status["callers_count: {'node': 'f:report', 'min': 1, 'max': 1}"] == "PASS"
+    assert status["hidden: f:report"] == "FAIL"  # f:report is not a utility
 
 
 def test_cli_audit_report(hybrid_db: tuple[Path, Path], capsys: pytest.CaptureFixture[str]) -> None:

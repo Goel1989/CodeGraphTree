@@ -173,10 +173,12 @@ def register(sub: Any, corpus_handler: Any = None) -> None:
     p.add_argument("sheet")
     p.add_argument("reference")
     p.set_defaults(func=_accept)
-    p = asub.add_parser("corpus", help="analyse a real-code corpus (manifest) and check its expectations")
+    p = asub.add_parser("corpus", help="analyse a real-code corpus (manifest) and check its expectations; exit 0 "
+                                       "all required PASS, 1 a required FAIL, 2 configuration error, 3 internal error")
     p.add_argument("manifest", help="tests/corpus/<code>/manifest.yaml")
     p.add_argument("--project", help="project folder")
     p.add_argument("--no-scan", action="store_true", help="check the existing analysis only")
+    p.add_argument("--json", action="store_true", help="JSON report (results and provenance)")
     p.set_defaults(func=corpus_handler)
     p = asub.add_parser("replay", help="replay reference_sample.yaml against the current analysis")
     common(p)

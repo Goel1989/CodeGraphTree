@@ -98,42 +98,30 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
 
 def _cmd_audit_corpus(args: argparse.Namespace) -> int:
-    import yaml
+    """Exit codes: 0 all required PASS, 1 a required FAIL, 2 configuration error, 3 internal audit error."""
+    from codegraph_sci.corpus_audit import (
+        EXIT_CONFIG,
+        EXIT_INTERNAL,
+        AuditConfigError,
+        AuditOptions,
+        print_report,
+        run_audit,
+    )
 
-    from codegraph_sci.audit.corpus import check_expectations, load_manifest
-    from codegraph_sci.core.profile import Scope
-    from codegraph_sci.core.project import open_project
-    from codegraph_sci.inventory.profile_io import load_profile, profile_from_inventory, save_profile
-    from codegraph_sci.inventory.run import run_inventory
-    from codegraph_sci.scan import ScanOptions, scan
-
-    manifest_path = Path(args.manifest)
-    manifest = load_manifest(manifest_path)
-    source = Path(str(manifest["source"]["path"]))
-    if not source.is_dir():
-        raise SystemExit(f"error: corpus sources not found at {source} (edit source.path in {manifest_path})")
-    project = open_project(source, args.project)
-    profile = load_profile(project.profile_path) if project.profile_path.is_file() else profile_from_inventory(
-        run_inventory(source))
-    scope = [s for s in manifest["scope"] if s not in (".", "./")]
-    if profile.scope.include != scope:
-        profile.scope = Scope(include=scope, exclude=list(profile.scope.exclude))
-        save_profile(project.profile_path, profile)
-    missing_packs = [p for p in manifest.get("packs", []) if p not in profile.packs]
-    if missing_packs:
-        print(f"warning: packs not available yet (lot 12+): {', '.join(missing_packs)}", file=sys.stderr)
-    if not args.no_scan:
-        scan(project, ScanOptions())
-    expectations_path = manifest_path.with_name("expectations.yaml")
-    expectations = yaml.safe_load(expectations_path.read_text(encoding="utf-8")) if expectations_path.is_file() else {}
-    results = check_expectations(project.db_path, expectations or {})
-    for r in results:
-        status = "OK" if r["ok"] else ("--" if r["ok"] is None else "FAILED")
-        extra = f"  ({r['value']})" if "value" in r else (f"  ({r['status']})" if "status" in r else "")
-        print(f"[{status:>6}] {r['item']}{extra}")
-    failed = [r for r in results if r["ok"] is False]
-    print(f"corpus {manifest['corpus']}: {len(results) - len(failed)}/{len(results)} expectations met or pending")
-    return 0 if not failed else 1
+    try:
+        report = run_audit(AuditOptions(Path(args.manifest), Path(args.project) if args.project else None,
+                                        scan=not args.no_scan))
+    except AuditConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
+    except Exception as exc:  # noqa: BLE001 - never report success when the audit itself broke
+        print(f"internal audit error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return EXIT_INTERNAL
+    if args.json:
+        print(json.dumps(report, indent=1, ensure_ascii=False, default=str))
+    else:
+        print_report(report)
+    return int(report["exit_code"])
 
 
 def _cmd_profile(args: argparse.Namespace) -> int:
