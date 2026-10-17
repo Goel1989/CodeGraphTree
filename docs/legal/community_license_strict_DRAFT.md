@@ -1,3 +1,6 @@
+> **Obsolete (October 18, 2026, decision D37):** CodeGraph-Sci is now open source under GPL-3.0-or-later;
+> this draft, written for the former PolyForm Noncommercial path, no longer applies. Kept for the record.
+
 # DRAFT — LEGAL REVIEW REQUIRED
 
 **Status: draft, not in force.** This text is **not** the license of CodeGraph-Sci. The license in force for the

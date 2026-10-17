@@ -10,7 +10,7 @@ how files are linked, the path between two routines and the impact of a change, 
 
 - **Offline**: CodeGraph-Sci does not require a cloud service and does not send analysed source code to a remote service. Analysis and optional local AI execution run on the user's machine. Its processes refuse network sockets (a Python-level guard, not an operating-system sandbox) and open no port.
 - **Modest machines**: CPU only, the interface never loads the whole graph.
-- **Source-available, dual-licensed**: see [License](#license).
+- **Open source (GPL-3.0-or-later), with a commercial license available**: see [License](#license).
 
 ## Install (development)
 
@@ -70,8 +70,9 @@ contracts, decisions) before changing the code. Each analysed codebase is descri
 
 ## License
 
-One product, two licensing paths (same software, same features): the community path under the
-[PolyForm Noncommercial License 1.0.0](LICENSE) for the uses it permits, and a separate
-[commercial license](COMMERCIAL_LICENSE.md) for commercial use. See [`LICENSING.md`](LICENSING.md) (plain-language
+CodeGraph-Sci is open source software under the [GNU General Public License, version 3 or later](LICENSE)
+(`GPL-3.0-or-later`): anyone may use it, including commercially and inside a company, and share or modify it under the
+GPL terms. The same software is also available under a separate [commercial license](COMMERCIAL_LICENSE.md) for uses
+the GPL does not allow, such as distribution inside a proprietary product. See [`LICENSING.md`](LICENSING.md) (plain-language
 explanation and examples), [`NOTICE`](NOTICE) and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). There is no
 license key, no activation and no license telemetry. Contributions: [`CONTRIBUTING.md`](CONTRIBUTING.md).

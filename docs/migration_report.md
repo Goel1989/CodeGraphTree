@@ -1,3 +1,6 @@
+> **Update (October 18, 2026, decision D37):** the license described below (PolyForm Noncommercial 1.0.0)
+> was replaced by GPL-3.0-or-later with a commercial license; see `LICENSING.md`.
+
 # Migration Report — Corrective Audit (October 2026)
 
 Implementation of the corrective audit `codegraphtree_corrective_audit_claudecode_EN.md` (October 17, 2026) on branch

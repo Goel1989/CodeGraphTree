@@ -59,8 +59,8 @@ ABOUT_TEXT = (
     "(Fortran, Python, C, C++).</p>"
     "<p>Offline desktop application: no cloud service is needed and analysed source code is never sent to a "
     "remote service.</p>"
-    "<p>Public source code under PolyForm Noncommercial 1.0.0 license; "
-    "separate commercial license.</p>"
+    "<p>Open source software under the GNU GPL, version 3 or later (no warranty); "
+    "a commercial license is also available.</p>"
 )
 SITE_ROLE = Qt.ItemDataRole.UserRole + 1
 UID_ROLE = Qt.ItemDataRole.UserRole + 2

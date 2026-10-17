@@ -1,10 +1,14 @@
 CodeGraph-Sci
-Copyright (c) 2026 Marian Bogdan Neagoe
+Copyright (C) 2026 Marian Bogdan Neagoe
 
-Required Notice: Copyright (c) 2026 Marian Bogdan Neagoe
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
+License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+version (SPDX-License-Identifier: GPL-3.0-or-later). See LICENSE.
 
-CodeGraph-Sci is offered under the PolyForm Noncommercial License 1.0.0 (see LICENSE) for the purposes that license
-permits. Commercial-use rights for the same software are available separately (see COMMERCIAL_LICENSE.md and
-LICENSING.md).
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+The copyright holder also offers the same software under a separate commercial license, for uses that the GPL does
+not allow (for example distribution inside a proprietary product): see COMMERCIAL_LICENSE.md and LICENSING.md.
 
 This product includes third-party software distributed under its own licenses: see THIRD_PARTY_NOTICES.md.

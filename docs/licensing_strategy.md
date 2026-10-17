@@ -1,7 +1,8 @@
 # CodeGraph-Sci — Licensing and Commercial Strategy
 
-**Version:** 2.0 (October 17, 2026) — single product, dual licensing (decision D24); replaces version 1.1
-(`strategie_licence.md`), which described Free/Pro/Enterprise feature tiers and license keys  
+**Version:** 3.0 (October 18, 2026) — single product, open source under GPL-3.0-or-later with a commercial
+license (decision D37); version 2.0 used PolyForm Noncommercial 1.0.0 for the community path (D24), version 1.1
+(`strategie_licence.md`) described Free/Pro/Enterprise feature tiers and license keys  
 **Author:** Marian Bogdan Neagoe, PhD  
 **Repository location:** `docs/licensing_strategy.md`
 
@@ -36,14 +37,15 @@ use the software commercially, and on services; it never depends on splitting th
 
 | Audience | License | Rights |
 | :--- | :--- | :--- |
-| Students, researchers, educators, personal use, public research organizations, noncommercial organizations | **PolyForm Noncommercial 1.0.0** (`LICENSE`, unmodified standard text) | Use, study, modify and share for the purposes that license permits |
-| Companies, engineering firms, paid consultants | **Commercial license** (`COMMERCIAL_LICENSE.md` + agreement) | Commercial use of the same software; services as agreed |
+| Everyone, for any purpose (students, researchers, public organizations, companies, consultants) | **GNU GPL v3 or later** (`LICENSE`, unmodified FSF text) | Run, study, modify and share; distributed versions stay under the GPL with their source code |
+| Vendors integrating it into proprietary products, or needing other terms | **Commercial license** (`COMMERCIAL_LICENSE.md` + agreement) | Distribution without the GPL obligations, warranty and support as agreed |
 
 **What this combination guarantees:**
 
 - **Same software for everyone:** commercial customers do not receive a technically different edition; there is no
   license key, no activation, no feature gate and no license telemetry.
-- **No third party may resell or commercially exploit the code** without a commercial license.
+- **No third party may distribute the code in a proprietary product** without a commercial license; anyone may use
+  it, and redistribute it under the GPL.
 - **The author is the sole party able to sell commercial licenses** — provided the necessary rights are held for every
   contribution (§2.3).
 - **The commercial license covers CodeGraph-Sci, not the AI model:** the agreement states it and references the
@@ -51,18 +53,18 @@ use the software commercially, and on services; it never depends on splitting th
 
 **Key considerations:**
 
-- **Terminology.** PolyForm Noncommercial is not an *open source* license under the OSI definition. The project is
-  described as **"source-available, dual-licensed"**, never as "open source". Avoid "Free", "Pro", "Community Edition"
-  or "Enterprise Edition" when they would imply different functionality.
-- **Public research and noncommercial organizations.** PolyForm Noncommercial permits their use regardless of the
-  source of funding.
-- **Business use.** The intended policy is that any use by a for-profit business in its professional activities
-  requires a commercial license. A stricter custom wording is kept as a draft for legal review
-  (`docs/legal/community_license_strict_DRAFT.md`); it is not in force.
-- **Corporate evaluation.** PolyForm Noncommercial does not cover commercial evaluation: a free, time-limited
-  evaluation **agreement** (no key) can be offered (*to be reviewed*).
-- **Future evolution.** Holding full rights, the author may later add an OSI-approved license (e.g. AGPLv3). Released
-  versions remain usable under their original license.
+- **Terminology.** GPL-3.0-or-later is an OSI-approved open source license: the project is described as **"open
+  source (GPL-3.0-or-later), with a commercial license available"**. Avoid "Free", "Pro", "Community Edition" or
+  "Enterprise Edition" when they would imply different functionality.
+- **Business use.** Internal use by companies is free under the GPL; revenue comes from commercial licenses for
+  proprietary integration and redistribution, and from services. Charging for internal use is not possible with an
+  open source license; the earlier draft that aimed at it (`docs/legal/community_license_strict_DRAFT.md`) is obsolete.
+- **Why GPL rather than AGPL or a permissive license.** CodeGraph-Sci is an offline desktop application, so the network
+  clause of the AGPL adds little; a permissive license (MIT, Apache 2.0) would remove the reason to buy a commercial
+  license. The GPL matches the scientific ecosystem (Code_Aster is GPL-3.0) and is compatible with every dependency
+  (Qt and PySide6 under LGPL-3.0). GPL-2.0-only is excluded: it is incompatible with the Apache 2.0 parts bundled by
+  PyInstaller.
+- **Earlier versions.** Versions released under PolyForm Noncommercial 1.0.0 keep that license.
 
 ### 2.2. Features
 
@@ -100,18 +102,19 @@ or packs) can be merged. The CLA text, or the choice of a DCO instead, is pendin
 - **PySide6 / Qt (LGPL-3.0)**: dynamically linked, replaceable libraries; license text and notices included; Qt and
   PySide6 source code or a written offer included (architecture, §7).
 - **Automated check** (Lot 16): license audit of dependencies with an allowlist (MIT, BSD, Apache 2.0, ISC, PSF, LGPL
-  after review); any new dependency under GPL/AGPL or a noncommercial license fails the build. The portable folder
+  after review); any new dependency under GPL/AGPL or a noncommercial license fails the build, because it would prevent
+  the commercial license (the project's own GPL does not change this rule). The portable folder
   includes the license texts (`licenses/`).
 - Model weight licenses are displayed in the UI and recorded with the model provenance (§2.7).
 
 ### 2.6. Offerings and Revenue Streams
 
-- **Community path:** free for the uses permitted by PolyForm Noncommercial.
+- **Open source path:** free for everyone under GPL-3.0-or-later.
 - **Commercial licenses:** for example per named user (consultants, small teams) or per site/team — the same software
   in every case; pricing and scope are set in the agreement.
 - **Services:** support and maintenance contracts, version-maintained domain packs, custom domain packs for in-house
   solvers, integration (e.g. CI reports), legacy code audits and architecture mapping, training.
-- **Evaluation:** free time-limited evaluation agreement for companies (*to be reviewed*).
+- **Evaluation:** not needed: anyone may evaluate the software under the GPL.
 
 ### 2.7. Optional Bundled AI Model
 
@@ -139,8 +142,8 @@ license or sends data to the copyright holder.
 
 ## 4. Legal Review Checklist (before the first commercial release)
 
-Exact copyright holder; definitions of "business", "commercial use", "for-profit entity" and "affiliate"; freelancers
-and sole proprietors; non-profits; universities and laboratories funded by companies; consultants using CodeGraph-Sci
-for clients; internal enterprise use; evaluation; redistribution and modifications; patents; external contributions
-(CLA vs DCO); third-party dependency compatibility; local AI model licenses; governing law and jurisdiction; warranty
-disclaimer; limitation of liability; commercial support and maintenance terms.
+Exact copyright holder; relicensing of earlier PolyForm versions; scope of the commercial license (proprietary
+integration, redistribution, derived works); patents; external contributions (CLA vs DCO: a CLA is required to keep
+offering the commercial license); third-party dependency compatibility, including Qt/PySide6 under LGPL-3.0 inside a
+commercially licensed product; local AI model licenses; governing law and jurisdiction; warranty disclaimer; limitation
+of liability; commercial support and maintenance terms.

@@ -7,7 +7,8 @@ name = "codegraph-sci"
 version = "0.1.0"
 description = "Offline desktop call-graph explorer for multi-language scientific code (Fortran, Python, C, C++)."
 requires-python = ">=3.12"
-license = { text = "PolyForm-Noncommercial-1.0.0" }
+license = "GPL-3.0-or-later"  # SPDX expression (PEP 639); a commercial license is also offered (LICENSING.md)
+license-files = ["LICENSE", "NOTICE", "COMMERCIAL_LICENSE.md", "THIRD_PARTY_NOTICES.md"]
 authors = [{ name = "Marian Bogdan Neagoe" }]
 dependencies = [
     "PySide6>=6.5",

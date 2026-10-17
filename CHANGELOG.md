@@ -242,3 +242,7 @@
 - Code_Aster pack validated like any project pack: `validation` repository written for the pack (`packs/code_aster/tests/`), `cgs rules test packs/code_aster/rules.yaml`; tests check that no pack is activated by name or detection and that no shipped pack name appears in the core.
 - `tools/check_wheel.py`: offline wheel build, every data file of the package checked, smoke test from the unpacked wheel outside the checkout.
 - `docs/validation/phase10_generality.md`.
+
+## Open source license (decision D37)
+- CodeGraph-Sci is relicensed under the GNU General Public License, version 3 or later (`LICENSE`: unmodified FSF text; SPDX `GPL-3.0-or-later` in `pyproject.toml`); the commercial license remains available for uses the GPL does not allow, such as distribution inside a proprietary product. Versions published before keep PolyForm Noncommercial 1.0.0.
+- `NOTICE`, `LICENSING.md`, `COMMERCIAL_LICENSE.md`, `README.md`, the About dialog, `docs/licensing_strategy.md` (version 3.0) and the architecture (§7, D9, D24) updated; the strict noncommercial draft is marked obsolete.
