@@ -145,3 +145,10 @@
 - New import contract: `scan` and `audit` never import the AI (rule 8).
 - `tools/build_portable.py --with-model` replaces `--edition ai`: two portable variants of the same software, not editions.
 
+## Dual licensing documents (corrective audit phase 2)
+- `LICENSE`: exact, unmodified text of the PolyForm Noncommercial License 1.0.0 (downloaded from polyformproject.org, SHA-256 `ffcca388…94cc8`).
+- `NOTICE` (copyright and PolyForm `Required Notice:` line), `LICENSING.md` (one product, two licensing paths, examples, no telemetry, no feature gating), `COMMERCIAL_LICENSE.md` (contact channel to be announced), `CONTRIBUTING.md` (English-only rule, coding rules, CLA pending legal review), `THIRD_PARTY_NOTICES.md` (license audit of every redistributed component, from installed metadata).
+- `docs/legal/community_license_strict_DRAFT.md`: stricter business-use rule, marked DRAFT — LEGAL REVIEW REQUIRED, not in force.
+- `docs/strategie_licence.md` becomes `docs/licensing_strategy.md` v2.0: Free/Pro/Enterprise feature tiers and the Ed25519 license-key system are withdrawn (D24); legal review checklist.
+- The portable folder's `licenses/` now receives `LICENSE`, `NOTICE`, `LICENSING.md`, `COMMERCIAL_LICENSE.md` and `THIRD_PARTY_NOTICES.md`.
+

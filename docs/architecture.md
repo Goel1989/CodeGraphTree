@@ -11,7 +11,7 @@
 > - **§4 and §5:** implementation plan in numbered **lots**, each with its validation test, followed by the test strategy.
 > - **§6 to §8 and appendices:** extensibility, license constraints, decisions, developer agent guidelines (Appendix C, to copy into `AGENTS.md`).
 >
-> This document is **generic**: no rule specific to an analyzed codebase appears here. Each codebase is a test case described in `docs/packs/<code>.md`. The business and licensing strategy is in `docs/strategie_licence.md`.
+> This document is **generic**: no rule specific to an analyzed codebase appears here. Each codebase is a test case described in `docs/packs/<code>.md`. The business and licensing strategy is in `docs/licensing_strategy.md` (user-facing summary: `LICENSING.md`).
 
 ---
 
@@ -831,7 +831,8 @@ codegraph-sci/                         development repo (private until release)
 ├── models.lock                        approved models (Apache 2.0 / MIT)
 ├── docs/
 │   ├── architecture.md                this document
-│   ├── strategie_licence.md
+│   ├── licensing_strategy.md
+│   ├── legal/                     drafts for legal review (not in force)
 │   └── packs/<code>.md                one file per analyzed codebase
 ├── src/
 │   ├── codegraph_sci/                 core (released under PolyForm NC)
@@ -1180,7 +1181,7 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 - **User-supplied technical documents:** read locally, never copied into rules beyond brief rationale snippets.
 - **External contributions:** Contributor License Agreement (CLA) signed prior to integration.
 - **License key:** never locks core functionality or data (Lot 16).
-- Commercial and legal details: `docs/strategie_licence.md`.
+- Commercial and legal details: `LICENSING.md`, `COMMERCIAL_LICENSE.md`, `docs/licensing_strategy.md`; license texts and notices: `LICENSE` (PolyForm Noncommercial 1.0.0, unmodified), `NOTICE`, `THIRD_PARTY_NOTICES.md`; contribution rights: `CONTRIBUTING.md`.
 
 ---
 

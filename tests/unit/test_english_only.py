@@ -11,11 +11,13 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
-EXCLUDED = ("tests/fixtures/", "src/codegraph_sci/ui/web/vendor/")
+EXCLUDED = ("tests/fixtures/", "src/codegraph_sci/ui/web/vendor/",
+            "tests/unit/test_english_only.py")  # this file lists the French words it looks for
 EXCLUDED_PATTERNS = (re.compile(r"^tests/corpus/[^/]+/review/"),)
 TEXT_SUFFIXES = {".py", ".md", ".txt", ".yaml", ".yml", ".json", ".toml", ".sql", ".bat", ".js", ".html", ".spec",
                  ".cfg", ".ini", ""}
-ACCENTED = re.compile(r"[éèàçêùôîâëïûœ]", re.IGNORECASE)
+# French accented letters, written as escapes so that this file passes its own check.
+ACCENTED = re.compile("[\u00e9\u00e8\u00e0\u00e7\u00ea\u00f9\u00f4\u00ee\u00e2\u00eb\u00ef\u00fb\u0153]", re.IGNORECASE)
 FRENCH_WORDS = re.compile(r"\b(le|la|les|des|une|avec|pour|dans|sur|fichier|dossier|projet|aucun|sont|ou|et|est)\b")
 
 
@@ -41,7 +43,7 @@ def test_project_owned_text_is_english() -> None:
 
 
 def test_project_owned_file_names_are_english() -> None:
-    french = re.compile(r"(lancer|lisez|strategie|fichier|dossier|projet|élément)", re.IGNORECASE)
-    allowed = {"docs/strategie_licence.md", "strategie_licence.md"}  # replaced by LICENSING.md in phase 2
+    french = re.compile("(lancer|lisez|strategie|fichier|dossier|projet|\u00e9l\u00e9ment)", re.IGNORECASE)
+    allowed = {"strategie_licence.md"}  # the owner's original specification at the root (kept until they decide)
     offenders = [f for f in _project_files() if french.search(Path(f).name) and f not in allowed]
     assert offenders == []
