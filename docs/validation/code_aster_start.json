@@ -1,0 +1,247 @@
+{
+ "corpus": "code_aster_start",
+ "code_aster_version": "17.5.7",
+ "source_revision": {
+  "requested": "17.5.7",
+  "commit": "14f751e2721ed772f20151a57f2ce6db050ba487",
+  "tags": [
+   "17.5.7"
+  ],
+  "verified": true
+ },
+ "manifest": "tests/corpus/code_aster_start/manifest.yaml",
+ "manifest_sha256": "7bc787eb13a94ded853be5bee59eaad9e5a65eaf14a2c5630848f1f4035448f4",
+ "expectations": "tests/corpus/code_aster_start/expectations.yaml",
+ "expectations_sha256": "35c5f0aeb98041dcda254826860e7152ec0eae9b7b5e44246bcb33652b2fccfb",
+ "audit_profile_sha256": "ecdc8d7325095c17f854626e12b988814a5692240b8d64602941298a8166516b",
+ "codegraph_sci_version": "0.1.0",
+ "adapters": {
+  "fortran": "1.6",
+  "python": "1.1",
+  "c": "1.1",
+  "cpp": "1.1"
+ },
+ "packs": {
+  "generic_fortran": "1.0",
+  "generic_noise": "1.0",
+  "code_aster": "0.3"
+ },
+ "machine": {
+  "platform": "Windows-11-10.0.26200-SP0",
+  "machine": "AMD64",
+  "processor": "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel",
+  "cpu_count": 8,
+  "python": "3.12.10"
+ },
+ "audit_exit_code": 0,
+ "summary": {
+  "PASS": 16,
+  "FAIL": 0,
+  "SKIP": 0
+ },
+ "results": [
+  {
+   "item": "inventory.fortran",
+   "status": "PASS",
+   "required": true,
+   "value": 16196
+  },
+  {
+   "item": "inventory.python",
+   "status": "PASS",
+   "required": true,
+   "value": 1464
+  },
+  {
+   "item": "inventory.cpp",
+   "status": "PASS",
+   "required": true,
+   "value": 728
+  },
+  {
+   "item": "inventory.c",
+   "status": "PASS",
+   "required": true,
+   "value": 50
+  },
+  {
+   "item": "inventory.max_unknown_rate",
+   "status": "PASS",
+   "required": true,
+   "value": 0.0
+  },
+  {
+   "item": "node: f:mmbouc",
+   "status": "PASS",
+   "required": true
+  },
+  {
+   "item": "node: f:nmstat",
+   "status": "PASS",
+   "required": true
+  },
+  {
+   "item": "hidden: f:utmess",
+   "status": "PASS",
+   "required": true,
+   "value": "pack:code_aster"
+  },
+  {
+   "item": "hidden: f:jemarq",
+   "status": "PASS",
+   "required": true,
+   "value": "pack:code_aster"
+  },
+  {
+   "item": "no_call_to: ['f:zr', 'f:zi', 'f:zc', 'f:zl', 'f:zk8', 'f:zk16', 'f:zk24', 'f:zk32', 'f:zk80']",
+   "status": "PASS",
+   "required": true,
+   "value": []
+  },
+  {
+   "item": "writes: {'routine': 'f:nmener', 'data': 'data:mem:*.VALE', 'key_kind': 'family'}",
+   "status": "PASS",
+   "required": true,
+   "value": 4
+  },
+  {
+   "item": "edge: {'src': 'cpp:BaseMesh::readMeshFile(const std::filesystem::path&,const std::string&,const int)', 'dst': 'f:execop', 'kind': 'bridges'}",
+   "status": "PASS",
+   "required": true
+  },
+  {
+   "item": "path: {'from': 'entry:STAT_NON_LINE', 'to': 'f:op0070', 'max_len': 2, 'edge_kinds': 'call_path'}",
+   "status": "PASS",
+   "required": true,
+   "value": [
+    "entry:STAT_NON_LINE",
+    "f:op0070"
+   ]
+  },
+  {
+   "item": "dispatches: {'src': 'f:te0000', 'min_targets': 500}",
+   "status": "PASS",
+   "required": true,
+   "value": 600
+  },
+  {
+   "item": "dispatches: {'src': 'f:lc0000', 'min_targets': 50}",
+   "status": "PASS",
+   "required": true,
+   "value": 86
+  },
+  {
+   "item": "out_of_scope_allowed: ['f:op*', 'f:te*', 'f:lc*']",
+   "status": "PASS",
+   "required": true,
+   "value": [
+    "f:lc0000",
+    "f:lc0001",
+    "f:lc0002",
+    "f:lc0003",
+    "f:lc0004"
+   ]
+  }
+ ],
+ "files_by_status": {
+  "fallback": 4,
+  "ok": 3216,
+  "outline": 15218
+ },
+ "sites_by_resolution": {
+  "ambiguous": 14465,
+  "external": 42332,
+  "out_of_scope": 8007,
+  "resolved": 52767,
+  "unresolved": 10962
+ },
+ "unresolved_rate_call_sites": 0.08528549088560915,
+ "reference_categories": {
+  "counts": {
+   "external_known": 31879,
+   "out_of_scope": 8094,
+   "ambiguous": 14465,
+   "dynamic": 7953,
+   "parser_limitation": 3411,
+   "unknown": 12814
+  },
+  "by_kind": {
+   "external_known": {
+    "call": 26230,
+    "inherit": 48,
+    "maybe_call": 5061,
+    "use": 540
+   },
+   "out_of_scope": {
+    "call": 7990,
+    "maybe_call": 17,
+    "use": 87
+   },
+   "ambiguous": {
+    "call": 14458,
+    "maybe_call": 7
+   },
+   "dynamic": {
+    "call": 7175,
+    "dynamic_call": 778
+   },
+   "parser_limitation": {
+    "call": 3411
+   },
+   "unknown": {
+    "call": 10639,
+    "include": 41,
+    "inherit": 69,
+    "use": 2065
+   }
+  },
+  "examples": {
+   "external_known": [
+    "bibc/hdf/hdfclf.c:41 H5Fclose",
+    "bibc/hdf/hdfclf.c:44 strlen",
+    "bibc/hdf/hdfclf.c:44 strlen",
+    "bibc/hdf/hdfopf.c:53 H5Eset_auto1",
+    "bibc/hdf/hdfopf.c:54 H5Fopen"
+   ],
+   "out_of_scope": [
+    "bibc/hdf/hdfclf.c:44 utmess_cwrap_",
+    "bibc/hdf/hdfopf.c:58 utmess_cwrap_",
+    "bibc/supervis/aster_core_module.c:333 utgtme_",
+    "bibc/supervis/aster_core_module.c:577 asmpi_warn_",
+    "bibc/supervis/aster_module.c:1015 getcon_"
+   ],
+   "ambiguous": [
+    "bibcxx/Behaviours/BehaviourProperty.cxx:100 _CARCRI->updateValuePointers",
+    "bibcxx/Behaviours/BehaviourProperty.cxx:102 getModel()->isThermal",
+    "bibcxx/Behaviours/BehaviourProperty.cxx:108 _COMPOR->updateValuePointers",
+    "bibcxx/Behaviours/BehaviourProperty.cxx:115 _COMPOR->exists",
+    "bibcxx/Behaviours/BehaviourProperty.cxx:116 _COMPOR->getValues"
+   ],
+   "dynamic": [
+    "bibc/hdf/hdfopf.c:43 malloc",
+    "bibc/supervis/aster_core_module.c:331 malloc",
+    "bibc/supervis/aster_module.c:1304 FreeStr",
+    "bibc/supervis/aster_module.c:1563 malloc",
+    "bibc/supervis/aster_module.c:1573 malloc"
+   ],
+   "parser_limitation": [
+    "bibcxx/Behaviours/MGISBehaviour.h:69 sstr.str",
+    "bibcxx/Behaviours/MGISBehaviour.h:71 sstr.str",
+    "bibcxx/Behaviours/MGISBehaviourFort.cxx:182 getPtr(hexid,l_id)->getMFrontParameter<ASTERDOUBLE,double>",
+    "bibcxx/Behaviours/MGISBehaviourFort.cxx:206 getPtr(hexid,l_id)->getMFrontParameter<ASTERINTEGER,int>",
+    "bibcxx/Contact/ContactComputation.cxx:61 fed->getListOfGroupsOfElements"
+   ],
+   "unknown": [
+    "bibc/include/aster.h:33 Python.h",
+    "bibc/include/aster_depend.h:33 asterc_config.h",
+    "bibc/include/aster_fort_petsc.h:31 petscmat.h",
+    "bibc/include/aster_fort_petsc.h:32 petscvec.h",
+    "bibc/include/aster_mpi.h:26 mpi.h"
+   ]
+  },
+  "call_sites_total": 128533,
+  "references_total": 144896
+ },
+ "benchmark": "docs/bench/scan_benchmark_code_aster_start.json",
+ "precision_and_recall": "not measured: the manual review sheets of tests/corpus/code_aster_start/review/ are not filled yet"
+}

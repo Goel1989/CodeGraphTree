@@ -1,0 +1,89 @@
+{
+ "tool_version": "0.1.0",
+ "source": "code_aster",
+ "machine": {
+  "platform": "Windows-11-10.0.26200-SP0",
+  "machine": "AMD64",
+  "processor": "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel",
+  "cpu_count": 8,
+  "python": "3.12.10"
+ },
+ "runs": [
+  {
+   "name": "cold_full",
+   "phases_ms": {
+    "inventory_ms": 5100.0,
+    "cache_lookup_ms": 1894.8,
+    "extract_wall_ms": 68644.1,
+    "extract_full_ms": 196928.8,
+    "extract_outline_ms": 242855.2,
+    "link_ms": 1675.5,
+    "enrich_ms": 236.4,
+    "index_ms": 7516.2,
+    "sqlite_write_ms": 2430.4,
+    "total_ms": 87497.3
+   },
+   "files": {
+    "reused": 0,
+    "full_parsed": 3219,
+    "outline_parsed": 15219,
+    "failed": 0,
+    "timeout": 0
+   },
+   "files_source": 18438,
+   "call_sites": 144896,
+   "jobs": 7
+  },
+  {
+   "name": "rescan_unchanged",
+   "phases_ms": {
+    "inventory_ms": 4941.7,
+    "cache_lookup_ms": 5941.4,
+    "extract_wall_ms": 478.4,
+    "extract_full_ms": 0.0,
+    "extract_outline_ms": 0.0,
+    "link_ms": 1980.7,
+    "enrich_ms": 234.5,
+    "index_ms": 7908.0,
+    "sqlite_write_ms": 3934.4,
+    "total_ms": 25419.0
+   },
+   "files": {
+    "reused": 18438,
+    "full_parsed": 0,
+    "outline_parsed": 0,
+    "failed": 0,
+    "timeout": 0
+   },
+   "files_source": 18438,
+   "call_sites": 144896,
+   "jobs": 7
+  },
+  {
+   "name": "rescan_50_changed",
+   "phases_ms": {
+    "inventory_ms": 4801.3,
+    "cache_lookup_ms": 5912.1,
+    "extract_wall_ms": 1759.4,
+    "extract_full_ms": 1857.9,
+    "extract_outline_ms": 0.0,
+    "link_ms": 1723.3,
+    "enrich_ms": 236.9,
+    "index_ms": 7775.7,
+    "sqlite_write_ms": 3692.5,
+    "total_ms": 25901.3
+   },
+   "files": {
+    "reused": 18388,
+    "full_parsed": 50,
+    "outline_parsed": 0,
+    "failed": 0,
+    "timeout": 0
+   },
+   "files_source": 18438,
+   "call_sites": 144896,
+   "jobs": 7,
+   "changed_files": 50
+  }
+ ]
+}

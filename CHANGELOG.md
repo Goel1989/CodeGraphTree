@@ -159,3 +159,12 @@
 - FULL / OUTLINE extraction: out-of-scope files keep only definitions and includes; the mode is part of the facts and of the cache key. Code_Aster: identical definitions on 3,000 sampled Fortran files, 39% less parsing time for them.
 - Fix: a backspace character had replaced `\b` in the Fortran END SELECT pattern since lot 12, so nested SELECT CASE values could be attributed to the wrong selector (Fortran adapter 1.6). New test: no control character in project sources.
 - Code_Aster 17.5.7 re-validated with the new audit: exit code 0, 16 PASS / 0 FAIL / 0 SKIP, revision verified; graph identical (47,161 call edges); full re-extraction of 18,438 files in 91 s (803 s for the previous full analysis on the same machine; the shares of OUTLINE, worker processes and machine load were not isolated).
+
+## Reproducibility and measurement (decision D26, corrective audit phase 4)
+- Dependency locks: `requirements.lock` (runtime, redistributed) and `requirements-dev.lock` (build, development), generated offline by `tools/lock_dependencies.py`; CI installs from them and checks the environment; `build_portable` refuses an unlocked environment. Hashes are added at release time (network needed).
+- Phase instrumentation: `phases_ms` (inventory, cache lookup, extraction wall/FULL/OUTLINE, link, enrich, index, SQLite write, total) and per-mode file counts in every scan.
+- `cgs benchmark <folder> [--changed N]`: cold, unchanged and changed rescans with the machine description. `docs/bench/scan_benchmark.md`: on an 8-CPU Windows machine, rescan after 50 changed files 10.8–10.9 s (synthetic, 3,000 files) and 25.9 s (Code_Aster sample, 18,438 files), dominated by the rebuild after extraction.
+- `GraphQuery.reference_categories()` and `cgs health`: non-resolved references by category (external_known, out_of_scope, ambiguous, dynamic, parser_limitation, unknown); Python modules outside the standard library are no longer counted as known externals.
+- `tools/prepare_corpus.py`: fetch a corpus at the exact revision of its manifest (repository, sparse folders).
+- `docs/validation/code_aster_start.md` / `.json`: Code_Aster 17.5.7 validation with provenance (tag and commit, manifest, expectations and audit-profile hashes, versions, machine): 16 PASS / 0 FAIL / 0 SKIP; unresolved call sites 8.53% (target 2% not met), split by category; precision and recall not measured yet (review sheets not filled).
+
