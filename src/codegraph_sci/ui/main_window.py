@@ -46,6 +46,7 @@ from codegraph_sci.core.project import Project, open_project
 from codegraph_sci.core.versions import APP_VERSION
 from codegraph_sci.query.types import CallerReport, Direction, NodeSummary, ScanHealth, SourceExcerpt
 from codegraph_sci.ui import theme
+from codegraph_sci.ui.deps_view import DependencyView
 from codegraph_sci.ui.graph3d_view import Graph3DView
 from codegraph_sci.ui.highlighter import CodeHighlighter
 from codegraph_sci.ui.models import CallTreeModel, FileTreeModel
@@ -252,11 +253,17 @@ class MainWindow(QMainWindow):
         self.graph_files = Graph3DView(self.runner, files=True)
         self.graph_files.node_selected.connect(self._graph_node_selected)
         self.graph_files.sites_requested.connect(self.show_link_sites)
+        self.graph_dirs = Graph3DView(self.runner, files=True, directories=True)
         self.health_view = QPlainTextEdit()
         self.health_view.setReadOnly(True)
+        self.deps_view = DependencyView(self.runner)
+        self.deps_view.source_requested.connect(lambda path, line: self.show_file(path, line))
+        for graph in (self.graph_functions, self.graph_files, self.graph_dirs):
+            graph.evidence_requested.connect(self.deps_view.show_occurrences)
         self.groups: dict[str, tuple[str, str, list[tuple[str, QWidget]]]] = {
             "explore": ("Explore", "graph", [("Functions 3D", self.graph_functions), ("Files 3D", self.graph_files),
-                                             ("Tree list", self.tree_box)]),
+                                             ("Folders 3D", self.graph_dirs), ("Tree list", self.tree_box),
+                                             ("Dependencies", self.deps_view)]),
             "project": ("Project", "project", [("Inventory", inv), ("Analysis health", self.health_view)]),
         }
         self.views = QStackedWidget()
@@ -532,6 +539,8 @@ class MainWindow(QMainWindow):
         self.graph_functions.load_overview(db)
         self.graph_files.hide_noise = self.hide_noise.isChecked()
         self.graph_files.load_overview(db)
+        self.graph_dirs.load_overview(db)
+        self.deps_view.set_db(db)
 
     # ------------------------------------------------------------ analysis
     def _run_cgs(self, args: list[str]) -> None:

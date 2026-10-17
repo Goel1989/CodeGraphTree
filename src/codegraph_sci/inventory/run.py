@@ -9,6 +9,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from codegraph_sci.core.graph import InventoryIssue, InventoryItem
 from codegraph_sci.core.profile import AnalysisProfile
 from codegraph_sci.inventory.detect import (
     decode_text,
@@ -17,14 +18,37 @@ from codegraph_sci.inventory.detect import (
     fortran_variant,
     is_binary,
     python_variant,
+    shebang_interpreter,
 )
 from codegraph_sci.inventory.table import ExtensionTable, load_table
-from codegraph_sci.inventory.walk import SkippedDir, WalkProblem, walk_repo
+from codegraph_sci.inventory.walk import (
+    REASON_UNREADABLE,
+    SkippedDir,
+    WalkedEntry,
+    WalkedFile,
+    WalkProblem,
+    walk_repo,
+)
 
 _C_INCLUDE = re.compile(r'(?m)^[ \t]*#[ \t]*include[ \t]*"([^"\n]+)"')
 _F_INCLUDE = re.compile(r"""(?im)^[ \t]*include[ \t]*['"]([^'"\n]+)['"]""")
 _CPP_HEADER_HINT = re.compile(r"(?m)^\s*(class\s+\w+|namespace\s+\w+|template\s*<)|\bstd::")
 MAX_READ_BYTES = 64 * 1024 * 1024
+POLICIES = ("analysis", "complete")  # inventory policies (requirements plan phase 2)
+# Detection status of a read file -> (eligibility, reason when it is not analyzed).
+_ELIGIBILITY = {"source": ("eligible", None), "not_covered": ("unsupported_language", "language not covered"),
+                "unknown": ("not_source", "unknown language"), "binary": ("not_source", "binary content")}
+_IGNORED_REASON = {"name": "ignored file name", "extension": "ignored extension", "profile": "ignored by the profile"}
+
+
+@dataclass
+class LanguageHints:
+    """What installed language packages (other than the built-in ones) tell the inventory (phase 3)."""
+
+    extensions: dict[str, str] = field(default_factory=dict)  # extension -> language
+    filenames: dict[str, str] = field(default_factory=dict)  # exact file name -> language
+    shebangs: dict[str, str] = field(default_factory=dict)  # interpreter -> language
+    adapters: dict[str, str] = field(default_factory=dict)  # language -> adapter (coverage report)
 
 
 @dataclass
@@ -61,6 +85,9 @@ class InventoryResult:
     skipped_dirs: list[SkippedDir] = field(default_factory=list)  # left out of the walk, with the reason
     coverage: dict[str, CoverageLine] = field(default_factory=dict)
     includes: dict[str, list[str]] = field(default_factory=dict)  # file -> included files (resolved)
+    policy: str = "analysis"  # analysis: exclusions respected; complete: excluded content recorded too
+    items: list[InventoryItem] = field(default_factory=list)  # every discovered entry, sorted by path
+    issues: list[InventoryIssue] = field(default_factory=list)  # discovery problems, sorted
 
     def entry(self, path: str) -> InventoryEntry | None:
         for e in self.entries:
@@ -89,32 +116,95 @@ def _includer_form(path: str, included_by: dict[str, set[str]], entries: dict[st
     return forms.pop() if len(forms) == 1 else None
 
 
+def _parent(path: str) -> str | None:
+    if path == ".":
+        return None
+    return posixpath.dirname(path) or "."
+
+
+def _entry_item(e: InventoryEntry, link_target: str | None) -> InventoryItem:
+    reason: str | None
+    if e.status == "ignored":
+        eligibility, reason = "not_source", _IGNORED_REASON.get(e.decided_by, "ignored")
+    else:
+        eligibility, reason = _ELIGIBILITY[e.status]
+    return InventoryItem(e.path, _parent(e.path), "file", file_ext(e.path.rsplit("/", 1)[-1]), e.size, None, e.lang,
+                         e.variant, e.confidence, e.decided_by or None, eligibility,
+                         "pending" if eligibility == "eligible" else "not_analyzed", reason, link_target)
+
+
+def _walked_item(w: WalkedEntry, by_extension: dict[str, tuple[str, str]]) -> InventoryItem:
+    item = InventoryItem(w.rel, _parent(w.rel), w.kind, "", w.size, w.files, eligibility=w.eligibility,
+                         reason=w.reason, link_target=w.link_target)
+    if w.kind == "directory":
+        item.status = "walked" if w.walked else "not_walked"
+    elif w.kind == "file":
+        item.extension = file_ext(w.rel.rsplit("/", 1)[-1])
+        if w.eligibility == "excluded":  # never read: the extension alone tells the language
+            known = by_extension.get(item.extension) or by_extension.get(item.extension.lower())
+            if known is not None:
+                item.lang, item.evidence = known[0], f"extension:{known[1]}"
+                item.confidence = 1.0
+    return item
+
+
+def _count_files(items: dict[str, InventoryItem]) -> None:
+    """Files below each walked directory, including the counted content of folders that were not walked."""
+    counts: dict[str, int] = defaultdict(int)
+    for item in items.values():
+        if item.kind == "file":
+            n = 1
+        elif item.kind == "directory" and item.status == "not_walked":
+            n = item.files or 0
+        else:
+            continue
+        parent = item.parent
+        while parent is not None:
+            counts[parent] += n
+            parent = _parent(parent)
+    for item in items.values():
+        if item.kind == "directory" and item.status == "walked":
+            item.files = counts.get(item.path, 0)
+
+
 def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
                   table: ExtensionTable | None = None,
-                  keyword_extensions: dict[str, str] | None = None) -> InventoryResult:
+                  keyword_extensions: dict[str, str] | None = None,
+                  hints: LanguageHints | None = None) -> InventoryResult:
     """Detect the language of every file. ``keyword_extensions`` maps extensions of languages
-    described by a keyword profile (§3.9) to their language name."""
+    described by a keyword profile (§3.9) to their language name; ``hints`` come from installed language
+    packages: their extensions take precedence over "known but not covered", their file names over ignored names.
+
+    Every discovered entry is also recorded in ``items`` with its analysis eligibility and the reason why it is not
+    analyzed; the profile's ``inventory_policy: complete`` records the content of excluded folders as well."""
     root = Path(root).resolve()
     table = table or load_table()
     profile = profile or AnalysisProfile()
     problems: list[WalkProblem] = []
     skipped: list[SkippedDir] = []
+    walked: list[WalkedEntry] = []
+    unreadable: list[WalkedFile] = []
+    links: dict[str, str] = {}
     overrides = profile.file_overrides
     ignored_exts = {g.ext.lower(): g.reason for g in profile.ignored}
     keyword_langs = {lang: e.adapter for lang, e in profile.languages.items() if e.adapter.startswith("keywords:")}
-    keyword_exts = {k.lower(): v for k, v in (keyword_extensions or {}).items()}
+    hints = hints or LanguageHints()
+    keyword_exts = {k.lower(): v for k, v in {**(keyword_extensions or {}), **hints.extensions}.items()}
 
     entries: dict[str, InventoryEntry] = {}
     texts: dict[str, str] = {}
     pending: dict[str, list[str]] = {}  # ambiguous path -> candidates
 
     for wf in walk_repo(root, table.excluded_dirs, profile.exclude_dirs, problems,
-                        all_subfolders=profile.all_subfolders, skipped=skipped):
+                        all_subfolders=profile.all_subfolders, skipped=skipped, entries=walked,
+                        complete=profile.inventory_policy == "complete"):
         rel, name = wf.rel, wf.rel.rsplit("/", 1)[-1]
+        if wf.link_target is not None:
+            links[rel] = wf.link_target
         ext = file_ext(name)
         lext = ext.lower()
         base = InventoryEntry(rel, None, None, 1.0, "", "unknown", wf.size, 0, wf.mtime_ns)
-        if name in table.ignored_names or lext in ignored_exts:
+        if (name in table.ignored_names and name not in hints.filenames) or lext in ignored_exts:
             base.status, base.decided_by = "ignored", ("profile" if lext in ignored_exts else "name")
             entries[rel] = base
             continue
@@ -127,6 +217,7 @@ def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
                 data = handle.read() if wf.size <= MAX_READ_BYTES else handle.read(MAX_READ_BYTES)
         except OSError as exc:
             problems.append(WalkProblem(rel, f"unreadable: {exc}"))
+            unreadable.append(wf)
             continue
         if is_binary(data[:8192]):
             base.status, base.decided_by = "binary", "content:nul_bytes"
@@ -142,6 +233,8 @@ def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
             if forced.language == "fortran" and not entry.variant:
                 base_form = table.lang_by_ext.get(lext, ("", None))[1]
                 entry.variant = fortran_variant(base_form, ext, text)
+        elif name in hints.filenames:
+            entry.lang, entry.decided_by, entry.status = hints.filenames[name], "package:filename", "source"
         elif ext in table.exact:
             entry.lang, entry.decided_by, entry.status = table.exact[ext], f"extension:{ext}", "source"
         elif lext in table.lang_by_ext:
@@ -153,10 +246,13 @@ def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
                 entry.variant = python_variant(text)
         elif lext in table.ambiguous:
             pending[rel] = table.ambiguous[lext]
-        elif lext in table.not_covered:
-            entry.lang, entry.decided_by, entry.status = table.not_covered[lext], f"extension:{lext}", "not_covered"
         elif lext in keyword_exts:
             entry.lang, entry.decided_by, entry.status = keyword_exts[lext], f"extension:{lext}", "source"
+        elif lext in table.not_covered:
+            entry.lang, entry.decided_by, entry.status = table.not_covered[lext], f"extension:{lext}", "not_covered"
+        elif not ext and (interpreter := shebang_interpreter(text)) in hints.shebangs:
+            entry.lang, entry.decided_by, entry.status = (hints.shebangs[str(interpreter)],
+                                                          f"package:shebang:{interpreter}", "source")
         elif not ext:
             det_lang, conf, rule = detect_by_content(table, text)
             if det_lang:
@@ -261,7 +357,8 @@ def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
     for e in ordered:
         if e.status in ("source", "not_covered") and e.lang:
             line = coverage.setdefault(e.lang, CoverageLine(
-                e.lang, 0, 0, table.adapters.get(e.lang) or keyword_langs.get(e.lang) or "none", []))
+                e.lang, 0, 0, hints.adapters.get(e.lang) or table.adapters.get(e.lang) or keyword_langs.get(e.lang)
+                or "none", []))
             line.files += 1
             line.lines += e.lines
             for part in (e.variant or "").split("+"):
@@ -270,6 +367,22 @@ def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
     for line in coverage.values():
         line.variants.sort()
 
+    # Every discovered entry, with the reason why it is not analyzed.
+    # Same precedence as the detection above; an ambiguous extension (decided from content) gives no language.
+    by_extension: dict[str, tuple[str, str]] = {}
+    for mapping in (table.not_covered, keyword_exts, {e: lv[0] for e, lv in table.lang_by_ext.items()}):
+        by_extension.update({ext.lower(): (lang, ext.lower()) for ext, lang in mapping.items()})
+    for ext in table.ambiguous:
+        by_extension.pop(ext.lower(), None)
+    by_extension.update({ext: (lang, ext) for ext, lang in table.exact.items()})
+    items = {w.rel: _walked_item(w, by_extension) for w in walked}
+    for e in ordered:
+        items[e.path] = _entry_item(e, links.get(e.path))
+    for wf in unreadable:
+        items[wf.rel] = InventoryItem(wf.rel, _parent(wf.rel), "file", file_ext(wf.rel.rsplit("/", 1)[-1]), wf.size,
+                                      eligibility="unreadable", reason=REASON_UNREADABLE, link_target=wf.link_target)
+    _count_files(items)
+
     problems.sort(key=lambda p: (p.path, p.message))
     return InventoryResult(
         root=str(root), entries=ordered, include_paths=include_dirs,
@@ -277,4 +390,7 @@ def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
         ignored_count=sum(1 for e in ordered if e.status == "ignored"),
         binary_count=sum(1 for e in ordered if e.status == "binary"),
         problems=problems, skipped_dirs=skipped, coverage=dict(sorted(coverage.items())), includes=includes,
+        policy=profile.inventory_policy, items=[items[k] for k in sorted(items)],
+        issues=sorted((InventoryIssue(pb.path, pb.kind, pb.message) for pb in problems),
+                      key=lambda i: (i.path, i.kind, i.message)),
     )

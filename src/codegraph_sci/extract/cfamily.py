@@ -262,7 +262,7 @@ class CFamilyExtractor:
             self.definitions.append(Definition(uid, name, "routine",
                                                "c_function" if self.lang == "c" else "cpp_function", name,
                                                (start_line, end_line), attrs={"qualified": raw}))
-            for cm in _CALL_IN_BODY.finditer(clean, m.end(), end):
+            for cm in ([] if self.ctx.outline else _CALL_IN_BODY.finditer(clean, m.end(), end)):
                 callee = cm.group(1)
                 if callee in _C_KEYWORDS:
                     continue
@@ -337,10 +337,14 @@ class CFamilyExtractor:
         if t == "function_definition":
             self.function_definition(node, st)
             return
-        if t == "call_expression":
-            self.call(node, st)
-        if t == "declaration" and st.in_function:
-            self.local_declaration(node, st)
+        if self.ctx.outline:
+            if t == "call_expression" and st.in_function:
+                return  # OUTLINE: no call analysis inside bodies (local classes are still visited)
+        else:
+            if t == "call_expression":
+                self.call(node, st)
+            if t == "declaration" and st.in_function:
+                self.local_declaration(node, st)
         for child in node.children:
             self.visit(child, st)
 

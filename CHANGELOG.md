@@ -182,3 +182,63 @@
 - Identity: keyword routines are qualified by scope and file (`kw:<language>:<qualified name>@<file>`), homonym calls are ambiguous; definition nodes record `symbol_uid` and `occurrence_uid`; repeated definitions keep their own call sites.
 - `docs/validation/phase1_engine_reliability.md`: findings, requirement-to-test map, validation and same-machine benchmark (no measurable regression).
 
+## Persistent inventory (requirements plan phase 2, decision D28)
+- Every discovered entry (directory, file, link, special file) is recorded with parent, extension, size, language and detection evidence, eligibility, analysis status and the reason it is not analyzed; discovery problems (unreadable, loop, broken or external link) are recorded as issues.
+- Inventory policies: `analysis` (default, exclusions respected, an excluded folder is one counted entry) and `complete` (excluded content recorded without being read); `cgs profile inventory-policy <folder> analysis|complete`; `cgs inventory --json [--entries]` reports the accounting.
+- Database schema 2: `inventory_entries` and `inventory_issues`; `GraphQuery.inventory_entries()` (filters, paging), `inventory_accounting()`, `inventory_issues()`; canonical export includes both tables. A schema-1 database is rebuilt by the next scan and its facts cache is reused.
+- `GraphQuery.inventory()` now reports the files of unknown language (it used to read a table that holds only analyzed files).
+- `docs/validation/phase2_persistent_inventory.md`: behaviour per entry type and requirement-to-test map.
+
+## Language packages (requirements plan phase 3, decision D29)
+- Language package format 1 (`extract/language_package.schema.json`): language, version, extensions, detection hints (file names, shebangs), dialects, backend (`keywords` or `native:<name>`), naming and scope rules, relationship types, resolution capabilities, limitations, test cases and provenance.
+- Registry (`extract/registry.py`) replaces the hard-coded adapter lists: built-in packages for Fortran, Python, C and C++ (`extract/languages/`), user packages (`<data dir>/languages/`), project packages (`<project>/rules/languages/`), explicit packages; precedence builtin < user < project < explicit; `overrides: true` required to replace a package; ambiguous selections rejected with both files named; separately installed parser backends through the `codegraph_sci.language_backends` entry point group.
+- Earlier keyword profiles are read as keyword packages with unchanged adapter versions (caches stay valid).
+- The inventory learns the extensions, file names and shebangs of added packages; their extensions win over "known but not covered".
+- `cgs languages <folder> [--json]`; `cgs inventory` and `cgs scan` report package errors cleanly (exit code 2).
+- `docs/validation/phase3_language_packages.md`: contract, precedence, behaviour changes and requirement-to-test map.
+
+## Rule format and workflow (requirements plan phase 4, decision D30)
+- `cgs rules new language|bridge|project <name> <folder>`: rule from a template with one passing test case, status proposed; `cgs rules validate`, `cgs rules test` (every missing and unexpected fact), `cgs rules activate` (validation, at least one test, all passing, unambiguous selection, then approval).
+- Layout `rules/languages/<name>/language.yaml` + tests, `rules/bridges/<name>.yaml` (bridge format 1, new schema) + test repositories, `rules/projects/<name>.yaml` (pack with `validation` repositories).
+- Guide `docs/rules/README.md`: workflow, tutorial, definition matching, name and scope capture, call versus declaration detection, comments and strings, imports and includes, source coordinates, limitations, resource limits; its tutorial is run by the tests.
+- Resource limits (`core/patterns.py`): rule files at most 1 MiB; configurable regular expressions at most 500 characters, without backreferences or nested quantifiers; keyword lists at most 200 words of 64 characters.
+- `docs/validation/phase4_rule_workflow.md`.
+- Fix: on Windows, saving an audit sample sheet retries a few times when another process (antivirus, indexer) briefly holds the file, instead of failing with "access denied" (non-regression tests in `test_lot7_audit.py`).
+
+## Bridges and evidence (requirements plan phase 5, decision D31)
+- Native bridges declared in `core/bridge_catalog.py`: languages, mechanisms with their evidence kind (binding declaration, naming convention, rule), matching conditions, name transformation, constraints, candidate policy, identifier and version.
+- Bridge rules: `candidates` (`keep_ambiguous` by default, `unique`), `require_declaration`, `files`, `target_files`, `version`, `mechanism`. Homonym targets are kept as ambiguous candidates instead of the first one being linked (rule bridges, declaration bindings).
+- Every bridge resolution stores its evidence (`call_sites.evidence`, database schema 3): rule and version, mechanism, evidence kind, binding declaration, transformed name, candidate selection, reason. `CallSite.evidence` adds the extraction rule (adapter and version), the resolution rule and a reason for every site; `GraphQuery.bridges()`; bridges recorded in `plugins`; canonical export includes the evidence.
+- `docs/validation/phase5_bridge_evidence.md`.
+
+## FULL and OUTLINE in every adapter (requirements plan phase 6, decision D32)
+- Python (ast and tree-sitter fallback), C/C++ (tree-sitter and pattern fallback) and keyword languages skip call extraction in OUTLINE mode instead of trimming it afterwards, as Fortran already did; definitions are identical in both modes (local C++ classes inside bodies included). Cached facts are unchanged.
+- Acceptance across Python, C and C++: an in-scope caller resolves to an out-of-scope definition whose internal calls are never extracted; moving the file into scope forces a FULL extraction, and back.
+- Measured on the synthetic code base: OUTLINE extraction takes 68–76 % of FULL per language.
+- `docs/validation/phase6_outline_modes.md`.
+
+## Dependency tables (requirements plan phase 7, decision D33)
+- `GraphQuery.dependencies()`: every relationship occurrence (call sites and binding declarations) with caller, target text, resolved target, candidates, files and languages, relationship type (call, dynamic_call, import, include, inherit, bridge, binding, binding_declaration), position, status, rule and condition; filtered, sorted and paged by SQLite.
+- `GraphQuery.dependency_groups()` (entity, file, directory) with the occurrences of each group reachable; `dependency_evidence()` returns the source lines and the evidence of a row.
+- `cgs deps` with filters, levels, sorting and CSV/JSON export; Explore › Dependencies view in the window (filters, levels, sortable columns, pages, drill-down, source and evidence, CSV export), queries in the background runner.
+- `docs/validation/phase7_dependency_tables.md` (0.3 s per page on 121,387 rows).
+
+## Interactive graphs (requirements plan phase 8, decision D34)
+- Renderer-neutral graph contract: node group and scope, link resolution status, level (entity, file, directory), layout description; `GraphQuery.link_evidence()` gives the dependency rows behind a link; `GraphQuery.graph3d_directories()` and the Folders 3D view.
+- 3D page: 2D/3D switch, reset, filters by link type, language, status and path, grouping by folder, language or module/class, cycles and entry points highlighted; a link click lists its occurrences and evidence in Explore › Dependencies.
+- `docs/validation/phase8_interactive_graphs.md`.
+
+## AI lifecycle (requirements plan phase 9, decision D35)
+- Fix: an AI language override was written into the active profile even when automatic approval was off.
+- One lifecycle for overrides, language packages, bridge rules and rule changes (`ai/proposals.py`): draft, validated or rejected by the checks, approved only explicitly (`cgs ai-approve <folder> p-<n>`, `--reject`), stored in `<project>/proposals/` with checks, provenance and history. Generation and rejection never change the analysis nor rescan.
+- Automatic approval only through a project policy (`cgs ai-policy --auto-approve on|off`, recorded); each automatic approval is recorded.
+- Language proposals are validated against expected results written independently (`cgs complete --expected`), and activated through the rule workflow with those tests; keyword matches are no longer reported as recall.
+- `cgs ai-diagnose`: unknown language, missing package, unsupported dialect, partial coverage, repeated parser failures, unsupported binding mechanism; known languages without a package get keyword proposals.
+- Documents: reference and SHA-256, supporting passages and assumptions recorded; missing, unreadable or unsupported (PDF without `pypdf`) documents are reported.
+- `docs/validation/phase9_ai_lifecycle.md`.
+
+## Generality, Code_Aster optional (requirements plan phase 10, decision D36)
+- Independent validation matrix in regular CI, with the shipped packs hidden: Python library without main (new `python_library` fixture), C, C++, Fortran, mixed-language bindings, keyword DSL.
+- Code_Aster pack validated like any project pack: `validation` repository written for the pack (`packs/code_aster/tests/`), `cgs rules test packs/code_aster/rules.yaml`; tests check that no pack is activated by name or detection and that no shipped pack name appears in the core.
+- `tools/check_wheel.py`: offline wheel build, every data file of the package checked, smoke test from the unpacked wheel outside the checkout.
+- `docs/validation/phase10_generality.md`.

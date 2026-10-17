@@ -30,8 +30,23 @@ def check_version(con: sqlite3.Connection, path: Path | str) -> None:
         )
 
 
-def open_db(path: Path | str, *, read_only: bool = True) -> sqlite3.Connection:
-    """Open an existing project database; refuses an unknown schema version."""
+def schema_version(path: Path | str) -> int | None:
+    """Schema version of an existing database, or None if there is none or it cannot be read."""
+    try:
+        con = sqlite3.connect(f"{Path(path).resolve().as_uri()}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return None
+    try:
+        return int(con.execute("PRAGMA user_version").fetchone()[0])
+    except sqlite3.Error:
+        return None
+    finally:
+        con.close()
+
+
+def open_db(path: Path | str, *, read_only: bool = True, any_schema: bool = False) -> sqlite3.Connection:
+    """Open an existing project database; refuses an unknown schema version unless ``any_schema`` (for tables
+    whose format does not depend on the schema version, such as the versioned facts cache)."""
     path = Path(path)
     if not path.is_file():
         raise FileNotFoundError(f"no project database at {path}")
@@ -40,7 +55,8 @@ def open_db(path: Path | str, *, read_only: bool = True) -> sqlite3.Connection:
     else:
         con = sqlite3.connect(str(path), check_same_thread=False)
     try:
-        check_version(con, path)
+        if not any_schema:
+            check_version(con, path)
     except Exception:
         con.close()
         raise

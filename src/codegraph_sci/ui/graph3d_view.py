@@ -110,11 +110,14 @@ class Graph3DView(QWidget):
 
     node_selected = Signal(str)
     sites_requested = Signal(str, str)  # (caller uid, callee uid) for the detailed calls of a link
+    evidence_requested = Signal(object)  # DependencyFilter of the rows behind a clicked link (same as the table)
 
-    def __init__(self, runner: QueryRunner, *, files: bool, parent: QWidget | None = None) -> None:
+    def __init__(self, runner: QueryRunner, *, files: bool, directories: bool = False,
+                 parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.runner = runner
-        self.files = files
+        self.files = files or directories
+        self.directories = directories  # directory level (D34): folders and the links between them
         self.db: Path | None = None
         self.root_uid: str | None = None
         self.main_uid: str | None = None
@@ -155,7 +158,9 @@ class Graph3DView(QWidget):
         self.with_files = QCheckBox("Defining files")
         self.with_files.setToolTip("Also show the files that define the routines, and the links between them")
         self.with_files.toggled.connect(lambda _v: self.rebuild())
-        self.with_files.setVisible(not files)
+        self.with_files.setVisible(not self.files)
+        for w in (self.btn_from_main, self.btn_to_main, self.depth):
+            w.setVisible(not directories)
         self.info = QLabel("")
         top = QHBoxLayout()
         for w in (self.btn_groups, self.btn_from_main, self.btn_to_main, QLabel("Depth:"), self.depth, QLabel("Max nodes:"),
@@ -177,6 +182,8 @@ class Graph3DView(QWidget):
     # -------------------------------------------------------------- state
     @property
     def mode(self) -> str:
+        if self.directories:
+            return "directories"
         if self.files:
             return "files"
         return "both" if self.with_files.isChecked() else "functions"
@@ -194,6 +201,15 @@ class Graph3DView(QWidget):
         self.db = db
         gen = self._next_gen()
         mode, limit, hide, files = self.mode, self.max_nodes.value(), self.hide_noise, self.files
+        if self.directories:
+            def show_dirs(graph: Graph3D) -> None:
+                if gen == self._gen:
+                    self.overview, self.group_id, self.root_uid = True, None, None
+                    self._show(graph)
+
+            self.runner.submit(db, self._key("load"), lambda q: q.graph3d_directories(max_nodes=limit), show_dirs,
+                               self._error)
+            return
 
         def work(q: GraphQuery) -> tuple[str | None, Graph3D]:
             roots = q.default_roots(hide_noise=hide)
@@ -320,7 +336,7 @@ class Graph3DView(QWidget):
 
     def expand(self, uid: str) -> None:
         """Add the direct callers and callees of ``uid`` to the drawn graph."""
-        if self.db is None:
+        if self.db is None or uid.startswith("dir:"):
             return
         gen = self._gen
         mode = "files" if uid.startswith("file:") else self.mode
@@ -356,6 +372,10 @@ class Graph3DView(QWidget):
         crossing = sum(1 for lk in graph.links if lk.cross_dir)
         self.info.setText(f"{where}{len(self.node_ids)} node(s), {len(self.link_keys)} link(s), "
                           f"{crossing} between folders{hidden}{limit}")
+
+    def query_js(self, script: str, callback: Any) -> None:
+        """Evaluate a JavaScript expression in the page and pass its value to ``callback`` (tests, diagnostics)."""
+        self.page.runJavaScript(script, 0, callback)
 
     def _run_js(self, script: str) -> None:
         if self.page_ready:
@@ -412,7 +432,10 @@ class Graph3DView(QWidget):
             self.expand(event["uid"])
         elif kind == "link" and isinstance(event.get("source"), str) and isinstance(event.get("target"), str):
             src, dst = event["source"], event["target"]
-            if not src.startswith("file:") and not dst.startswith("file:"):
+            if src.startswith(GROUP_PREFIXES) or dst.startswith(GROUP_PREFIXES):
+                return
+            self.evidence_requested.emit(GraphQuery.link_evidence(src, dst))  # the rows of the dependency table
+            if not src.startswith(("file:", "dir:")) and not dst.startswith(("file:", "dir:")):
                 self.sites_requested.emit(src, dst)
         elif kind == "error" and isinstance(event.get("message"), str):
             self.js_errors.append(event["message"])

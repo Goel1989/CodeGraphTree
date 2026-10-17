@@ -1,7 +1,9 @@
 """AI roles 1 and 2 (§3.13): identify unknown languages, define missing keywords (keyword profiles,
-bridge rules). Proposals are checked automatically by replaying Link on the cached facts, shown
-as a preview (links added/removed), then written to the analysis profile — approved in one click,
-or automatically when the project enables it. The analysis itself never calls the AI.
+bridge rules). What to ask comes from the deterministic diagnosis (``ai/diagnose.py``). Proposals are checked
+automatically (replaying Link on the cached facts, extracting samples, and comparing with expected results
+written independently of the AI), then stored as drafts, validated or rejected (``ai/proposals.py``): generating
+never changes the active analysis. Only an explicit approval activates a validated proposal; automatic approval
+needs a project policy configured separately. The analysis itself never calls the AI.
 """
 
 from __future__ import annotations
@@ -16,10 +18,12 @@ from typing import Any
 
 import yaml
 
+from codegraph_sci.ai.diagnose import Diagnosis, diagnose
+from codegraph_sci.ai.proposals import ProposalError, approve, auto_approval_enabled, record
 from codegraph_sci.ai.worker import AIClient
 from codegraph_sci.core.facts import FileFacts, SourceFile, decode_facts
 from codegraph_sci.core.plugins import ExtractContext, decode_bytes, sha256_text
-from codegraph_sci.core.profile import FileOverride, HistoryEntry, LanguageEntry, RuleRef
+from codegraph_sci.core.profile import HistoryEntry
 from codegraph_sci.core.project import Project
 from codegraph_sci.enrich.packs import _schema as pack_schema
 from codegraph_sci.extract.keywords import KeywordAdapter, KeywordProfile
@@ -65,10 +69,28 @@ class Proposal:
     target: str  # extension, language or site pattern
     content: dict[str, Any]
     checks: dict[str, Any] = field(default_factory=dict)
-    accepted: bool = False
+    accepted: bool = False  # passed its validation (not an approval)
     reason: str = ""
     preview: dict[str, Any] = field(default_factory=dict)
     rule_id: str | None = None
+    id: str | None = None  # p-0001 once stored
+    status: str = "draft"  # draft, validated, rejected, approved
+    provenance: dict[str, Any] = field(default_factory=dict)
+    independent: dict[str, Any] = field(default_factory=dict)  # expected results written independently
+
+
+@dataclass
+class DocumentInput:
+    """A user-provided document: read, or the reason it could not be (never dropped silently)."""
+
+    path: str | None
+    status: str  # none, read, missing, unreadable, pdf_unsupported
+    sha256: str | None = None
+    text: str = ""
+    error: str = ""
+
+    def reference(self) -> dict[str, Any]:
+        return {"path": self.path, "status": self.status, "sha256": self.sha256, "error": self.error or None}
 
 
 # ------------------------------------------------------------------ helpers
@@ -80,18 +102,99 @@ def _samples(root: Path, paths: list[str], n: int = 3, lines: int = 40) -> str:
     return "\n".join(out)
 
 
-def _document(path: Path | None, limit: int = 6000) -> str:
-    if path is None or not path.is_file():
-        return ""
+def read_document(path: Path | None, limit: int = 6000) -> DocumentInput:
+    """Text of a technical document (text, Markdown, PDF), or why it could not be read."""
+    import hashlib
+
+    if path is None:
+        return DocumentInput(None, "none")
+    if not path.is_file():
+        return DocumentInput(str(path), "missing", error="file not found")
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        return DocumentInput(str(path), "unreadable", error=str(exc))
+    digest = hashlib.sha256(data).hexdigest()
     if path.suffix.lower() == ".pdf":
         try:
             from pypdf import PdfReader
         except ImportError:
-            return ""
-        text = "\n".join(page.extract_text() or "" for page in PdfReader(str(path)).pages[:20])
+            return DocumentInput(str(path), "pdf_unsupported", digest, error="PDF support (pypdf) is not installed")
+        try:
+            text = "\n".join(page.extract_text() or "" for page in PdfReader(str(path)).pages[:20])
+        except Exception as exc:  # noqa: BLE001 - any parsing failure of a damaged PDF is reported
+            return DocumentInput(str(path), "unreadable", digest, error=f"{type(exc).__name__}: {exc}")
     else:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    return text[:limit]
+        text = data.decode("utf-8", errors="replace")
+    if not text.strip():
+        return DocumentInput(str(path), "unreadable", digest, error="no text could be extracted")
+    return DocumentInput(str(path), "read", digest, text[:limit])
+
+
+def _evidence_from_document(doc: DocumentInput, profile: dict[str, Any]) -> dict[str, Any]:
+    """Passages of the document that support the proposed keywords, and what is assumed without support."""
+    words = sorted({str(k) for section in ("definitions", "calls", "includes") for rule in profile.get(section, [])
+                    for k in list(rule.get("keywords", [])) + list(rule.get("end_keywords", []))})
+    if doc.status != "read":
+        return {"passages": [], "assumptions": [f"no document read ({doc.status}): every keyword comes from samples"]}
+    lower = doc.text.lower()
+    passages: list[str] = []
+    for line in doc.text.splitlines():
+        if any(re.search(rf"\b{re.escape(w.lower())}\b", line.lower()) for w in words) and line.strip():
+            passages.append(line.strip()[:200])
+        if len(passages) >= 10:
+            break
+    assumptions = [f"keyword {w!r} is not in the document: taken from the samples" for w in words
+                   if not re.search(rf"\b{re.escape(w.lower())}\b", lower)]
+    for marker in (profile.get("comments") or {}).get("line", []):
+        if str(marker) not in doc.text:
+            assumptions.append(f"comment marker {marker!r} is not in the document: taken from the samples")
+    return {"passages": passages, "assumptions": assumptions}
+
+
+def independent_results(expected: Path | None, language: str, adapter: Any) -> dict[str, Any]:
+    """Compare the extraction with expected results written independently of the AI.
+
+    ``expected`` holds pairs ``<case>.<ext>`` + ``<case>.expected.json`` (format of language tests, phase 4).
+    Recall and precision of definitions are measured against those files, never against the proposed keywords.
+    """
+    from codegraph_sci.rules import facts_view
+
+    if expected is None or not expected.is_dir():
+        return {"status": "none"}
+    cases, details = [], []
+    found = expected_defs = matched = 0
+    for exp in sorted(expected.glob("*.expected.json")):
+        stem = exp.name[: -len(".expected.json")]
+        sources = [s for s in sorted(expected.glob(f"{stem}.*")) if s != exp and not s.name.endswith(".json")]
+        if not sources:
+            details.append(f"{exp.name}: no source file {stem}.<ext>")
+            continue
+        source = sources[0]
+        text, enc = decode_bytes(source.read_bytes())
+        actual = facts_view(adapter.extract(SourceFile(f"tests/{source.name}", language, None, enc, text),
+                                            ExtractContext()))
+        want = json.loads(exp.read_text(encoding="utf-8"))
+        ok = True
+        for section in ("definitions", "references"):
+            if section not in want:
+                continue
+            w = {json.dumps(x, sort_keys=True) for x in want[section]}
+            g = {json.dumps(x, sort_keys=True) for x in actual[section]}
+            if section == "definitions":
+                expected_defs += len(w)
+                found += len(g)
+                matched += len(w & g)
+            if w != g:
+                ok = False
+                details += [f"{source.name}: missing {section[:-1]} {x}" for x in sorted(w - g)][:5]
+                details += [f"{source.name}: unexpected {section[:-1]} {x}" for x in sorted(g - w)][:5]
+        cases.append({"source": str(source), "expected": str(exp), "passed": ok})
+    if not cases:
+        return {"status": "none", "details": details}
+    return {"status": "passed" if all(c["passed"] for c in cases) and not details else "failed", "cases": cases,
+            "definitions_recall": round(matched / expected_defs, 3) if expected_defs else None,
+            "definitions_precision": round(matched / found, 3) if found else None, "details": details}
 
 
 def _cached_facts(project: Project) -> list[FileFacts]:
@@ -111,33 +214,81 @@ def _relink(project: Project, facts: list[FileFacts], extra_rules: list[dict[str
 # ------------------------------------------------------------ the engine
 class Completion:
     def __init__(self, project: Project, client: AIClient, *, auto: bool = False, document: Path | None = None,
-                 max_iterations: int = 3, max_calls: int = 10) -> None:
+                 expected: Path | None = None, max_iterations: int = 3, max_calls: int = 10) -> None:
         self.project = project
         self.client = client
-        self.auto = auto
+        self.auto = auto  # approve validated proposals through the project policy (cgs ai-policy)
         self.document = document
+        self.expected = expected  # expected results written independently of the AI (language proposals)
         self.max_iterations = max_iterations
         self.max_calls = max_calls
         self.proposals: list[Proposal] = []
         self.asked: set[tuple[str, str]] = set()
+        self.diagnosis: list[Diagnosis] = []
+        self.doc = read_document(document)
 
     def run(self) -> list[Proposal]:
+        """Propose, validate and store. Without the automatic policy nothing active changes and nothing is
+        rescanned: the user approves (``cgs ai-approve``), then runs ``cgs scan``."""
+        if self.auto and not auto_approval_enabled(self.project):
+            raise ProposalError("automatic approval is not enabled for this project: run "
+                                "`cgs ai-policy <folder> --auto-approve on` first, or approve proposals one by one")
         if not self.project.db_path.is_file():
             scan(self.project, ScanOptions())
         for _ in range(self.max_iterations):
-            new = self.identify_languages() + self.bridge_rules()
-            if not any(p.accepted for p in new):
+            self.diagnosis = diagnose(self.project)
+            new = self.identify_languages() + self.missing_packages() + self.bridge_rules()
+            for p in new:
+                self._store(p)
+            if not self.auto:
                 break
-            self.adopt([p for p in new if p.accepted])
+            approved = 0
+            for p in new:
+                if p.status != "validated" or p.id is None:
+                    continue
+                try:
+                    approve(self.project, p.id, by="auto-policy")
+                except ProposalError as exc:
+                    p.reason = f"{p.reason}; not approved: {exc}"
+                    continue
+                p.status = "approved"
+                approved += 1
+            if not approved:
+                break
             scan(self.project, ScanOptions())
         return self.proposals
 
+    def _store(self, p: Proposal) -> None:
+        kind = {"override": "override", "keywords": "language", "bridge": "bridge"}[p.kind]
+        provenance = {"model": self.client.model_spec, "task": p.kind, "document": self.doc.reference(),
+                      **p.provenance}
+        stored = record(self.project, kind, p.target, p.content, passed=p.accepted, reason=p.reason,
+                        checks={**p.checks, **({"preview": p.preview} if p.preview else {})},
+                        provenance=provenance, independent=p.independent or None)
+        p.id, p.status = stored.id, stored.status
+
     # ---------------------------------------------------------- role 1
-    def identify_languages(self) -> list[Proposal]:
-        profile = load_profile(self.project.profile_path)
-        inv = run_inventory(self.project.root, profile)
+    def missing_packages(self) -> list[Proposal]:
+        """Languages the inventory knows (``.jl``, ``.rs``…) without an installed package: a keyword package."""
         out: list[Proposal] = []
-        for ext, paths in inv.unknown_groups.items():
+        for d in self.diagnosis:
+            if d.kind != "missing_package" or ("keywords", d.target) in self.asked or self.client.calls >= \
+                    self.max_calls:
+                continue
+            self.asked.add(("keywords", d.target))
+            profile = load_profile(self.project.profile_path)
+            paths = [e.path for e in run_inventory(self.project.root, profile).entries if e.lang == d.target]
+            ext = Path(paths[0]).suffix if paths else ""
+            out.append(self._keyword_profile(ext, paths, d.target))
+        self.proposals += out
+        return out
+
+    def identify_languages(self) -> list[Proposal]:
+        out: list[Proposal] = []
+        unknown = {d.target: d for d in self.diagnosis if d.kind == "unknown_language"}
+        profile = load_profile(self.project.profile_path)
+        groups = run_inventory(self.project.root, profile).unknown_groups if unknown else {}
+        for ext, paths in groups.items():
             if ("identify", ext) in self.asked or self.client.calls >= self.max_calls:
                 continue
             self.asked.add(("identify", ext))
@@ -176,7 +327,7 @@ class Completion:
         return prop
 
     def _keyword_profile(self, ext: str, paths: list[str], language: str) -> Proposal:
-        doc = _document(self.document)
+        doc = self.doc.text if self.doc.status == "read" else ""
         prompt = (f"Write a keyword profile for the language {language!r} (files {ext}): definition keywords "
                   "and their end keywords, call keywords, name(...) calls, include keywords, comment and string "
                   "markers. Use plain keywords, never regular expressions.\n"
@@ -191,6 +342,7 @@ class Completion:
         halves = [ordered[: max(1, len(ordered) // 2)], ordered[max(1, len(ordered) // 2):] or ordered[:1]]
         stats = []
         adapter = KeywordAdapter(KeywordProfile(language, answer))
+        independent = independent_results(self.expected, language, adapter)
         for half in halves:
             defs = calls = expected_defs = 0
             def_words = {k.lower() for d in answer.get("definitions", []) for k in d["keywords"]}
@@ -201,14 +353,27 @@ class Completion:
                 calls += sum(1 for r in facts.references if r.kind in ("call", "maybe_call"))
                 expected_defs += sum(1 for line in text.splitlines()
                                      if line.strip() and line.split()[0].lower() in def_words)
+            # Matches of the proposed keywords themselves: a consistency check, not a measured recall.
             stats.append({"files": len(half), "definitions": defs, "calls": calls,
-                          "recall": defs / expected_defs if expected_defs else 0.0})
-        stable = abs(stats[0]["recall"] - stats[1]["recall"]) < THRESHOLDS["max_stability_gap"] + 1e-9
-        prop = Proposal("keywords", language, answer, checks={"halves": stats, "stable": stable})
-        prop.accepted = all(s["definitions"] > 0 for s in stats) and stable
-        prop.reason = "ok" if prop.accepted else "too few definitions found, or unstable between samples"
-        answer["coverage"] = {"sample_files": len(paths), "definitions_recall": round(
-            sum(s["recall"] for s in stats) / len(stats), 3)}
+                          "keyword_consistency": defs / expected_defs if expected_defs else 0.0})
+        gap = abs(stats[0]["keyword_consistency"] - stats[1]["keyword_consistency"])
+        stable = gap < THRESHOLDS["max_stability_gap"] + 1e-9
+        prop = Proposal("keywords", language, answer, checks={"halves": stats, "stable": stable},
+                        independent=independent)
+        problems = []
+        if not all(s["definitions"] > 0 for s in stats) or not stable:
+            problems.append("too few definitions found, or unstable between samples")
+        if independent["status"] == "failed":
+            problems.append("independent expected results not met: " + "; ".join(independent.get("details", [])[:3]))
+        prop.accepted = not problems
+        prop.reason = "ok" if prop.accepted else "; ".join(problems)
+        if independent["status"] == "passed":
+            answer["coverage"] = {"sample_files": len(independent["cases"]),
+                                  "definitions_recall": independent["definitions_recall"]}
+        else:
+            prop.reason += " (recall not measured: no independent expected results)" if prop.accepted else ""
+        prop.provenance = {**_evidence_from_document(self.doc, answer),
+                           "examples": sorted(paths)[:3]}
         return prop
 
     # ---------------------------------------------------------- role 2
@@ -278,44 +443,11 @@ class Completion:
                                      for k in sorted(gained)[:10]]}
         return prop
 
-    # ---------------------------------------------------------- adoption
-    def adopt(self, proposals: list[Proposal]) -> None:
-        """Write accepted proposals to the profile: approved in auto mode, proposed otherwise."""
-        write_proposals(self.project, proposals, approved=self.auto)
-
-
-def write_proposals(project: Project, proposals: list[Proposal], approved: bool) -> None:
-    profile = load_profile(project.profile_path)
-    status = "approved" if approved else "proposed"
-    for p in proposals:
-        if p.kind == "override":
-            profile.file_overrides.append(FileOverride(p.content["glob"], p.content["language"],
-                                                       p.content["reason"]))
-            change = f"AI: {p.target} read as {p.content['language']}"
-        elif p.kind == "keywords":
-            folder = project.rules_dir / "languages"
-            folder.mkdir(parents=True, exist_ok=True)
-            content = {**p.content, "status": status}
-            (folder / f"{p.target}.yaml").write_text(yaml.safe_dump(content, sort_keys=False, allow_unicode=True),
-                                                     encoding="utf-8")
-            profile.languages[p.target] = LanguageEntry(0, f"keywords:{p.target}", source="ai", status=status)
-            change = f"AI: keyword profile {p.target} ({status})"
-        else:
-            n = 1 + max([int(r.id.split("-")[1]) for r in profile.rules if re.fullmatch(r"r-\d+", r.id)] or [0])
-            rule_id = f"r-{n:04d}"
-            project.rules_dir.mkdir(parents=True, exist_ok=True)
-            (project.rules_dir / f"{rule_id}.yaml").write_text(yaml.safe_dump(p.content, sort_keys=False),
-                                                                encoding="utf-8")
-            profile.rules.append(RuleRef(rule_id, "bridge", "ai", status, f"rules/{rule_id}.yaml"))
-            p.rule_id = rule_id
-            change = f"AI: bridge rule {rule_id} for {p.target} ({status})"
-        profile.profile_version += 1
-        profile.history.append(HistoryEntry(profile.profile_version, change, "ai"))
-    save_profile(project.profile_path, profile)
 
 
 def set_rule_status(project: Project, rule_id: str, status: str) -> None:
-    """One-click validation: approve or reject a proposed rule or keyword profile."""
+    """Status of a rule written by an earlier version (``rules/r-<n>.yaml`` or a keyword profile in the profile).
+    New proposals go through ``ai/proposals.py`` (``cgs ai-approve p-<n>``)."""
     profile = load_profile(project.profile_path)
     found = False
     for r in profile.rules:

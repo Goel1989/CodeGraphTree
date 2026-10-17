@@ -28,7 +28,8 @@ def _text(node: tree_sitter.Node) -> str:
     return node.text.decode("utf-8", errors="replace") if node.text is not None else ""
 
 
-def extract_tree_sitter(path: str, text: str, encoding: str, module: str) -> FileFacts:
+def extract_tree_sitter(path: str, text: str, encoding: str, module: str, *, outline: bool = False) -> FileFacts:
+    """Definitions and calls of a file the ``ast`` module cannot read; ``outline``: definitions only."""
     from codegraph_sci.extract.python import BUILTINS, resolve_relative
 
     data = text.encode("utf-8")
@@ -95,7 +96,7 @@ def extract_tree_sitter(path: str, text: str, encoding: str, module: str) -> Fil
                 if body is not None:
                     visit(body, q, "class" if is_class else "function")
                 continue
-            if child.type == "call":
+            if child.type == "call" and not outline:
                 fn = child.child_by_field_name("function")
                 if fn is not None and fn.type in ("identifier", "attribute"):
                     parts = _text(fn).replace(" ", "").split(".")

@@ -70,6 +70,12 @@ def python_variant(text: str) -> str | None:
     return "python2" if any(rx.search(text) for rx in _PY2) else None
 
 
+def shebang_interpreter(text: str) -> str | None:
+    """Interpreter named by a ``#!`` first line (``python3`` for ``#!/usr/bin/env python3``), if any."""
+    m = _SHEBANG.match(text.split("\n", 1)[0])
+    return m.group(1) if m else None
+
+
 def signature_scores(table: ExtensionTable, text: str) -> dict[str, int]:
     head = "\n".join(text.splitlines()[: table.signature_lines])
     scores: dict[str, int] = {}

@@ -1,0 +1,39 @@
+# Language package (package format 1), created by `cgs rules new language`.
+# Guide: docs/rules/README.md. Edit, then run: cgs rules validate / cgs rules test / cgs rules activate.
+package_format: 1
+language: __NAME__              # identifier: lower case, digits and _ ; node uids are kw:<language>:<name>@<file>
+version: "0.1"                  # MAJOR.MINOR[.PATCH] of this package
+status: proposed                # becomes "approved" through `cgs rules activate` (tests must pass)
+description: Example keyword language; replace with a description of yours.
+extensions: ["__EXTENSION__"]   # files read with this package
+detection:                      # optional hints for files without a known extension
+  filenames: []                 # exact file names, e.g. ["Buildfile"]
+  shebangs: []                  # interpreters of a "#!" first line, e.g. ["mylang"]
+backend: keywords               # declarative rules below; parser-backed adapters use native:<name>
+rules:
+  case_sensitive: false         # false: names and keywords compared in lower case
+  comments: {line: ["#"], block: [["/*", "*/"]]}   # blanked before matching (positions kept)
+  strings: ['"']                # string contents blanked before matching (quotes kept)
+  definitions:                  # a line starting with a keyword followed by a name opens a definition
+    - {keywords: ["proc"], name: after_keyword, end_keywords: ["end"], kind: routine}
+    - {keywords: ["function"], name: after_keyword, end_keywords: ["end"], kind: routine}
+  calls:
+    - {keywords: ["call"], name: after_keyword}                # call name
+    - {style: name_then_paren, only_known_names: true}         # name(...) kept only if name is defined
+  includes:
+    - {keywords: ["import"], target: after_keyword}           # import other_file
+naming:
+  case_sensitive: false
+  qualification: lexical        # nested definitions are qualified by their parents: outer.inner
+relationships: [calls, maybe_calls, includes]
+resolution:
+  confidence: heuristic
+  capabilities: [names]
+limitations:
+  - "Heuristic extraction: no types, no overloads, scopes limited to the nesting of definitions."
+tests:                          # every test must pass before activation
+  - {source: tests/basic.source, expected: tests/basic.expected.json}
+provenance:
+  source: manual
+  author: ""
+  document: ""                  # reference manual or convention the rules come from, if any

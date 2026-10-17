@@ -1,0 +1,25 @@
+# Built-in language package (requirements plan phase 3): the native Fortran adapter behind the package contract.
+package_format: 1
+language: fortran
+version: "1.0"
+description: Fortran 77 to 2008, fixed and free form, with C preprocessor directives.
+extensions: [".f", ".for", ".f77", ".ftn", ".f90", ".f95", ".f03", ".f08"]
+dialects: [fixed, free, preprocessed]
+backend: native:fortran
+naming:
+  case_sensitive: false
+  qualification: module
+  description: "Procedures f:<name>, modules fmod:<module>, internal procedures and types f:<host>::<name>."
+relationships: [calls, maybe_calls, uses, includes, data_access, dispatches, binds]
+resolution:
+  confidence: exact
+  capabilities: [names, nested_scopes, imports, includes, preprocessor]
+limitations:
+  - "name(...) without a declaration is a maybe_call decided by linking; it stays ambiguous when no unique target exists."
+  - "A procedure received as an argument or through a pointer is a dynamic call without a static target."
+  - "Preprocessor variants are kept as separate definitions; every branch is analyzed when keep_all_branches is on."
+tests:
+  - {source: "tests/fixtures/fortran_basic", expected: "tests/fixtures/fortran_basic/expected_graph.json"}
+provenance:
+  source: builtin
+  notes: "Fixtures live in the source repository; they are not shipped in the installed package."

@@ -2,13 +2,27 @@
 
 from __future__ import annotations
 
+from collections import Counter
+from dataclasses import asdict
 from typing import Any
 
 from codegraph_sci.inventory.run import InventoryResult
 
 
-def inventory_dict(result: InventoryResult) -> dict[str, Any]:
-    return {
+def accounting(result: InventoryResult) -> dict[str, Any]:
+    """Every discovered entry counted by kind, eligibility and reason (sorted)."""
+    def counts(values: list[str]) -> dict[str, int]:
+        return dict(sorted(Counter(values).items()))
+
+    return {"total": len(result.items), "by_kind": counts([i.kind for i in result.items]),
+            "by_eligibility": counts([i.eligibility for i in result.items]),
+            "by_reason": counts([i.reason for i in result.items if i.reason is not None]),
+            "issues": len(result.issues)}
+
+
+def inventory_dict(result: InventoryResult, *, entries: bool = False) -> dict[str, Any]:
+    """JSON form of the inventory; ``entries`` also lists every discovered entry."""
+    data: dict[str, Any] = {
         "files": {e.path: {"lang": e.lang, "variant": e.variant, "status": e.status,
                            "decided_by": e.decided_by, "confidence": e.confidence}
                   for e in result.entries},
@@ -20,7 +34,13 @@ def inventory_dict(result: InventoryResult) -> dict[str, Any]:
         "binary": result.binary_count,
         "problems": [{"path": p.path, "message": p.message} for p in result.problems],
         "skipped_dirs": skipped_list(result),
+        "policy": result.policy,
+        "accounting": accounting(result),
+        "issues": [{"path": i.path, "kind": i.kind, "message": i.message} for i in result.issues],
     }
+    if entries:
+        data["entries"] = [asdict(i) for i in result.items]
+    return data
 
 
 def skipped_list(result: InventoryResult, limit: int | None = None) -> list[dict[str, Any]]:
@@ -46,6 +66,9 @@ def inventory_table(result: InventoryResult) -> str:
         groups = ", ".join(f"{ext} ({len(paths)})" for ext, paths in result.unknown_groups.items())
         lines.append(f"Unknown files by extension: {groups}")
     lines.append(f"Ignored: {result.ignored_count} non-source files, {result.binary_count} binary files")
+    counted = accounting(result)
+    lines.append(f"Entries ({result.policy} inventory): {counted['total']}; "
+                 + ", ".join(f"{k} {v}" for k, v in counted["by_eligibility"].items()))
     if result.include_paths:
         lines.append(f"Include paths: {', '.join(result.include_paths)}")
     for s in skipped_list(result, 20):

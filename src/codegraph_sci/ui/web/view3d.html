@@ -25,6 +25,11 @@
   #legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
   #legend b.line { width: 16px; height: 3px; display: inline-block; }
   #details { bottom: 10px; right: 10px; max-width: 360px; display: none; }
+  #filters { top: 64px; left: 10px; max-width: 240px; color: var(--muted); }
+  #filters div { margin: 3px 0; }
+  #filters label { margin-right: 6px; user-select: none; }
+  #filters select, #filters input[type=search] { background: #222222; color: var(--text); border: 1px solid #3a3a3a;
+                                                  border-radius: 4px; padding: 2px 4px; }
   #details h3 { margin: 0 0 4px; font-size: 14px; color: var(--accent); word-break: break-all; }
   #details code { color: var(--muted); word-break: break-all; }
 </style>
@@ -39,6 +44,19 @@
   <label><input id="particles" type="checkbox" checked> flow on bridges</label>
   <label title="Links whose two ends are in different folders"><input id="crossdir" type="checkbox" checked> between folders</label>
   <label title="Files that are not analyzed code, set apart"><input id="noncode" type="checkbox" checked> non-code files</label>
+  <button id="reset" title="Clear the selection and the filters, fit the graph">Reset</button>
+  <button id="dims" title="Switch between 3D and 2D">2D</button>
+</div>
+<div id="filters" class="panel">
+  <div><b>Group by</b> <select id="groupby"><option value="">none</option><option value="directory">folder</option>
+    <option value="language">language</option><option value="parent">module / class</option></select></div>
+  <div><label title="Links and nodes inside a cycle"><input id="cycles" type="checkbox"> cycles</label>
+       <label title="Nodes with outgoing links but no incoming link: possible entry points (no main needed)">
+       <input id="entries" type="checkbox"> entry points</label></div>
+  <div><input id="pathfilter" type="search" placeholder="Path starts with…"></div>
+  <div id="kindfilter"></div>
+  <div id="langfilter"></div>
+  <div id="statusfilter"></div>
 </div>
 <div id="legend" class="panel"></div>
 <div id="details" class="panel"></div>

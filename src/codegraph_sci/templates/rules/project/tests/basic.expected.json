@@ -1,0 +1,4 @@
+{
+ "edges": [{"src": "entry:build", "dst": "py:tasks.build_all", "kind": "calls"}],
+ "absent_edges": [{"src": "entry:clean", "dst": "py:tasks.clean_all", "kind": "calls"}]
+}

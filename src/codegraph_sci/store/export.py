@@ -26,6 +26,11 @@ def export_dict(db_path: Path | str) -> dict[str, Any]:
                            "adapter_version, error FROM files ORDER BY path")
         inventory = _rows(con, "SELECT f.path, i.lang, i.variant, i.confidence, i.decided_by FROM inventory i "
                                "JOIN files f ON f.id = i.file_id ORDER BY f.path")
+        inventory_entries = _rows(con, "SELECT path, parent, kind, extension, size, files, lang, variant, "
+                                       "confidence, evidence, eligibility, status, reason, link_target "
+                                       "FROM inventory_entries ORDER BY path")
+        inventory_issues = _rows(con, "SELECT path, kind, message FROM inventory_issues "
+                                      "ORDER BY path, kind, message")
         nodes = _rows(con, "SELECT n.uid, n.display_name, n.kind, n.subtype, n.lang, f.path AS file, "
                            "n.line_start, n.line_end, n.in_scope, n.attrs FROM nodes n "
                            "LEFT JOIN files f ON f.id = n.file_id ORDER BY n.uid")
@@ -34,7 +39,7 @@ def export_dict(db_path: Path | str) -> dict[str, Any]:
             n["in_scope"] = bool(n["in_scope"])
         sites = _rows(con, "SELECT s.id, src.uid AS src, f.path AS file, s.line, s.col, s.ref_kind, "
                            "s.target_text, dst.uid AS dst, s.resolution, s.confidence, s.origin, "
-                           "c.expr AS condition FROM call_sites s JOIN nodes src ON src.id = s.src_node "
+                           "c.expr AS condition, s.evidence FROM call_sites s JOIN nodes src ON src.id = s.src_node "
                            "JOIN files f ON f.id = s.file_id LEFT JOIN nodes dst ON dst.id = s.dst_node "
                            "LEFT JOIN conditions c ON c.id = s.condition_id")
         cands: dict[int, list[str]] = {}
@@ -43,6 +48,7 @@ def export_dict(db_path: Path | str) -> dict[str, Any]:
             cands.setdefault(site_id, []).append(uid)
         for s in sites:
             s["candidates"] = sorted(cands.get(s.pop("id"), []))
+            s["evidence"] = json.loads(s["evidence"]) if s["evidence"] else {}
         sites.sort(key=lambda s: (s["file"], s["line"], s["col"], s["src"], s["target_text"], s["ref_kind"]))
         data = _rows(con, "SELECT src.uid AS src, d.uid AS data, fam.uid AS family, a.mode, a.key_kind, "
                           "f.path AS file, a.line, a.origin FROM data_accesses a "
@@ -68,7 +74,8 @@ def export_dict(db_path: Path | str) -> dict[str, Any]:
         plugins = _rows(con, "SELECT name, type, version FROM plugins ORDER BY type, name")
     finally:
         con.close()
-    return {"files": files, "inventory": inventory, "nodes": nodes, "call_sites": sites,
+    return {"files": files, "inventory": inventory, "inventory_entries": inventory_entries,
+            "inventory_issues": inventory_issues, "nodes": nodes, "call_sites": sites,
             "data_accesses": data, "edges": edges, "node_stats": stats, "file_edges": file_edges,
             "dir_edges": dir_edges, "plugins": plugins}
 

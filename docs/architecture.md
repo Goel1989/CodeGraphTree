@@ -249,6 +249,7 @@ subprocesses, and pipes. cgs scan never calls AI.
 **Deterministic step: `cgs inventory <folder>`**
 
 1. **Repository traversal:** walks **every sub-folder** of the selected folder (depth first, sorted names); by default it obeys `.gitignore` and the default excluded directory names (`build`, `.venv`, `node_modules`, caches…), plus the profile's `exclude_dirs`. Every folder (or `.gitignore`d file) left out is **reported** with its reason (`default exclusion`, `.gitignore`, `profile`) and file count: `cgs inventory`, `skipped_dirs` in the inventory JSON and in the scan statistics, and the Inventory view. The profile option `all_subfolders: true` (`cgs profile all-subfolders <folder> on`, or the "Analyze all subfolders" box of the Inventory view) ignores `.gitignore` and the default exclusions; version-control metadata (`.git`, `.hg`, `.svn`) and `exclude_dirs` still apply. The key is written only when true, so existing profiles keep their hash. Binary files (null bytes) are ignored; symlink loops and unreadable files are logged without blocking traversal.
+   **Persistent inventory (D28):** discovery is separate from analysis selection. Every discovered entry (directory, file, link, special file) is recorded with its parent, extension, size, language and detection evidence, analysis **eligibility** (`eligible`, `excluded`, `not_source`, `unsupported_language`, `unreadable`, `not_applicable` for walked directories), **status** (files: `pending`, then the analysis status; directories: `walked`, `not_walked`) and the **reason** it is not analyzed; discovery problems are recorded as issues (`unreadable`, `loop`, `broken_link`, `external_link`). Two policies (profile key `inventory_policy`, written only when not the default; `cgs profile inventory-policy <folder> analysis|complete`): **analysis** (default) records an excluded folder as one entry with its file count; **complete** walks excluded folders too and records their content (language from the extension only), never read nor parsed. Empty directories are recorded; an unreadable entry is recorded as unreadable; a folder already visited through a symbolic link is a loop (recorded, not walked); a symbolic link to a target outside the root is still followed, recorded with its target and flagged; broken links and special files are recorded; version-control metadata is recorded but never walked nor counted. `cgs inventory --json [--entries]` reports the policy, the accounting by kind, eligibility and reason, and the issues.
 2. **Extensions table** (configurable):
 
 | Extensions | Language | Note |
@@ -319,7 +320,7 @@ history:
 | **Diagnostic** | Database | Analysis health; unresolved and ambiguous sites grouped by pattern; non-resolved references by category (§3.5) | `audit/`, `query/` | Used by user and, if enabled, by AI |
 
 - **Re-analysis:** the Extract step is only re-run for files whose cache key changed (file, an included file, its adapter, extraction settings, or extraction mode); subsequent steps are re-run entirely. Measured (`docs/bench/scan_benchmark.md`): after 50 changed files, the rebuild after extraction (cache lookup, inventory, index, write) dominates the rescan time.
-- **Partial analysis:** if the profile restricts `scope`, files outside it are extracted in **OUTLINE** mode (D25): definitions with their attributes and includes only, no references, data accesses or directives (the Fortran parser skips executable statements except `SELECT CASE`). A call to a routine defined outside scope points to an `out_of_scope` node: not counted as "unresolved".
+- **Partial analysis:** if the profile restricts `scope`, files outside it are extracted in **OUTLINE** mode (D25): definitions with their attributes and includes only, no references, data accesses or directives (the Fortran parser skips executable statements except `SELECT CASE`; since D32 every adapter honours the mode: Python skips expressions, decorators and base classes, C/C++ skip call expressions inside bodies, keyword languages apply no call rule; definitions are identical to FULL). The mode is chosen before the files are scheduled, is part of the cache identity, and moving a file into scope forces a FULL extraction. A call to a routine defined outside scope points to an `out_of_scope` node: not counted as "unresolved".
 - **Extraction workers:** files are extracted in worker processes (`extract_pool.py`, count = `jobs`, default cores − 1) with **one deadline per file**; a late file kills only its own worker, which is replaced, and is stored with `parse_status = timeout`. Results are kept in memory and written in one database write at the end of the scan.
 - **Statistics:** each scan records in `scan_runs.stats` the counts per resolution, `phases_ms` (inventory, cache lookup, extraction wall time and summed FULL/OUTLINE time, link, enrich, index, total), file counts per extraction mode, the skipped folders and the non-code files (`cgs benchmark` adds the SQLite write time).
 - **Index step computations:** strongly connected components (iterative Tarjan algorithm to avoid Python recursion limits), condensed graph, then impact size of each node by bitset propagation (Python big ints) in topological order; on raw graph and filtered graph.
@@ -420,11 +421,15 @@ files(id INTEGER PRIMARY KEY, path TEXT UNIQUE, lang, variant, sha256, size, enc
       parse_status, adapter, adapter_version, error, mtime_ns, cache_key)
       -- parse_status: ok, fallback, failed, timeout, outline (outside the scope), not_analyzed
 inventory(file_id, lang, variant, confidence, decided_by)
+inventory_entries(path TEXT PRIMARY KEY, parent, kind, extension, size, files, lang, variant,
+                  confidence, evidence, eligibility, status, reason, link_target)   -- D28: every entry
+inventory_issues(path, kind, message)        -- discovery problems: unreadable, loop, broken_link, external_link
 nodes(id INTEGER PRIMARY KEY, uid TEXT UNIQUE, display_name, kind, subtype, lang,
       file_id, line_start, line_end, in_scope, attrs JSON)
 conditions(id INTEGER PRIMARY KEY, expr TEXT UNIQUE)              -- preprocessor guards
 call_sites(id INTEGER PRIMARY KEY, src_node, file_id, line, col, ref_kind, target_text,
-           dst_node, resolution, confidence, origin, condition_id)  -- one site = one line
+           dst_node, resolution, confidence, origin, condition_id,
+           evidence JSON)        -- one site = one line; evidence: bridge resolutions only (D31, schema 3)
 call_site_candidates(site_id, dst_node)                            -- targets of ambiguous sites
 data_accesses(id INTEGER PRIMARY KEY, src_node, data_node, family_node, mode,
               key_kind, file_id, line, origin)
@@ -447,6 +452,11 @@ scan_runs(id, started_at, finished_at, root, git_rev, profile_version, profile_s
 summaries(node_id, content_hash, model_id, prompt_version, text)   -- Lot 15 (created, unused yet)
 layout_cache(key, layout_version, data JSON)                        -- Lot 11 (created, unused since D21)
 ```
+
+**Schema version** (`PRAGMA user_version`): **3** since D31 (2: `inventory_entries`, `inventory_issues`, D28;
+3: `call_sites.evidence`). A
+database of another version is rebuilt by the next analysis (full write); its facts cache is still reused, since
+cached blobs carry their own facts format version. Readers refuse another version ("re-run the analysis").
 
 **Indexes** (created **after** inserts): `call_sites(src_node)`, `call_sites(dst_node)`, `call_sites(file_id, line)`, `call_sites(resolution, target_text)`, `data_accesses(src_node)`, `data_accesses(data_node)`, `edges(src, kind)`, `edges(dst, kind)`, `nodes(file_id)`.
 
@@ -530,6 +540,23 @@ class FileFacts:
 ```
 
 - Each file's language comes from inventory (profile); adapter does not guess it.
+- **Language packages (D29):** every language is described by a versioned package (`extract/registry.py`, schema
+  `extract/language_package.schema.json`, package format 1): language, version, extensions and detection hints
+  (file names, shebang interpreters), dialects, backend, naming and scope rules, relationship types, resolution
+  capabilities, limitations, test cases and provenance. Backends: `keywords` (declarative rules of §3.9, under
+  `rules`) or `native:<name>` (a parser-backed `LanguageAdapter`: the four built-in ones, or an adapter installed
+  separately that declares itself in the entry point group `codegraph_sci.language_backends`; configuration files
+  never execute code). The four native adapters are packaged behind the same contract (`extract/languages/*.yaml`,
+  extensions identical to the inventory table, checked by a test). **Precedence:** `builtin` < `user`
+  (`<data dir>/languages/`) < `project` (`<project>/rules/languages/`) < packages given explicitly to a scan; each
+  level holds `<name>.yaml` files or `<name>/package.yaml` folders, and a keyword profile of §3.9 is read as a
+  keyword package (same adapter version, so caches stay valid). Only approved packages are active; a project
+  package whose language the analysis profile marks `proposed` or `rejected` stays inactive. **Ambiguity is an
+  error** naming both files: two packages of one level for a language, a higher-level package replacing another
+  without `overrides: true`, two languages claiming one extension, file name or shebang, or a package claiming an
+  extension the inventory decides by content (`.h`, `.inc`…). The inventory learns the extensions and hints of
+  added packages; their extensions take precedence over "known but not covered". Extraction workers receive the
+  selected packages, not file paths. `cgs languages <folder> [--json]` lists the selection and inactive packages.
 - Facts have identical structure across all languages: core only knows this format.
 - Literal arguments (strings, constants, values obtained through simple propagation of local variables) are preserved. This enables a pack or rule to interpret specific calls (memory manager, macros) without re-parsing code.
 - Facts are **sorted** (by line, column, then name) before storage: essential for determinism.
@@ -545,6 +572,19 @@ class FileFacts:
 ### 3.8. Domain Packs format
 
 A pack is primarily a declarative `rules.yaml` file; Python (`enrich`) is only added if declarative format is insufficient.
+
+**Rule workflow (D30):** rules are written, validated, tested and activated with `cgs rules new|validate|test|
+activate` (`rules.py`, guide `docs/rules/README.md`, templates in `templates/rules/`). Layout of a project:
+`rules/languages/<name>/language.yaml` (+ `tests/*.source`, `*.expected.json`), `rules/bridges/<name>.yaml` (bridge
+format 1, `enrich/schemas/bridge_rule.schema.json`: the rule is a `bridges[]` entry, plus repository tests),
+`rules/projects/<name>.yaml` (a pack, with an optional `validation` list of repository tests; packs are also found as
+`<folder>/<name>.yaml`). A rule is created `proposed`; activation validates it, requires at least one test case and
+all passing, checks that the language selection stays unambiguous, then approves it (file status, profile entry or
+`rules:`/`packs:` of the profile, history line). Language tests compare definitions (name, kind, lines, parent) and
+references (enclosing definition, target, kind, line, column); repository tests scan a small repository with the
+rule alone and check `edges` and `absent_edges`. **Resource limits** (`core/patterns.py`): rule files ≤ 1 MiB;
+configurable regular expressions ≤ 500 characters, compiled, without backreferences or nested quantifiers; keyword
+lists ≤ 200 literal words of ≤ 64 characters.
 
 **Loading:** `yaml.safe_load` exclusively, followed by JSON schema validation (`enrich/schemas/pack.schema.json`). Unknown keys, invalid types, or unsupported format versions cause loading failure with a message specifying file, key, and offending value. The same rules apply to language profiles (§3.9), bridge rules, and analysis profiles.
 
@@ -576,12 +616,30 @@ A pack is primarily a declarative `rules.yaml` file; Python (`enrich`) is only a
 - either `mode_arg` + `modes` (literal arg value → `reads` or `writes`), or `effect` (`creates` or `destroys`);
 - `object_key`: **ordered** list of strategies attempted in order — `literal` (fully known name), `local_prefix` (name starting with `local_prefix_pattern`, routine-local), `symbolic` (retained expression), `family` (static suffix); access is linked to the most specific object found **and** its family.
 
-**`bridges[]`** — `{from, to, call_prefixes, name_transform, declaration_patterns, extension_modules}`:
+**`bridges[]`** — `{from, to, call_prefixes, name_transform, declaration_patterns, extension_modules, id, version,
+mechanism, candidates, require_declaration, files, target_files}`:
 
 - `call_prefixes`: attempted **longest to shortest**; a call `PREFIX` + `NAME(...)` yields a site toward the target produced by applying `name_transform`;
 - `name_transform`: ordered list of operations among `strip_prefix` (default, first), `lowercase`, `uppercase`, `append_underscore`, `strip_underscore`;
 - `declaration_patterns`: patterns that **declare** a routine from the other language (prototype, declaration macro). They create `binding` nodes, **never call sites**;
 - `extension_modules`: compiled modules exposed to Python.
+- `candidates` (D31): `keep_ambiguous` (default) keeps every target of a homonym as an ambiguous site; `unique` links
+  only a single target. A target is never picked among homonyms;
+- `require_declaration`: a prefix call is linked only if a `declaration_patterns` match of the same rule names its
+  target (the binding declaration is the evidence; a similar name alone is not);
+- `files` / `target_files`: globs limiting the caller files and the files targets may come from (module or library
+  constraints); `version` and `mechanism` (a documented label) are recorded in the evidence.
+
+**Bridge declarations and evidence (D31).** Native bridges are declared in `core/bridge_catalog.py`: languages,
+mechanisms, matching conditions, name transformation, constraints, candidate policy, identifier and version.
+Mechanisms and their evidence kind: `bind_c_name`, `pybind11_module`, `pybind11_def`, `pyext_module`, `pyext_def`,
+`declaration_macro` (**binding declaration** in the sources); `trailing_underscore`, `g77_double_underscore`,
+`uppercase_name`, `same_name`, `c_linkage_same_name` (**naming convention** of compilers and linkers, used only
+when exactly one target exists); `prefix_call` (**rule**). A site resolved by a bridge stores `evidence`: rule and
+rule version, mechanism, evidence kind, binding declaration, transformed name, candidate selection and reason. The
+query layer adds, for every site, the extraction rule (adapter and version of the file), the resolution rule
+(origin), the candidate selection and a reason derived from the resolution. Bridges used by an analysis are recorded
+in `plugins` (`bridge`, `bridge_rule` with their version).
 
 Every bridge rule must be accompanied by positive **and negative** tests (identifiers resembling prefix without matching, `bridge_prefix_negative` fixture).
 
@@ -664,6 +722,10 @@ FILE_DEPENDENCY = {"uses", "contains"}                                   # file 
 class GraphQuery:
     def __init__(self, db_path: Path, *, read_only: bool = True): ...
     def inventory(self) -> InventoryReport: ...
+    def inventory_entries(self, parent: str | None = None, *, eligibility: str | None = None,
+                          kind: str | None = None, limit: int = 1000, offset: int = 0) -> list[InventoryItem]: ...
+    def inventory_accounting(self) -> InventoryAccounting: ...   # policy, counts by kind/eligibility/status/reason
+    def inventory_issues(self) -> list[InventoryIssue]: ...
     def find(self, text: str, kinds: set[str] | None = None, limit: int = 50) -> list[NodeSummary]: ...
     def node(self, uid: str) -> NodeDetail: ...
     def callers(self, uid: str, *, hide_noise: bool = True) -> CallerReport: ...
@@ -677,7 +739,8 @@ class GraphQuery:
         # direction: CALLERS or CALLEES; level: ROUTINE, FILE, or DIRECTORY
     def file_links(self, file_uid: str, *, direction: Direction) -> list[FileLink]: ...
     def call_sites(self, src_uid: str, dst_uid: str) -> list[CallSite]: ...
-        # CallSite: file, line, col, condition, origin, confidence, resolution
+        # CallSite: file, line, col, condition, origin, confidence, resolution, evidence (D31: extraction,
+        #   resolution_rule, candidate_selection, reason; bridges: rule_version, mechanism, binding, ...)
     def paths(self, src_uid: str, dst_uid: str, *, edge_kinds: set[str] = CALL_PATH,
               k: int = 5, max_len: int = 15) -> list[Path]: ...
         # Path = steps (uid, edge kind, confidence, possible: bool); possible=True for dispatch
@@ -689,6 +752,20 @@ class GraphQuery:
     def source(self, file_uid: str, start: int, end: int) -> SourceExcerpt: ...
         # SourceExcerpt.stale = True if file on disk changed since analysis
     def scan_health(self) -> ScanHealth: ...
+    def bridges(self) -> list[dict]: ...                     # bridges of the last analysis, with their declaration
+    def dependencies(self, filters: DependencyFilter | None = None, *, sort: str = "path", descending: bool = False,
+                     limit: int = 200, offset: int = 0) -> DependencyPage: ...
+        # D33: one row per relationship occurrence (call sites + binding declarations): caller (uid, file, language),
+        # target text, target (uid, file, language), candidates, relationship (call, dynamic_call, import, include,
+        # inherit, bridge, binding, binding_declaration), line, col, resolution, confidence, rule, condition;
+        # filtered, sorted and paged by SQLite
+    def dependency_groups(self, level: str, filters: DependencyFilter | None = None, ...) -> DependencyPage: ...
+        # entity, file or directory level: count and statuses per (source, target, relationship), with the filter
+        # of its occurrences
+    def dependency_evidence(self, row: DependencyRow) -> DependencyEvidence: ...   # source lines and evidence
+    def graph3d_directories(self, *, max_nodes: int = 300) -> Graph3D: ...   # D34: directory level
+    @staticmethod
+    def link_evidence(source: str, target: str) -> DependencyFilter: ...    # rows behind a drawn link
     def default_roots(self, *, hide_noise: bool = True) -> DefaultRoots: ...
         # deterministic detection of primary entry point (main_routine, main_file)
     def initial_subgraph(self, root_uid: str | None = None, *, level: Level = Level.ROUTINE,
@@ -797,8 +874,8 @@ class GraphQuery:
 The completion loop:
 
 1. Initial analysis performed with current profile.
-2. Diagnostic (`GraphQuery.unresolved`, `scan_health`) deterministically summarizes gaps: languages without adapter; unresolved sites grouped by pattern (same prefix, same source language, same files), with sample code lines; files with zero definitions found.
-3. AI receives this summary (and user-provided technical document if present) and fills a template: keyword language profile (§3.9) or bridge rule (`bridges` format, §3.8).
+2. Diagnostic (`ai/diagnose.py`, `cgs ai-diagnose`, D35) deterministically classifies gaps: unknown language, known language without package, unsupported dialect, partial coverage (fallback extraction, keyword package without tests), repeated parser failures, unsupported binding mechanism. It also summarizes languages without adapter; unresolved sites grouped by pattern (same prefix, same source language, same files), with sample code lines; files with zero definitions found.
+3. AI receives this summary (and user-provided technical document if present; a missing, unreadable or unsupported document (PDF without `pypdf`) is reported, never dropped silently) and fills a template: keyword language profile (§3.9) or bridge rule (`bridges` format, §3.8).
 4. **Automated checks**, replaying Link through Index steps on already-extracted facts (fast):
 
 | Check | Threshold (configurable) |
@@ -811,9 +888,11 @@ The completion loop:
 | Stability: similar rates on a second file sample | Difference < 10 points |
 | Negative tests: rule does not match examples resembling pattern without being it | Mandatory |
 
-5. **Adoption**
-   - **Default mode — one-click validation:** UI presents a change preview (count of added/removed links, with code excerpts); user approves or rejects.
-   - **Automatic mode**, configurable per project: adoption upon passing checks, links tagged "AI".
+5. **Adoption (lifecycle of D35)**
+   - **One lifecycle** for overrides, language packages, bridge rules and rule changes: `draft -> validated -> approved`, or `rejected`. Proposals are stored in `<project>/proposals/p-<n>.yaml` (content, checks, independent results, provenance: model, document reference and SHA-256, supporting passages, assumptions, examples; history). Generating, validating or rejecting never changes the active analysis and triggers no rescan.
+   - **Default mode — explicit approval:** `cgs ai-proposals` lists them with the change preview; `cgs ai-approve <folder> p-<n>` activates a validated proposal (the only step that writes the profile or `rules/`), `--reject` rejects it; the next `cgs scan` applies it and never needs the AI.
+   - **Language packages** are activated only through the rule workflow of D30, with test cases copied from expected results written independently of the AI (`cgs complete --expected <folder>`); matches of the proposed keywords are reported as a consistency check, never as a recall.
+   - **Automatic mode**: only when the project policy is enabled (`cgs ai-policy <folder> --auto-approve on`, recorded in `ai_policy.yaml`); each automatic approval is recorded as `auto-policy` in the proposal history; links tagged "AI".
    - Automatic mode only becomes default if benchmark demonstrates, on reference corpora, adopted rule precision of at least 98% (lower bound ≥ 95%).
    - A proposal failing checks is **rejected**, with failure reason displayed.
 6. At most 3 iterations; loop terminates when progress halts.
@@ -895,7 +974,9 @@ codegraph-sci/                         repository
 │       ├── core/                      model, ids, facts, plugins, profile, project, paths, netguard
 │       ├── algo/                      graph.py (Tarjan, condensation, impact), index.py
 │       ├── inventory/                 walk, detect, extensions.yaml, profile schema and I/O, report, non-code files
-│       ├── extract/                   fortran/  python/  c/  cpp/  keywords/, cfamily, cmacro, preproc
+│       ├── rules.py                   rule workflow (cgs rules), templates/rules/ (language, bridge, project)
+│       ├── extract/                   fortran/  python/  c/  cpp/  keywords/, cfamily, cmacro, preproc,
+│       │                              registry (language packages), languages/ (built-in package manifests)
 │       ├── link/                      linker.py, externals.py, bridges/
 │       ├── enrich/                    pack engine, noise, schemas/, generic_noise/, generic_fortran/
 │       ├── store/                     schema.sql, indexes.sql, db.py, writer.py, cache.py, export.py
@@ -1194,7 +1275,7 @@ metrics:
 | Package dependencies | §3.4 rules enforced by import-linter |
 | Performance | §1.3 targets measured with `cgs benchmark` on the synthetic repo and the starter corpus (`docs/bench/`) |
 | Corpus audit | PASS/FAIL/SKIP and exit codes 0/1/2/3, manifest authority and provenance (`test_corpus_audit`) |
-| Extraction modes | FULL in scope, OUTLINE outside, cache identity per mode, identical definitions (`test_outline_extraction`) |
+| Extraction modes | FULL in scope, OUTLINE outside, cache identity per mode, identical definitions, no call extraction in OUTLINE for every adapter (`test_outline_extraction`, `test_phase6_outline_modes`) |
 | Repository hygiene | English-only project content (`test_english_only`), no control character in sources (`test_source_hygiene`), environment matching the locks (`test_dependency_lock`) |
 | Licensing | All dependencies tracked in §3.15 list (automated audit in Lot 16) |
 
@@ -1219,9 +1300,12 @@ metrics:
 
 ### 6.1. Adding a language
 
+0. **Language package (D29):** whatever the method below, the language ends up as a package (§3.7) placed in
+   `<data dir>/languages/` (every project) or `<project>/rules/languages/` (one project): nothing in the core
+   changes. `cgs languages` shows which package is selected.
 1. **Via AI (fastest):** inventory flags unknown language; completion loop proposes keyword profile (§3.9), checked, previewed, and approved. Providing a technical document improves the proposal. Profile coverage is measured before reliance.
 2. **Manually:** author keyword profile directly.
-3. **Native adapter** (highest precision), if a permissive tree-sitter grammar exists: create `extract/<language>/` implementing `LanguageAdapter`, add extension mapping, create `tests/fixtures/<language>/`, declare subtypes, color, and syntax highlighting.
+3. **Native adapter** (highest precision), if a permissive tree-sitter grammar exists: implement `LanguageAdapter` in a separately installed distribution that declares it in the entry point group `codegraph_sci.language_backends`, and describe it with a package whose backend is `native:<name>` (built-in adapters live in `extract/<language>/` with a manifest in `extract/languages/`); add extension mapping, create `tests/fixtures/<language>/`, declare subtypes, color, and syntax highlighting.
 
 ### 6.2. Adding a bridge
 
@@ -1234,6 +1318,7 @@ metrics:
 2. Run inventory, then AI completion loop; incorporate proposals into `rules.yaml` (§3.8); only add `enrich.py` if needed.
 3. Declare both corpora (starter and full) with expectations, then assemble reference sample.
 4. **Acceptance criteria:** expectations green, §2.1 metrics satisfied, zero regressions, core unchanged — or extended generically and documented here.
+5. **Pack validation (D36):** like any project pack, the pack declares `validation` repositories (small, written for the pack, never copied from the code base) checked by `cgs rules test packs/<code>/rules.yaml`; the core is validated without any pack by the matrix of `tests/unit/test_phase10_generality.py`.
 
 ### 6.4. Isolation rule
 
@@ -1288,6 +1373,15 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 | D25 | *(Engine reliability, corrective audit P1)* (1) **FULL / OUTLINE extraction**: out-of-scope files are extracted for their definitions and includes only (the Fortran parser skips executable statements except SELECT CASE, whose values feed pack dispatch rules); the extraction mode is part of the facts (`extraction_mode`) and of the cache key, and an OUTLINE result is never reused as FULL. (2) **Per-file deadlines** in worker processes (`extract_pool.py`): a late file kills only its own worker and is stored as `timeout`; extraction never runs without a deadline (the deadline must be finite and positive since D27). Cost: about 0.6 s of worker start-up per analysis. (3) **Corpus audit**: PASS/FAIL/SKIP, exit codes 0/1/2/3, authoritative manifest and provenance |
 | D26 | *(Reproducibility and measurement, corrective audit phase 4)* (1) **Dependency locks**: CI and releases install from `requirements.lock` / `requirements-dev.lock` (generated offline from the reference environment; hashes added at release time with network access), `build_portable` refuses a different environment. (2) **Phase instrumentation**: `phases_ms` and per-mode file counts in every scan, `cgs benchmark` (cold, unchanged and changed rescans); no performance claim without a documented benchmark (`docs/bench/scan_benchmark.md`). (3) **Reference categories** (`GraphQuery.reference_categories`, `cgs health`): every non-resolved site in one of external_known, out_of_scope, ambiguous, dynamic, parser_limitation, unknown — unverified externals are unknown, never known. (4) **Reproducible corpus**: `tools/prepare_corpus.py` fetches the exact revision named by the manifest; validation reports with provenance (`docs/validation/`) |
 | D27 | *(Engine reliability, requirements plan phase 1, October 17, 2026)* (1) **Cache identity**: path, inventory language and variant, ordered include paths, recorded include lookups (replayed, so a new, shadowing or formerly missing header invalidates), effective Python module name, parser runtime versions, extraction mode, facts format 2 and identity version; a cached blob must belong to the same file; linking settings never invalidate extraction. (2) **Stable digests**: SHA-256 instead of Python `hash()` for keyword-profile versions and AI sample partitions. (3) **Deadlines**: workers acknowledge each task; the deadline runs from that acknowledgement, a result produced after it is refused, the deadline must be finite and positive (CLI and API; the in-process path is removed), a worker that cannot initialise stops the run. (4) **Cancellation**: checked up to the last moment before the database is published; a cancelled scan discards its partial results and leaves the previous database unchanged. (5) **Identity**: keyword identities qualified by scope and file (`kw:<language>:<qualified name>@<file>`), homonyms resolved as ambiguous; each definition node records `symbol_uid` and `occurrence_uid`, and a call is owned by the occurrence that contains it |
+| D28 | *(Persistent inventory, requirements plan phase 2, October 17, 2026)* Discovery is separate from analysis selection: every discovered entry is stored (`inventory_entries`, schema 2) with eligibility, status and the reason it is not analyzed, and discovery problems are stored (`inventory_issues`). Policies `analysis` (default; an excluded folder is one counted entry) and `complete` (excluded content recorded, never read). Symbolic links leaving the root keep being followed (unchanged analysis), but are flagged. The previous `inventory` table and the skipped-folder report are unchanged; a database of schema 1 is rebuilt with its facts cache reused |
+| D29 | *(Language packages, requirements plan phase 3, October 17, 2026)* One package contract for every language (keyword or native backend), one registry instead of hard-coded adapter lists, precedence builtin < user < project < explicit, explicit `overrides: true` to replace a package, and every ambiguous selection rejected with both files named. Native adapters stay deterministic parsers behind the contract; others are installed through the `codegraph_sci.language_backends` entry point group. Earlier keyword profiles remain valid packages. Behaviour changes: an approved package in `rules/languages/` is active without a profile entry (unless the profile marks it proposed or rejected); a package claiming an extension listed as known but not covered (e.g. `.jl`) now wins over that listing; a keyword profile for a built-in language is now an error instead of being ignored |
+| D30 | *(Rule format and workflow, requirements plan phase 4, October 17, 2026)* Published schemas, templates, a guide whose tutorial is executed by the tests, and `cgs rules new|validate|test|activate`; layout `rules/languages|bridges|projects`; activation only after validation and at least one passing test; resource limits on configurable patterns and rule files. The existing AI approval path (`set_rule_status`) is unchanged and does not run tests yet (AI lifecycle, phase 9) |
+| D31 | *(Bridges and evidence, requirements plan phase 5, October 17, 2026)* Native bridges declared in a catalog (mechanisms, evidence kinds, version); rule bridges gain `candidates`, `require_declaration`, `files`, `target_files`, `version`, `mechanism`; homonyms are kept as ambiguous candidates instead of the first being picked (rule bridges and declaration bindings); every bridge resolution stores its evidence (`call_sites.evidence`, schema 3) and the query layer exposes extraction rule, resolution rule, binding declaration, candidate selection and reason for every site. Native naming-convention bridges (Fortran decoration, C linkage) are kept, labeled as naming conventions; requiring declarations for them would change existing graphs and is left to the owner |
+| D32 | *(FULL and OUTLINE in every adapter, requirements plan phase 6, October 17, 2026)* The OUTLINE contract of `ExtractContext.outline` is binding for every adapter: definitions (with their attributes and module context) and includes, no call analysis inside bodies, definitions identical to FULL. Python (ast and tree-sitter fallback), C/C++ (tree-sitter and pattern fallback) and keyword languages now skip the work instead of trimming it afterwards; cached facts are unchanged, so no adapter version changes. Measured on the synthetic code base: OUTLINE extraction 68–76 % of FULL |
+| D33 | *(Dependency tables, requirements plan phase 7, October 17, 2026)* `GraphQuery.dependencies`, `dependency_groups` and `dependency_evidence`, `cgs deps` (CSV/JSON export) and the Explore › Dependencies view: every relationship occurrence with its own type (call, import, include, inherit, bridge, binding, binding declaration), filtered, sorted and paged in SQLite, aggregated per entity, file or directory with the occurrences reachable, each row leading to its source and evidence. No schema change: the table is a query over `call_sites` and `binds` edges |
+| D34 | *(Interactive graphs, requirements plan phase 8, October 17, 2026)* Renderer-neutral `Graph3D` contract: nodes with group and scope, links with resolution status, `level` (entity, file, directory), `layout` description, and `GraphQuery.link_evidence` giving the dependency rows behind a link; `graph3d_directories` and the Folders 3D view; in the page: 2D/3D switch, reset, filters by link type, language, status and path, grouping by folder, language or module/class, cycles (strongly connected components) and entry points highlighted. A link click opens the same rows and evidence as the table. The renderer of D21 is kept |
+| D35 | *(AI lifecycle, requirements plan phase 9, October 17, 2026)* One proposal lifecycle (draft, validated, approved or rejected) in a separate store; approval is the only activation and is explicit, or automatic only through a recorded project policy; the direct write of AI language overrides into the active profile is removed; language packages need independent expected results; deterministic diagnosis of six coverage gaps; documents carry their reference, passages and assumptions and their read failures are reported. Replaces the adoption step of D12 |
+| D36 | *(Generality, requirements plan phase 10, October 17, 2026)* Code_Aster stays optional: its pack has the structure of any project pack (with a `validation` repository written for it) and no privileged activation; the regular CI runs an independent matrix of miniature fixtures (Python library without main, C, C++, Fortran, mixed-language bindings, keyword DSL) with the shipped packs hidden; `tools/check_wheel.py` builds the wheel offline and runs it outside the checkout. Domain packs remain data outside the wheel (D24) |
 
 ### 8.2. Open questions
 

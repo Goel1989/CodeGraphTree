@@ -27,9 +27,10 @@
       "items": {
         "type": "object", "additionalProperties": false, "required": ["keywords", "name"],
         "properties": {
-          "keywords": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^\\w+$"}},
+          "keywords": {"type": "array", "minItems": 1, "maxItems": 200,
+                       "items": {"type": "string", "pattern": "^\\w+$", "maxLength": 64}},
           "name": {"const": "after_keyword"},
-          "end_keywords": {"type": "array", "items": {"type": "string", "pattern": "^\\w+$"}},
+          "end_keywords": {"type": "array", "maxItems": 200, "items": {"type": "string", "pattern": "^\\w+$", "maxLength": 64}},
           "kind": {"enum": ["routine", "module", "type"]}
         }
       }
@@ -39,7 +40,7 @@
       "items": {
         "type": "object", "additionalProperties": false,
         "properties": {
-          "keywords": {"type": "array", "items": {"type": "string", "pattern": "^\\w+$"}},
+          "keywords": {"type": "array", "maxItems": 200, "items": {"type": "string", "pattern": "^\\w+$", "maxLength": 64}},
           "name": {"const": "after_keyword"},
           "style": {"const": "name_then_paren"},
           "only_known_names": {"type": "boolean"}
@@ -50,7 +51,7 @@
       "type": "array",
       "items": {
         "type": "object", "additionalProperties": false, "required": ["keywords"],
-        "properties": {"keywords": {"type": "array", "items": {"type": "string", "pattern": "^\\w+$"}},
+        "properties": {"keywords": {"type": "array", "maxItems": 200, "items": {"type": "string", "pattern": "^\\w+$", "maxLength": 64}},
                        "target": {"const": "after_keyword"}}
       }
     },

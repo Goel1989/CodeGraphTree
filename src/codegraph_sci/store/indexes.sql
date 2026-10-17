@@ -17,3 +17,5 @@ CREATE INDEX IF NOT EXISTS ix_file_edges_dst ON file_edges(dst_file, kind);
 CREATE INDEX IF NOT EXISTS ix_dir_edges_src ON dir_edges(src_dir, kind);
 CREATE INDEX IF NOT EXISTS ix_dir_edges_dst ON dir_edges(dst_dir, kind);
 CREATE INDEX IF NOT EXISTS ix_inventory_file ON inventory(file_id);
+CREATE INDEX IF NOT EXISTS ix_inventory_entries_parent ON inventory_entries(parent, path);
+CREATE INDEX IF NOT EXISTS ix_inventory_entries_eligibility ON inventory_entries(eligibility, path);

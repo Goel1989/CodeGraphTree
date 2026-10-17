@@ -37,7 +37,8 @@ codegraph-sci = "codegraph_sci.ui.app:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-codegraph_sci = ["**/*.yaml", "**/*.json", "**/*.sql", "ui/web/*.html", "ui/web/*.js", "ui/web/vendor/*"]
+codegraph_sci = ["**/*.yaml", "**/*.json", "**/*.sql", "ui/web/*.html", "ui/web/*.js", "ui/web/vendor/*",
+                 "templates/rules/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -50,7 +51,7 @@ markers = [
 line-length = 110
 target-version = "py312"
 src = ["src", "tests"]
-extend-exclude = ["tests/fixtures"]
+extend-exclude = ["tests/fixtures", "tests/.artifacts", "src/codegraph_sci/templates/rules"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S102", "S301", "S506"]
@@ -61,7 +62,7 @@ python_version = "3.12"
 strict = true
 mypy_path = "src"
 packages = ["codegraph_sci"]
-exclude = ["codegraph_sci/ui/"]
+exclude = ["codegraph_sci/ui/", "codegraph_sci/templates/rules/"]
 
 [[tool.mypy.overrides]]
 module = ["tree_sitter_fortran", "tree_sitter_python", "tree_sitter_c", "tree_sitter_cpp", "llama_cpp", "pypdf"]
@@ -127,5 +128,5 @@ forbidden_modules = [
 name = "the analysis never uses the AI (rule 8)"
 type = "forbidden"
 source_modules = ["codegraph_sci.scan", "codegraph_sci.audit", "codegraph_sci.corpus_audit",
-                  "codegraph_sci.benchmark"]
+                  "codegraph_sci.benchmark", "codegraph_sci.rules"]
 forbidden_modules = ["codegraph_sci.ai", "codegraph_sci.cli_ai"]

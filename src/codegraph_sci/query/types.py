@@ -56,6 +56,9 @@ class CallSite:
     resolution: str
     src: str = ""
     dst: str | None = None
+    # Phase 5: extraction (adapter@version), resolution_rule, candidate_selection, reason, and for bridges the
+    # rule version, mechanism, evidence kind, binding declaration and transformed name.
+    evidence: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -189,6 +192,19 @@ class InventoryReport:
 
 
 @dataclass
+class InventoryAccounting:
+    """Every entry discovered by the last analysis, counted (requirements plan phase 2)."""
+
+    policy: str  # analysis or complete
+    total: int
+    by_kind: dict[str, int]
+    by_eligibility: dict[str, int]
+    by_status: dict[str, int]
+    by_reason: dict[str, int]
+    issues: int
+
+
+@dataclass
 class ScanHealth:
     files_by_status: dict[str, int]
     sites_by_resolution: dict[str, int]
@@ -255,6 +271,8 @@ class Graph3DNode:
     is_noise: bool = False
     size: int = 0  # members of a group, isolated or "more" bucket
     note: str = ""  # extra tooltip text (folders and languages of a group, category of a non-code file)
+    group: str = ""  # folder of the node's file ("." at the root), for grouping (D34)
+    in_scope: bool = True  # False: defined outside the analysis scope (OUTLINE)
 
 
 @dataclass
@@ -265,6 +283,7 @@ class Graph3DLink:
     count: int
     confidence: str
     cross_dir: bool = False  # the two ends are in different folders
+    status: str = "resolved"  # resolved, ambiguous, external, out_of_scope (D34)
 
 
 @dataclass
@@ -277,6 +296,11 @@ class Graph3D:
     links: list[Graph3DLink]
     truncated: bool = False
     hidden_noise: int = 0
+    level: str = "entity"  # entity, file or directory (D34)
+    # Renderer-neutral layout description: the positions are computed by the renderer (force-directed, seeded by
+    # the node order), and the evidence of a link is GraphQuery.link_evidence(source, target) -> dependency rows.
+    layout: dict[str, Any] = field(default_factory=lambda: {"version": 1, "algorithm": "force-directed",
+                                                             "dimensions": 3})
 
 
 @dataclass
@@ -326,3 +350,76 @@ class ReferenceCategories:
     call_sites_total: int  # every call-like site (call, maybe_call, dynamic_call), resolved or not
     references_total: int  # every reference site (calls, uses, includes, inheritance)
 
+
+# ---------------------------------------------------------------- dependency tables (requirements plan phase 7)
+RELATIONSHIPS = ("call", "dynamic_call", "import", "include", "inherit", "bridge", "binding", "binding_declaration")
+DEPENDENCY_LEVELS = ("entity", "file", "directory")
+DEPENDENCY_SORTS = ("path", "line", "caller", "target", "relationship", "status", "language", "rule")
+
+
+@dataclass(frozen=True)
+class DependencyFilter:
+    """Filters of the dependency table; ``None`` or empty means "any". Texts match case-insensitively."""
+
+    text: str | None = None  # in caller, target text, resolved target or caller file
+    relationships: tuple[str, ...] = ()
+    statuses: tuple[str, ...] = ()  # resolutions: resolved, ambiguous, external, out_of_scope, unresolved
+    language: str | None = None  # language of the caller's file
+    path: str | None = None  # caller files starting with this path
+    caller: str | None = None  # exact caller uid
+    target: str | None = None  # exact target uid
+    rule: str | None = None  # resolution rule (origin) starting with this text
+    # Exact keys of an aggregated row (to list its occurrences).
+    caller_file: str | None = None
+    target_file: str | None = None
+    caller_dir: str | None = None
+    target_dir: str | None = None
+
+
+@dataclass
+class DependencyRow:
+    site_id: int | None  # None for a binding declaration (no call site)
+    caller: str
+    caller_name: str
+    caller_file: str
+    caller_lang: str | None
+    target_text: str
+    target: str | None
+    target_name: str | None
+    candidates: list[str]
+    target_file: str | None
+    target_lang: str | None
+    relationship: str
+    line: int
+    col: int
+    resolution: str
+    confidence: str
+    rule: str
+    condition: str | None
+
+
+@dataclass
+class DependencyGroup:
+    """An aggregated row: one (source, target, relationship) at the entity, file or directory level."""
+
+    level: str
+    source: str
+    target: str | None  # None: the occurrences have no resolved target
+    relationship: str
+    count: int
+    statuses: dict[str, int]
+    occurrences: DependencyFilter  # filter listing the individual rows
+
+
+@dataclass
+class DependencyPage:
+    total: int
+    offset: int
+    rows: list[Any]  # DependencyRow or DependencyGroup
+
+
+@dataclass
+class DependencyEvidence:
+    row: DependencyRow
+    evidence: dict[str, Any]
+    excerpt: SourceExcerpt

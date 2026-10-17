@@ -122,9 +122,10 @@ class KeywordAdapter:
                                  flags), [norm(k) for k in d.get("end_keywords", [])], d.get("kind", "routine"))
                      for d in p.data.get("definitions", [])]
         end_words = {e for _rx, ends, _k in def_rules for e in ends}
-        kw_calls = [re.compile(r"\b(?:" + "|".join(map(re.escape, c["keywords"])) + r")\s+([A-Za-z_][\w.]*)", flags)
+        outline = ctx.outline  # OUTLINE: definitions and includes only, no call rule is applied
+        kw_calls = [] if outline else [re.compile(r"\b(?:" + "|".join(map(re.escape, c["keywords"])) + r")\s+([A-Za-z_][\w.]*)", flags)
                     for c in p.data.get("calls", []) if c.get("keywords")]
-        paren_calls = [c for c in p.data.get("calls", []) if c.get("style") == "name_then_paren"]
+        paren_calls = [] if outline else [c for c in p.data.get("calls", []) if c.get("style") == "name_then_paren"]
         includes = [re.compile(r"^\s*(?:" + "|".join(map(re.escape, i["keywords"])) + r")\s+[\"']?([\w./-]+)", flags)
                     for i in p.data.get("includes", [])]
         def_words = {norm(k) for d in p.data.get("definitions", []) for k in d["keywords"]}

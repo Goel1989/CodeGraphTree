@@ -12,7 +12,14 @@ from typing import Any
 from codegraph_sci.core.model import CALL_PATH, FILE_DEPENDENCY
 from codegraph_sci.core.project import open_project
 from codegraph_sci.query.api import GraphQuery, QueryError
-from codegraph_sci.query.types import CallerReport, Direction, NodeSummary
+from codegraph_sci.query.types import (
+    DEPENDENCY_SORTS,
+    RELATIONSHIPS,
+    CallerReport,
+    DependencyFilter,
+    Direction,
+    NodeSummary,
+)
 
 
 def _db(args: argparse.Namespace) -> Path:
@@ -81,6 +88,9 @@ def _print_report(report: CallerReport, direction: Direction) -> None:
                 extra.append(s.confidence)
             if s.origin != f"native:{n.lang}" and not s.origin.startswith("native:"):
                 extra.append(s.origin)
+            if s.evidence.get("mechanism"):  # bridges: the mechanism and the declaration that justify the link
+                extra.append(f"via {s.evidence['mechanism']}"
+                             + (f" ({s.evidence['binding']})" if s.evidence.get("binding") else ""))
             print(f"      {s.file}:{s.line}:{s.col}  {s.target_text}" + (f"  [{', '.join(extra)}]" if extra else ""))
 
 
@@ -231,6 +241,69 @@ def cmd_view3d(args: argparse.Namespace) -> int:
                       hide_noise=not args.all)
 
 
+DEP_COLUMNS = ("caller", "caller_file", "caller_lang", "target_text", "target", "candidates", "target_file",
+               "target_lang", "relationship", "line", "col", "resolution", "confidence", "rule", "condition")
+GROUP_COLUMNS = ("source", "target", "relationship", "count", "statuses")
+
+
+def cmd_deps(args: argparse.Namespace) -> int:
+    """Dependency table (every relationship), filtered and sorted by the database; table, CSV or JSON."""
+    import csv
+
+    filters = DependencyFilter(text=args.text, relationships=tuple(args.relationship or ()),
+                               statuses=tuple(args.status or ()), language=args.language, path=args.path,
+                               caller=args.caller, target=args.target, rule=args.rule)
+    with GraphQuery(_db(args)) as q:
+        def page(offset: int, size: int) -> Any:
+            if args.level == "site":
+                return q.dependencies(filters, sort=args.sort, descending=args.desc, limit=size, offset=offset)
+            sort = args.sort if args.sort in ("target", "relationship") else "source"
+            return q.dependency_groups(args.level, filters, sort=sort, descending=args.desc, limit=size,
+                                       offset=offset)
+
+        rows: list[Any] = []
+        first = page(args.offset, min(args.limit or 5000, 5000))
+        total = first.total
+        rows += first.rows
+        while (args.limit is None or len(rows) < args.limit) and args.offset + len(rows) < total and first.rows:
+            first = page(args.offset + len(rows), 5000)
+            rows += first.rows
+        if args.limit is not None:
+            rows = rows[:args.limit]
+    columns = DEP_COLUMNS if args.level == "site" else GROUP_COLUMNS
+
+    def record(row: Any) -> dict[str, Any]:
+        data = {c: getattr(row, c) for c in columns}
+        if "candidates" in data:
+            data["candidates"] = " ".join(data["candidates"])
+        if "statuses" in data:
+            data["statuses"] = " ".join(f"{k}={v}" for k, v in data["statuses"].items())
+        return data
+
+    out = open(args.output, "w", encoding="utf-8", newline="") if args.output else sys.stdout  # noqa: SIM115
+    try:
+        if args.format == "json":
+            out.write(json.dumps({"level": args.level, "total": total, "offset": args.offset,
+                                  "rows": [record(r) for r in rows]}, indent=1, ensure_ascii=False) + "\n")
+        elif args.format == "csv":
+            writer = csv.DictWriter(out, fieldnames=list(columns), lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(record(r) for r in rows)
+        else:
+            for r in rows:
+                if args.level == "site":
+                    target = r.target or (" | ".join(r.candidates) if r.candidates else "-")
+                    out.write(f"{r.caller_file}:{r.line}:{r.col}  {r.relationship:<19} {r.caller}  ->  {target}  "
+                              f"[{r.resolution}, {r.rule}]\n")
+                else:
+                    out.write(f"{r.count:>6}  {r.relationship:<19} {r.source}  ->  {r.target or '-'}\n")
+            out.write(f"{len(rows)} of {total} row(s)\n")
+    finally:
+        if args.output:
+            out.close()
+    return 0
+
+
 def register(sub: Any) -> None:
     def common(p: argparse.ArgumentParser) -> None:
         p.add_argument("--root", help="repository folder (default: current folder)")
@@ -287,6 +360,26 @@ def register(sub: Any) -> None:
     p.add_argument("--export", help="write a self-contained HTML page instead of opening a window")
     common(p)
     p.set_defaults(func=cmd_view3d)
+    p = sub.add_parser("deps", help="dependency table: every relationship, filtered, sorted, exported")
+    p.add_argument("--text", help="search caller, target, resolved target and file")
+    p.add_argument("--relationship", action="append", choices=list(RELATIONSHIPS), help="repeatable")
+    p.add_argument("--status", action="append", choices=["resolved", "ambiguous", "external", "out_of_scope",
+                                                         "unresolved"], help="repeatable")
+    p.add_argument("--language", help="language of the caller's file")
+    p.add_argument("--path", help="caller files under this path")
+    p.add_argument("--caller", help="exact caller identifier")
+    p.add_argument("--target", help="exact target identifier")
+    p.add_argument("--rule", help="resolution rule (origin) starting with this text")
+    p.add_argument("--level", choices=["site", "entity", "file", "directory"], default="site",
+                   help="site: every occurrence; others: aggregated rows")
+    p.add_argument("--sort", choices=list(DEPENDENCY_SORTS), default="path")
+    p.add_argument("--desc", action="store_true", help="descending order")
+    p.add_argument("--limit", type=int, help="number of rows (default: all)")
+    p.add_argument("--offset", type=int, default=0)
+    p.add_argument("--format", choices=["table", "csv", "json"], default="table")
+    p.add_argument("-o", "--output", help="write to this file")
+    common(p)
+    p.set_defaults(func=cmd_deps)
     p = sub.add_parser("health", help="health of the analysis")
     common(p)
     p.set_defaults(func=cmd_health)

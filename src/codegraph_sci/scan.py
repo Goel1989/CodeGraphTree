@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from codegraph_sci.algo.index import aggregate_edges, data_edges, file_and_dir_edges, node_statistics
+from codegraph_sci.core.bridge_catalog import NATIVE_BRIDGES
 from codegraph_sci.core.facts import (
     FileFacts,
     IncludeLookup,
@@ -36,6 +37,7 @@ from codegraph_sci.core.graph import (
     EdgeRecord,
     FileRecord,
     GraphBundle,
+    InventoryIssue,
     InventoryRecord,
     PluginRecord,
     ScanRunRecord,
@@ -49,15 +51,19 @@ from codegraph_sci.core.plugins import (
 )
 from codegraph_sci.core.profile import AnalysisProfile
 from codegraph_sci.core.project import Project
-from codegraph_sci.core.versions import APP_VERSION
+from codegraph_sci.core.versions import APP_VERSION, DB_SCHEMA_VERSION
 from codegraph_sci.enrich.apply import PackEngine
 from codegraph_sci.enrich.noise import hidden, noise_map
 from codegraph_sci.enrich.packs import BUILTIN_PACKS, default_search_paths, load_packs
-from codegraph_sci.extract.c import CAdapter
 from codegraph_sci.extract.context import make_include_resolver
-from codegraph_sci.extract.cpp import CppAdapter
-from codegraph_sci.extract.fortran import FortranAdapter
-from codegraph_sci.extract.python import PythonAdapter
+from codegraph_sci.extract.registry import (
+    LanguageRegistry,
+    PackageSpec,
+    adapters_from_specs,
+    builtin_packages,
+    load_registry,
+    native_adapter,
+)
 from codegraph_sci.extract_pool import TIMEOUT_PREFIX, run_tasks
 from codegraph_sci.inventory.noncode import non_code_stats
 from codegraph_sci.inventory.profile_io import (
@@ -67,40 +73,36 @@ from codegraph_sci.inventory.profile_io import (
     save_profile,
 )
 from codegraph_sci.inventory.report import skipped_list
-from codegraph_sci.inventory.run import InventoryResult, run_inventory
+from codegraph_sci.inventory.run import InventoryResult, LanguageHints, run_inventory
+from codegraph_sci.inventory.table import ExtensionTable, load_table
 from codegraph_sci.link.linker import Linker
 from codegraph_sci.store.cache import cache_key, get_facts, load_cache, previous_files
+from codegraph_sci.store.db import schema_version
 from codegraph_sci.store.writer import write_full, write_incremental
 
 Progress = Callable[[dict[str, Any]], None]
+# Analysis status of an eligible file -> reason recorded in the inventory when it is not fully analyzed.
+STATUS_REASON = {"outline": "outside the analysis scope", "failed": "extraction failed",
+                 "timeout": "deadline exceeded", "not_analyzed": "no adapter for the language"}
 MAX_FILE_BYTES = 8 * 1024 * 1024  # above: analysis limited (definitions not extracted) and reported
 
 
-def keyword_profile_paths(project: Project, profile: AnalysisProfile) -> list[Path]:
-    """Keyword profiles of the languages the profile maps to ``keywords:<language>`` (rules/languages/)."""
-    out = []
-    for lang, entry in sorted(profile.languages.items()):
-        if entry.adapter.startswith("keywords:") and entry.status in (None, "approved"):
-            path = project.rules_dir / "languages" / f"{lang}.yaml"
-            if path.is_file():
-                out.append(path)
-    return out
+def language_registry(project: Project, profile: AnalysisProfile, explicit: list[Path] | None = None,
+                      table: ExtensionTable | None = None) -> LanguageRegistry:
+    """Language packages of an analysis (phase 3): built-in, user, then the project's ``rules/languages/``, then
+    ``explicit`` ones. A project package whose language the profile marks proposed or rejected stays inactive."""
+    return load_registry(project.rules_dir / "languages", explicit=explicit or [],
+                         profile_status={lang: e.status for lang, e in profile.languages.items()},
+                         reserved_extensions=(table or load_table()).ambiguous)
 
 
-def all_adapters(keyword_profiles: list[str]) -> dict[str, LanguageAdapter]:
-    from codegraph_sci.extract.keywords import KeywordAdapter, load_keyword_profile
-
-    adapters = native_adapters()
-
-    for path in keyword_profiles:
-        prof = load_keyword_profile(Path(path))
-        if prof.status == "approved" and prof.language not in adapters:
-            adapters[prof.language] = KeywordAdapter(prof)
-    return adapters
+def language_hints(registry: LanguageRegistry) -> LanguageHints:
+    return LanguageHints(registry.extensions(), registry.filenames(), registry.shebangs(), registry.adapter_names())
 
 
 def native_adapters() -> dict[str, LanguageAdapter]:
-    return {"fortran": FortranAdapter(), "python": PythonAdapter(), "c": CAdapter(), "cpp": CppAdapter()}
+    """The built-in parser-backed adapters."""
+    return {p.language: native_adapter(p.backend.split(":", 1)[1]) for p in builtin_packages()}
 
 
 class ScanCancelled(Exception):
@@ -175,7 +177,9 @@ def git_revision(root: Path) -> str | None:
 
 
 def load_bridge_rules(project: Project, profile: AnalysisProfile) -> list[dict[str, Any]]:
-    """Approved bridge rules of the profile (``rules/r-<n>.yaml``, format of a pack ``bridges[]`` entry)."""
+    """Approved bridge rules of the profile: ``rules/r-<n>.yaml`` (format of a pack ``bridges[]`` entry, written by
+    the AI) or ``rules/bridges/<name>.yaml`` (bridge format 1, validated, activated by ``cgs rules activate``)."""
+    from codegraph_sci.enrich.packs import load_bridge_file
     from codegraph_sci.inventory.profile_io import safe_load_yaml
 
     out: list[dict[str, Any]] = []
@@ -183,6 +187,10 @@ def load_bridge_rules(project: Project, profile: AnalysisProfile) -> list[dict[s
         if rule.kind != "bridge" or rule.status != "approved":
             continue
         data = safe_load_yaml(project.folder / rule.file)
+        if isinstance(data, dict) and "bridge_format" in data:
+            bridge = load_bridge_file(project.folder / rule.file)
+            out.append({"version": bridge.version, **bridge.rule, "id": rule.id})
+            continue
         entries = data if isinstance(data, list) else [data]
         for entry in entries:
             if isinstance(entry, dict):
@@ -195,7 +203,8 @@ _WORKER: dict[str, Any] = {}
 
 
 def _worker_init(root: str, include_paths: list[str], defines: dict[str, str], known_arrays: list[str],
-                 py_paths: list[str], keyword_profiles: list[str] | None = None, keep_all_branches: bool = True) -> None:
+                 py_paths: list[str], packages: list[PackageSpec] | None = None,
+                 keep_all_branches: bool = True) -> None:
     """Extraction context of a worker: the same parameters as the cache key (``ExtractContext.params``)."""
     root_path = Path(root)
     _WORKER["ctx"] = ExtractContext(include_paths=include_paths, defines=defines, known_arrays=set(known_arrays),
@@ -203,7 +212,8 @@ def _worker_init(root: str, include_paths: list[str], defines: dict[str, str], k
                                     resolve_include=make_include_resolver(root_path, include_paths),
                                     module_name=python_module_namer(py_paths))
     _WORKER["root"] = root_path
-    _WORKER["adapters"] = all_adapters(keyword_profiles or [])
+    _WORKER["adapters"] = adapters_from_specs(packages if packages is not None else
+                                              [p.spec() for p in builtin_packages()])
 
 
 def _extract_job(path: str, lang: str, variant: str | None, mode: str = "full") -> tuple[str, bytes | None, str | None]:
@@ -267,13 +277,11 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
     else:
         profile = profile_from_inventory(run_inventory(root, None))
         save_profile(project.profile_path, profile)
-    kw_paths = [str(p) for p in keyword_profile_paths(project, profile) + list(options.keyword_profiles)]
-    adapters = all_adapters(kw_paths)
-    from codegraph_sci.extract.keywords import KeywordAdapter
-
-    keyword_exts = {ext: name for name, a in adapters.items() if isinstance(a, KeywordAdapter)
-                    for ext in a.profile.extensions}
-    inventory: InventoryResult = run_inventory(root, profile, keyword_extensions=keyword_exts)
+    table = load_table()
+    registry = language_registry(project, profile, list(options.keyword_profiles), table)
+    package_specs = registry.specs()
+    adapters = adapters_from_specs(package_specs)
+    inventory: InventoryResult = run_inventory(root, profile, table, hints=language_hints(registry))
     say({"event": "inventory", "files": len(inventory.entries)})
     check_cancel()
 
@@ -373,7 +381,7 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
     lang_of: dict[str, str] = {e.path: str(e.lang) for e in sources}
     say({"event": "extract", "done": 0, "total": total, "cached": reused})
     init_args = (str(root), profile.include_paths, dict(profile.preprocessor.defines), sorted(known_arrays), py_paths,
-                 kw_paths, profile.preprocessor.keep_all_branches)
+                 package_specs, profile.preprocessor.keep_all_branches)
     # Worker processes, one deadline per file: a stuck file never blocks or fails the others.
     tasks = run_tasks(to_extract, workers=options.jobs, timeout_s=options.timeout_s, on_done=on_done,
                       job=options.extract_job or _extract_job, init=_worker_init, init_args=init_args,
@@ -401,7 +409,7 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
         except OSError:
             return None
 
-    origins = {lang: f"keywords:{lang}" for lang in adapters if lang not in native_adapters()}
+    origins = {lang: a.name for lang, a in adapters.items() if a.name.startswith("keywords:")}
     link = Linker(full, outline, file_info, origins, bridge_rules=rules, native_bridges=options.native_bridges,
                   read_text=read_text).run()
     check_cancel()
@@ -456,6 +464,13 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
             errors.get(e.path) or ("; ".join(x.message for x in f.errors[:3]) if f and f.errors else None),
             e.mtime_ns, keys.get(e.path)))
         bundle.inventory.append(InventoryRecord(e.path, e.lang, e.variant, e.confidence, e.decided_by))
+    analysis_status = {f.path: f.parse_status for f in bundle.files}
+    for item in inventory.items:
+        if item.eligibility == "eligible":
+            item.status = analysis_status.get(item.path, "not_analyzed")
+            item.reason = STATUS_REASON.get(item.status)
+    bundle.inventory_items = list(inventory.items)
+    bundle.inventory_issues = [InventoryIssue(i.path, i.kind, i.message) for i in inventory.issues]
     known_files = {f.path for f in bundle.files}
     for n in link.nodes:
         if n.file and n.file not in known_files:
@@ -469,6 +484,10 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
     bundle.file_edges, bundle.dir_edges = file_edges, dir_edges
     bundle.plugins = [PluginRecord(a.name, "adapter", a.version) for a in adapters.values()]
     bundle.plugins += [PluginRecord(pk.name, "pack", pk.version) for pk in packs]
+    if options.native_bridges:
+        bundle.plugins += [PluginRecord(b.id, "bridge", b.version) for b in NATIVE_BRIDGES]
+    bundle.plugins += [PluginRecord(name, "bridge_rule", version) for name, version in
+                       sorted({(str(r["id"]), str(r.get("version", ""))) for r in rules if r.get("id")})]
     bundle.facts_cache = {keys[p]: encode_facts(facts_by_path[p]) for p in keys if p in facts_by_path}
     lap("index_ms")
     modes = {path: mode for path, _lang, _variant, mode in to_extract}
@@ -487,6 +506,8 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
         "non_code": non_code_stats(inventory),
         "skipped_total": {"entries": len(inventory.skipped_dirs),
                           "files": sum(s.files for s in inventory.skipped_dirs)},
+        "inventory_policy": inventory.policy, "inventory_entries": len(inventory.items),
+        "inventory_issues": len(inventory.issues),
         "timings": {**timings, "index": round(time.perf_counter() - t0 - sum(timings.values()), 2)},
         "phases_ms": phases_ms, "files": files, "jobs": options.jobs,
     }
@@ -497,7 +518,8 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
     say({"event": "write"})
     check_cancel()
     project.folder.mkdir(parents=True, exist_ok=True)
-    if project.db_path.exists() and not options.full:
+    # A database of another schema version is rebuilt (its facts cache was still reused above).
+    if project.db_path.exists() and not options.full and schema_version(project.db_path) == DB_SCHEMA_VERSION:
         write_incremental(project.db_path, bundle, progress=lambda _phase: check_cancel())
     else:
         write_full(project.db_path, bundle, progress=lambda _phase: check_cancel())

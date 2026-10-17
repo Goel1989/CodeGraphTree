@@ -7,7 +7,8 @@ from pathlib import Path
 
 from tests.helpers import FIXTURES, graph_diff, load_expected
 
-from codegraph_sci.ai.complete import Completion, set_rule_status
+from codegraph_sci.ai.complete import Completion
+from codegraph_sci.ai.proposals import approve, set_auto_approval
 from codegraph_sci.ai.worker import AIClient
 from codegraph_sci.core.project import open_project
 from codegraph_sci.inventory.profile_io import load_profile
@@ -35,8 +36,9 @@ def test_unknown_extension_identified_and_adopted(tmp_path: Path) -> None:
     project = _project("unknown_extension", tmp_path)
     assert _sites(project)["main.f90:2"]["resolution"] == "unresolved"
     client = AIClient(GOOD, in_process=True)
+    set_auto_approval(project, True)  # automatic approval: a separate, recorded project policy (phase 9)
     proposals = Completion(project, client, auto=True).run()
-    assert [(p.kind, p.target, p.accepted) for p in proposals] == [("override", ".ftx", True)]
+    assert [(p.kind, p.target, p.accepted, p.status) for p in proposals] == [("override", ".ftx", True, "approved")]
     profile = load_profile(project.profile_path)
     assert [(o.glob, o.language) for o in profile.file_overrides] == [("*.ftx", "fortran")]
     site = _sites(project)["main.f90:2"]
@@ -54,13 +56,13 @@ def test_bridge_rule_one_click_validation(tmp_path: Path) -> None:
     assert prop.accepted and prop.checks["gain"] == 1.0 and prop.checks["regressions"] == 0
     assert prop.preview["added"] == 4 and prop.preview["removed"] == 0
     assert {e["dst"] for e in prop.preview["examples"]} == {"f:assemble", "f:solve", "f:export"}
-    # Default mode: proposed only, the graph does not change until the user approves.
-    Completion(project, AIClient(GOOD, in_process=True)).adopt([prop])
-    rule = load_profile(project.profile_path).rules[0]
-    assert (rule.id, rule.status, rule.source) == ("r-0001", "proposed", "ai")
+    # Default mode: validated and stored only; nothing active changes until the user approves.
+    assert prop.status == "validated" and load_profile(project.profile_path).rules == []
     scan(project, ScanOptions())
     assert _sites(project)["cpp/caller.cpp:4"]["resolution"] == "unresolved"
-    set_rule_status(project, "r-0001", "approved")
+    approve(project, str(prop.id))
+    rule = load_profile(project.profile_path).rules[0]
+    assert (rule.id, rule.status, rule.source) == ("r-0001", "approved", "ai")
     scan(project, ScanOptions())
     after = _sites(project)
     assert after["cpp/caller.cpp:4"]["dst"] == "f:assemble"
@@ -73,9 +75,10 @@ def test_bridge_rule_one_click_validation(tmp_path: Path) -> None:
 
 def test_wrong_rule_is_rejected_with_its_reason(tmp_path: Path) -> None:
     project = _project("bridge_unknown_prefix", tmp_path)
+    set_auto_approval(project, True)
     proposals = Completion(project, AIClient(BAD, in_process=True), auto=True).run()
     prop = next(p for p in proposals if p.kind == "bridge")
-    assert not prop.accepted and "gain 0%" in prop.reason
+    assert not prop.accepted and "gain 0%" in prop.reason and prop.status == "rejected"
     assert load_profile(project.profile_path).rules == []
 
 
@@ -86,11 +89,14 @@ def test_keyword_profile_proposed_by_ai(tmp_path: Path) -> None:
     project = open_project(repo, tmp_path / "proj")
     scan(project, ScanOptions())
     proposals = Completion(project, AIClient(GOOD, in_process=True),
-                           document=FIXTURES / "keywords_language" / "src" / "manual.md").run()
+                           document=FIXTURES / "keywords_language" / "src" / "manual.md",
+                           expected=independent_expected(tmp_path / "expected")).run()
     prop = next(p for p in proposals if p.kind == "keywords")
-    assert prop.accepted and prop.content["coverage"]["definitions_recall"] == 1.0
-    assert load_profile(project.profile_path).languages["acme_script"].status == "proposed"
-    set_rule_status(project, "acme_script", "approved")
+    # Recall measured against hand-written expected results, not against the proposed keywords (phase 9).
+    assert prop.accepted and prop.independent["status"] == "passed"
+    assert prop.content["coverage"]["definitions_recall"] == 1.0
+    assert "acme_script" not in load_profile(project.profile_path).languages  # nothing active before approval
+    approve(project, str(prop.id))
     scan(project, ScanOptions())
     expected = load_expected("keywords_language")
     data = export_dict(project.db_path)
@@ -98,6 +104,22 @@ def test_keyword_profile_proposed_by_ai(tmp_path: Path) -> None:
     got = {(e["src"], e["dst"]) for e in data["edges"] if e["kind"] != "contains"}
     assert len(want & got) / len(want) >= 0.9
     assert graph_diff(data, {**expected, "partial": True}) == []
+
+
+def independent_expected(folder: Path) -> Path:
+    """Expected definitions of the samples, written by hand from the sources (not from the AI's keywords)."""
+    import json
+
+    folder.mkdir(parents=True)
+    src = FIXTURES / "keywords_language" / "src" / "scripts"
+    cases = {"helpers": [("prepare", 3, 5), ("compute", 7, 9), ("square", 11, 13), ("report", 15, 16)],
+             "main": [("main", 3, 8)]}
+    for name, defs in cases.items():
+        shutil.copyfile(src / f"{name}.acs", folder / f"{name}.acs")
+        (folder / f"{name}.expected.json").write_text(json.dumps({"definitions": [
+            {"name": n, "kind": "routine", "line_start": a, "line_end": b, "parent": None} for n, a, b in defs]}),
+            encoding="utf-8")
+    return folder
 
 
 def test_worker_process_and_scan_never_runs_ai(tmp_path: Path) -> None:

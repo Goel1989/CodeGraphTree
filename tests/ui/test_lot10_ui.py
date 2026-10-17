@@ -173,7 +173,7 @@ def test_frameless_shell_and_navigation(window, qtbot) -> None:  # type: ignore[
     assert window.header_title.text() == "ANALYSIS HEALTH" and window.nav_buttons[1].isChecked()
     window.show_view(window.graph_files)  # jumps to the group of the view
     assert window.rail_buttons["explore"].isChecked() and window.header_title.text() == "FILES 3D"
-    assert [b.text() for b in window.nav_buttons] == ["Functions 3D", "Files 3D", "Tree list"]
+    assert [b.text() for b in window.nav_buttons] == ["Functions 3D", "Files 3D", "Folders 3D", "Tree list", "Dependencies"]
 
 
 def test_hero_card_badges_and_popovers(window, qtbot) -> None:  # type: ignore[no-untyped-def]

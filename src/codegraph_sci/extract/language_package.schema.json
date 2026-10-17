@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Language package (requirements plan phase 3, package format 1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["package_format", "language", "version", "extensions", "backend", "provenance"],
+  "properties": {
+    "package_format": {"const": 1},
+    "language": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+    "version": {"type": "string", "pattern": "^\\d+\\.\\d+(\\.\\d+)?$"},
+    "status": {"enum": ["proposed", "approved", "rejected"]},
+    "overrides": {"type": "boolean"},
+    "description": {"type": "string"},
+    "extensions": {"type": "array", "items": {"type": "string", "pattern": "^\\.[\\w+-]+$"}, "uniqueItems": true},
+    "detection": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "filenames": {"type": "array", "items": {"type": "string", "pattern": "^[^/\\\\]+$"}, "uniqueItems": true},
+        "shebangs": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z0-9_.+-]+$"},
+                     "uniqueItems": true}
+      }
+    },
+    "dialects": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "backend": {"type": "string", "pattern": "^(keywords|native:[a-z0-9_]+)$"},
+    "rules": {"type": "object"},
+    "naming": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "case_sensitive": {"type": "boolean"},
+        "qualification": {"enum": ["lexical", "module", "namespace", "signature"]},
+        "description": {"type": "string"}
+      }
+    },
+    "relationships": {
+      "type": "array", "uniqueItems": true,
+      "items": {"enum": ["calls", "maybe_calls", "uses", "includes", "imports", "data_access", "inherits",
+                         "dispatches", "binds"]}
+    },
+    "resolution": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "confidence": {"enum": ["exact", "high", "heuristic"]},
+        "capabilities": {"type": "array", "uniqueItems": true,
+                         "items": {"enum": ["names", "nested_scopes", "imports", "includes", "overloads",
+                                            "types", "preprocessor", "dynamic_dispatch"]}}
+      }
+    },
+    "limitations": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["source", "expected"],
+        "properties": {"source": {"type": "string"}, "expected": {"type": "string"}}
+      }
+    },
+    "provenance": {
+      "type": "object", "additionalProperties": false, "required": ["source"],
+      "properties": {
+        "source": {"enum": ["builtin", "manual", "ai"]},
+        "author": {"type": "string"},
+        "document": {"type": "string"},
+        "notes": {"type": "string"}
+      }
+    }
+  },
+  "allOf": [
+    {"if": {"properties": {"backend": {"const": "keywords"}}},
+     "then": {"required": ["rules"], "properties": {"extensions": {"minItems": 1}}},
+     "else": {"not": {"required": ["rules"]}}}
+  ]
+}

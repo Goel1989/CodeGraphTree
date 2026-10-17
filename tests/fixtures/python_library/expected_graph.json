@@ -1,0 +1,295 @@
+{
+ "description": "Python library without main (requirements plan phase 10): package with a re-exporting __init__, classes, inheritance, methods, a method call on an unknown receiver kept ambiguous",
+ "nodes": [
+  {
+   "uid": "ext:python:builtins.round",
+   "kind": "external",
+   "subtype": "python",
+   "file": null,
+   "line_start": null,
+   "line_end": null
+  },
+  {
+   "uid": "ext:python:math",
+   "kind": "external",
+   "subtype": "python",
+   "file": null,
+   "line_start": null,
+   "line_end": null
+  },
+  {
+   "uid": "py:geom",
+   "kind": "module",
+   "subtype": "py_module",
+   "file": "geom/__init__.py",
+   "line_start": 1,
+   "line_end": 2
+  },
+  {
+   "uid": "py:geom.report",
+   "kind": "module",
+   "subtype": "py_module",
+   "file": "geom/report.py",
+   "line_start": 1,
+   "line_end": 7
+  },
+  {
+   "uid": "py:geom.report.describe",
+   "kind": "routine",
+   "subtype": "py_function",
+   "file": "geom/report.py",
+   "line_start": 5,
+   "line_end": 7
+  },
+  {
+   "uid": "py:geom.shapes",
+   "kind": "module",
+   "subtype": "py_module",
+   "file": "geom/shapes.py",
+   "line_start": 1,
+   "line_end": 19
+  },
+  {
+   "uid": "py:geom.shapes.Circle",
+   "kind": "type",
+   "subtype": "py_class",
+   "file": "geom/shapes.py",
+   "line_start": 10,
+   "line_end": 15
+  },
+  {
+   "uid": "py:geom.shapes.Circle.__init__",
+   "kind": "routine",
+   "subtype": "py_method",
+   "file": "geom/shapes.py",
+   "line_start": 11,
+   "line_end": 12
+  },
+  {
+   "uid": "py:geom.shapes.Circle.area",
+   "kind": "routine",
+   "subtype": "py_method",
+   "file": "geom/shapes.py",
+   "line_start": 14,
+   "line_end": 15
+  },
+  {
+   "uid": "py:geom.shapes.Shape",
+   "kind": "type",
+   "subtype": "py_class",
+   "file": "geom/shapes.py",
+   "line_start": 5,
+   "line_end": 7
+  },
+  {
+   "uid": "py:geom.shapes.Shape.area",
+   "kind": "routine",
+   "subtype": "py_method",
+   "file": "geom/shapes.py",
+   "line_start": 6,
+   "line_end": 7
+  },
+  {
+   "uid": "py:geom.shapes.area_of",
+   "kind": "routine",
+   "subtype": "py_function",
+   "file": "geom/shapes.py",
+   "line_start": 18,
+   "line_end": 19
+  }
+ ],
+ "call_sites": [
+  {
+   "src": "py:geom",
+   "file": "geom/__init__.py",
+   "line": 2,
+   "col": 25,
+   "ref_kind": "use",
+   "target_text": "Circle",
+   "dst": "py:geom.shapes.Circle",
+   "resolution": "resolved",
+   "confidence": "exact",
+   "origin": "native:python"
+  },
+  {
+   "src": "py:geom",
+   "file": "geom/__init__.py",
+   "line": 2,
+   "col": 33,
+   "ref_kind": "use",
+   "target_text": "area_of",
+   "dst": "py:geom.shapes.area_of",
+   "resolution": "resolved",
+   "confidence": "exact",
+   "origin": "native:python"
+  },
+  {
+   "src": "py:geom.report",
+   "file": "geom/report.py",
+   "line": 1,
+   "col": 18,
+   "ref_kind": "use",
+   "target_text": "area_of",
+   "dst": "py:geom.shapes.area_of",
+   "resolution": "resolved",
+   "confidence": "exact",
+   "origin": "native:python"
+  },
+  {
+   "src": "py:geom.report",
+   "file": "geom/report.py",
+   "line": 2,
+   "col": 25,
+   "ref_kind": "use",
+   "target_text": "Circle",
+   "dst": "py:geom.shapes.Circle",
+   "resolution": "resolved",
+   "confidence": "exact",
+   "origin": "native:python"
+  },
+  {
+   "src": "py:geom.report.describe",
+   "file": "geom/report.py",
+   "line": 6,
+   "col": 9,
+   "ref_kind": "call",
+   "target_text": "Circle",
+   "dst": "py:geom.shapes.Circle",
+   "resolution": "resolved",
+   "confidence": "exact",
+   "origin": "native:python"
+  },
+  {
+   "src": "py:geom.report.describe",
+   "file": "geom/report.py",
+   "line": 7,
+   "col": 12,
+   "ref_kind": "call",
+   "target_text": "round",
+   "dst": "ext:python:builtins.round",
+   "resolution": "external",
+   "confidence": "exact",
+   "origin": "native:python"
+  },
+  {
+   "src": "py:geom.report.describe",
+   "file": "geom/report.py",
+   "line": 7,
+   "col": 18,
+   "ref_kind": "call",
+   "target_text": "area_of",
+   "dst": "py:geom.shapes.area_of",
+   "resolution": "resolved",
+   "confidence": "exact",
+   "origin": "native:python"
+  },
+  {
+   "src": "py:geom.shapes",
+   "file": "geom/shapes.py",
+   "line": 2,
+   "col": 8,
+   "ref_kind": "use",
+   "target_text": "math",
+   "dst": "ext:python:math",
+   "resolution": "external",
+   "confidence": "exact",
+   "origin": "native:python"
+  },
+  {
+   "src": "py:geom.shapes.Circle",
+   "file": "geom/shapes.py",
+   "line": 10,
+   "col": 14,
+   "ref_kind": "inherit",
+   "target_text": "Shape",
+   "dst": "py:geom.shapes.Shape",
+   "resolution": "resolved",
+   "confidence": "exact",
+   "origin": "native:python"
+  },
+  {
+   "src": "py:geom.shapes.area_of",
+   "file": "geom/shapes.py",
+   "line": 19,
+   "col": 12,
+   "ref_kind": "call",
+   "target_text": "shape.area",
+   "dst": null,
+   "resolution": "ambiguous",
+   "confidence": "ambiguous",
+   "origin": "native:python",
+   "candidates": [
+    "py:geom.shapes.Circle.area",
+    "py:geom.shapes.Shape.area"
+   ]
+  }
+ ],
+ "edges": [
+  {
+   "src": "py:geom",
+   "dst": "py:geom.shapes.Circle",
+   "kind": "uses",
+   "site_count": 1
+  },
+  {
+   "src": "py:geom",
+   "dst": "py:geom.shapes.area_of",
+   "kind": "uses",
+   "site_count": 1
+  },
+  {
+   "src": "py:geom.report",
+   "dst": "py:geom.shapes.Circle",
+   "kind": "uses",
+   "site_count": 1
+  },
+  {
+   "src": "py:geom.report",
+   "dst": "py:geom.shapes.area_of",
+   "kind": "uses",
+   "site_count": 1
+  },
+  {
+   "src": "py:geom.report.describe",
+   "dst": "ext:python:builtins.round",
+   "kind": "calls",
+   "site_count": 1
+  },
+  {
+   "src": "py:geom.report.describe",
+   "dst": "py:geom.shapes.Circle",
+   "kind": "calls",
+   "site_count": 1
+  },
+  {
+   "src": "py:geom.report.describe",
+   "dst": "py:geom.shapes.area_of",
+   "kind": "calls",
+   "site_count": 1
+  },
+  {
+   "src": "py:geom.shapes",
+   "dst": "ext:python:math",
+   "kind": "uses",
+   "site_count": 1
+  },
+  {
+   "src": "py:geom.shapes.Circle",
+   "dst": "py:geom.shapes.Shape",
+   "kind": "inherits",
+   "site_count": 1
+  },
+  {
+   "src": "py:geom.shapes.area_of",
+   "dst": "py:geom.shapes.Circle.area",
+   "kind": "calls",
+   "site_count": 1
+  },
+  {
+   "src": "py:geom.shapes.area_of",
+   "dst": "py:geom.shapes.Shape.area",
+   "kind": "calls",
+   "site_count": 1
+  }
+ ]
+}

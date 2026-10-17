@@ -1,0 +1,16 @@
+# Bridge rule (bridge format 1), created by `cgs rules new bridge`.
+# Guide: docs/rules/README.md. Edit, then run: cgs rules validate / cgs rules test / cgs rules activate.
+bridge_format: 1
+name: __NAME__
+version: "0.1"
+description: "C code calls Fortran through a CALL_ prefix: CALL_SOLVE() reaches subroutine solve."
+rule:                           # one entry of the bridges[] list of a pack (architecture §3.8)
+  from: c                       # language of the caller: fortran, python, c, cpp
+  to: fortran                   # language of the target
+  call_prefixes: ["CALL_"]      # tried longest first; the rest of the name is transformed below
+  name_transform: [strip_prefix, lowercase]
+  # declaration_patterns: ['DECLARE_FORTRAN\((?P<name>\w+)']   # declarations create binding nodes, never calls
+tests:                          # small repositories, scanned with this rule only; at least one is required
+  - {repo: tests/__NAME___basic, expected: tests/__NAME___basic.expected.json}
+provenance:
+  source: manual

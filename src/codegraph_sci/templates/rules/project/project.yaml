@@ -1,0 +1,15 @@
+# Project pack (pack format 1), created by `cgs rules new project`: conventions of one code base.
+# Guide: docs/rules/README.md and architecture §3.8. Edit, then run: cgs rules validate / test / activate.
+pack: __NAME__                  # must match the file name
+version: "0.1"
+format_version: 1
+identifiers: [register]         # names specific to the code base (never allowed in the core)
+noise:
+  hide: []                      # routines hidden by default, e.g. [log_message]
+entry_points:                   # registrations found in files -> entry nodes calling their target
+  - kind: command
+    glob: "*.py"
+    pattern: '\bregister\("(?P<name>\w+)", (?P<target>\w+)\)'
+    target: "py:{file_stem}.{target}"
+validation:                     # small repositories scanned with this pack; at least one is required
+  - {repo: tests/__NAME___basic, expected: tests/__NAME___basic.expected.json}

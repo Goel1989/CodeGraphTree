@@ -26,8 +26,10 @@ class ExtractContext:
     known_arrays: set[str] = field(default_factory=set)
     timeout_s: float = 60.0
     keep_all_branches: bool = True
-    # OUTLINE extraction (file outside the analysis scope): adapters may skip everything but definitions and
-    # includes; the result is reduced to them anyway. Part of the cache key through the extraction mode.
+    # OUTLINE extraction (file outside the analysis scope, phase 6): adapters extract definitions (with their
+    # attributes and the module context needed to resolve symbols) and includes, and never analyze calls inside
+    # bodies; definitions are identical to FULL. The result is reduced to them anyway (``FileFacts.outline``).
+    # Part of the cache key through the extraction mode.
     outline: bool = False
     # Resolves an include: (text as written, including file) -> included file, or None.
     resolve_include: Callable[[str, str], IncludedFile | None] | None = None

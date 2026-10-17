@@ -1,0 +1,10 @@
+{
+ "edges": [
+  {"src": "cpp:run_solver()", "dst": "f:solve", "kind": "bridges"},
+  {"src": "f:te0000", "dst": "f:te0001", "kind": "dispatches"},
+  {"src": "entry:SOLVE_CMD", "dst": "f:op0007", "kind": "calls"}
+ ],
+ "absent_edges": [
+  {"src": "cpp:look_alike()", "dst": "f:solve", "kind": "bridges"}
+ ]
+}

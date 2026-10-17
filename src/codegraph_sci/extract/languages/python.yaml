@@ -1,0 +1,26 @@
+# Built-in language package (requirements plan phase 3): the native Python adapter behind the package contract.
+package_format: 1
+language: python
+version: "1.0"
+description: Python 3 (Python 2 files are detected and flagged).
+extensions: [".py", ".pyw"]
+detection:
+  shebangs: [python, python3]
+dialects: [python3, python2]
+backend: native:python
+naming:
+  case_sensitive: true
+  qualification: module
+  description: "py:<module>.<name>, methods py:<module>.<Class>.<method>; module names follow package markers."
+relationships: [calls, uses, imports, inherits, binds]
+resolution:
+  confidence: exact
+  capabilities: [names, nested_scopes, imports]
+limitations:
+  - "Calls through variables, getattr or callbacks are dynamic calls; simple local propagation only."
+  - "No type inference: a method call on an unknown receiver is external when no method of that name exists."
+tests:
+  - {source: "tests/fixtures/python_basic", expected: "tests/fixtures/python_basic/expected_graph.json"}
+provenance:
+  source: builtin
+  notes: "Fixtures live in the source repository; they are not shipped in the installed package."

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Bridge rule file rules/bridges/<name>.yaml (bridge format 1, requirements plan phase 4)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["bridge_format", "name", "version", "rule", "tests"],
+  "properties": {
+    "bridge_format": {"const": 1},
+    "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+    "version": {"type": "string", "pattern": "^\\d+\\.\\d+(\\.\\d+)?$"},
+    "description": {"type": "string"},
+    "rule": {"type": "object", "description": "one bridges[] entry of a pack (pack.schema.json, $defs/bridge)"},
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["repo", "expected"],
+        "properties": {"repo": {"type": "string"}, "expected": {"type": "string"}}
+      }
+    },
+    "provenance": {
+      "type": "object", "additionalProperties": false, "required": ["source"],
+      "properties": {"source": {"enum": ["manual", "ai"]}, "author": {"type": "string"},
+                     "document": {"type": "string"}, "notes": {"type": "string"}}
+    }
+  }
+}

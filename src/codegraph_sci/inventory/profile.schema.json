@@ -55,6 +55,7 @@
     },
     "exclude_dirs": {"type": "array", "items": {"type": "string"}},
     "all_subfolders": {"type": "boolean"},
+    "inventory_policy": {"enum": ["analysis", "complete"]},
     "packs": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9_]+$"}},
     "rules": {
       "type": "array",

@@ -1,0 +1,23 @@
+# Built-in language package (requirements plan phase 3): the native C adapter behind the package contract.
+package_format: 1
+language: c
+version: "1.0"
+description: C, with the C preprocessor (headers .h are decided by content and repository context).
+extensions: [".c"]
+backend: native:c
+naming:
+  case_sensitive: true
+  qualification: signature
+  description: "c:<name>; static functions are qualified by their file."
+relationships: [calls, includes, binds]
+resolution:
+  confidence: exact
+  capabilities: [names, includes, preprocessor]
+limitations:
+  - "Calls through function pointers are dynamic calls without a static target."
+  - "Prototypes do not create definitions; macros are expanded only when the macro is visible to the file."
+tests:
+  - {source: "tests/fixtures/c_basic", expected: "tests/fixtures/c_basic/expected_graph.json"}
+provenance:
+  source: builtin
+  notes: "Fixtures live in the source repository; they are not shipped in the installed package."

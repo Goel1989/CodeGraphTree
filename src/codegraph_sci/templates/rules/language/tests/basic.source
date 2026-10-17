@@ -1,0 +1,11 @@
+import helpers
+# call ignored: this line is a comment
+proc prepare
+end
+proc main
+  call prepare
+  print "call ignored inside a string"
+  value = compute(2)
+end
+function compute
+end

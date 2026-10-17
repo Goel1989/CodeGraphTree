@@ -1,0 +1,4 @@
+{
+ "edges": [{"src": "c:run", "dst": "f:solve", "kind": "bridges"}],
+ "absent_edges": [{"src": "c:other", "dst": "f:solve", "kind": "bridges"}]
+}

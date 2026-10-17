@@ -36,6 +36,41 @@ class InventoryRecord:
 
 
 @dataclass(slots=True)
+class InventoryItem:
+    """One discovered entry of the repository and what became of it (phase 2: every entry is accounted for).
+
+    ``eligibility``: eligible, excluded, not_source, unsupported_language, unreadable, not_applicable (walked
+    directories). ``status``: for a file, the analysis status (pending before a scan, then the file's
+    ``parse_status``, or not_analyzed); for a directory, walked or not_walked. ``reason`` says why an entry was not
+    analyzed (or not walked).
+    """
+
+    path: str  # relative, "/" separators; "." for the root
+    parent: str | None  # None for the root
+    kind: str  # file, directory, symlink (not followed), special
+    extension: str = ""
+    size: int | None = None
+    files: int | None = None  # directories: files below, including those of folders not walked
+    lang: str | None = None
+    variant: str | None = None
+    confidence: float | None = None
+    evidence: str | None = None  # how the language was decided (extension:.f90, shebang:python3, ...)
+    eligibility: str = "not_applicable"
+    status: str = "not_analyzed"
+    reason: str | None = None
+    link_target: str | None = None  # target of a symbolic link, as written in the link
+
+
+@dataclass(slots=True)
+class InventoryIssue:
+    """A discovery problem: unreadable entry, symbolic link loop, broken or external link."""
+
+    path: str
+    kind: str  # unreadable, loop, broken_link, external_link
+    message: str
+
+
+@dataclass(slots=True)
 class NodeRecord:
     uid: str
     display_name: str
@@ -63,6 +98,9 @@ class CallSiteRecord:
     origin: str
     condition: str | None = None
     candidates: list[str] = field(default_factory=list)
+    # How the target was found when a rule beyond the language's own lookup decided it (bridges): rule, rule
+    # version, mechanism, evidence kind, binding declaration, transformed name, candidate selection, reason.
+    evidence: dict[str, Any] = field(default_factory=dict)
 
     def sort_key(self) -> tuple[str, int, int, str, str, str]:
         return (self.file, self.line, self.col, self.src, self.target_text, self.ref_kind)
@@ -139,6 +177,8 @@ class GraphBundle:
 
     files: list[FileRecord] = field(default_factory=list)
     inventory: list[InventoryRecord] = field(default_factory=list)
+    inventory_items: list[InventoryItem] = field(default_factory=list)
+    inventory_issues: list[InventoryIssue] = field(default_factory=list)
     nodes: list[NodeRecord] = field(default_factory=list)
     call_sites: list[CallSiteRecord] = field(default_factory=list)
     data_accesses: list[DataAccessRecord] = field(default_factory=list)
@@ -153,6 +193,8 @@ class GraphBundle:
     def sort(self) -> GraphBundle:
         self.files.sort(key=lambda f: f.path)
         self.inventory.sort(key=lambda i: i.path)
+        self.inventory_items.sort(key=lambda i: i.path)
+        self.inventory_issues.sort(key=lambda i: (i.path, i.kind, i.message))
         self.nodes.sort(key=lambda n: n.uid)
         for site in self.call_sites:
             site.candidates.sort()

@@ -21,25 +21,32 @@ def cache_key(file_sha256: str, included_sha256: list[str], adapter: str, adapte
 
 
 def load_cache(db_path: Path | str) -> dict[str, bytes]:
-    """Read every cached facts blob of an existing database (empty if none or unreadable)."""
+    """Read every cached facts blob of an existing database (empty if none or unreadable).
+
+    Blobs carry their own facts format version (checked on decoding), so a database of another schema version
+    still provides its cache: a schema change does not force a full re-extraction."""
     try:
-        con = open_db(db_path)
+        con = open_db(db_path, any_schema=True)
     except (FileNotFoundError, sqlite3.DatabaseError, RuntimeError):
         return {}
     try:
         return {key: bytes(blob) for key, blob in con.execute("SELECT cache_key, facts FROM facts_cache")}
+    except sqlite3.DatabaseError:
+        return {}
     finally:
         con.close()
 
 
 def previous_files(db_path: Path | str) -> dict[str, tuple[str | None, str | None]]:
-    """path -> (sha256, cache key) recorded by the previous analysis."""
+    """path -> (sha256, cache key) recorded by the previous analysis (whatever its schema version, as above)."""
     try:
-        con = open_db(db_path)
+        con = open_db(db_path, any_schema=True)
     except (FileNotFoundError, sqlite3.DatabaseError, RuntimeError):
         return {}
     try:
         return {p: (s, k) for p, s, k in con.execute("SELECT path, sha256, cache_key FROM files")}
+    except sqlite3.DatabaseError:
+        return {}
     finally:
         con.close()
 

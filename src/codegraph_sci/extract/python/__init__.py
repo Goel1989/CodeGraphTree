@@ -74,8 +74,11 @@ def _literal(node: ast.AST) -> str | int | float | None:
 
 
 class _AstExtractor:
-    def __init__(self, path: str, text: str, module: str) -> None:
+    def __init__(self, path: str, text: str, module: str, outline: bool = False) -> None:
         self.path = path
+        # OUTLINE: definitions and module context (imports, instances) only; expressions, calls, decorators and
+        # base classes are not analyzed.
+        self.outline = outline
         self.text = text
         self.module = module
         self.is_package = path.replace("\\", "/").endswith("__init__.py")
@@ -234,6 +237,8 @@ class _AstExtractor:
                 if alias.name != "*":
                     self.use(scope, node, alias, alias.name, {"module": base, "name": alias.name})
             return
+        if self.outline and isinstance(node, ast.expr):
+            return  # an expression never holds a definition
         if isinstance(node, ast.Call):
             self.call(scope, node)
         if isinstance(node, ast.Lambda):
@@ -248,7 +253,7 @@ class _AstExtractor:
         self.references.append(Reference(self.uid(scope), text, "use", line, col, hint=hint))
 
     def definition(self, scope: _Scope, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) -> None:
-        for deco in node.decorator_list:
+        for deco in ([] if self.outline else node.decorator_list):
             if isinstance(deco, ast.Call):
                 self.visit(scope, deco)
             else:
@@ -260,7 +265,7 @@ class _AstExtractor:
         if isinstance(node, ast.ClassDef):
             self.definitions.append(Definition(uid, node.name, "type", "py_class", node.name, (node.lineno, end),
                                                doc=doc.splitlines()[0] if doc else None, parent=self.uid(scope)))
-            for base in node.bases:
+            for base in ([] if self.outline else node.bases):
                 self.ref_from_expr(scope, base, base, "inherit", [], src=uid)
             for kw in node.keywords:
                 self.visit(scope, kw.value)
@@ -316,8 +321,9 @@ class _AstExtractor:
                                          hint={"bind": bind, "attrs": attrs}))
 
 
-def _extract_ast(path: str, text: str, encoding: str, module: str, tree: ast.Module) -> FileFacts:
-    ex = _AstExtractor(path, text, module)
+def _extract_ast(path: str, text: str, encoding: str, module: str, tree: ast.Module,
+                 outline: bool = False) -> FileFacts:
+    ex = _AstExtractor(path, text, module, outline)
     ex.run(tree)
     return FileFacts(path=path, lang="python", encoding=encoding, adapter=ADAPTER, adapter_version=VERSION,
                      definitions=ex.definitions, references=ex.references).sort()
@@ -335,7 +341,7 @@ class PythonAdapter:
         except (SyntaxError, ValueError, RecursionError, MemoryError) as exc:
             from codegraph_sci.extract.python.fallback import extract_tree_sitter
 
-            facts = extract_tree_sitter(file.path, file.text, file.encoding, module)
+            facts = extract_tree_sitter(file.path, file.text, file.encoding, module, outline=ctx.outline)
             facts.errors.insert(0, ParseError(f"ast: {type(exc).__name__}: {exc}",
                                               getattr(exc, "lineno", 0) or 0))
             facts.used_fallback = True
@@ -344,7 +350,7 @@ class PythonAdapter:
         limit = sys.getrecursionlimit()
         sys.setrecursionlimit(max(limit, 20_000))  # deeply nested expressions (long sums, big literals)
         try:
-            facts = _extract_ast(file.path, file.text, file.encoding, module, tree)
+            facts = _extract_ast(file.path, file.text, file.encoding, module, tree, ctx.outline)
         finally:
             sys.setrecursionlimit(limit)
         facts.variant = file.variant

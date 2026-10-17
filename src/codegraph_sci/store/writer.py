@@ -22,7 +22,7 @@ from codegraph_sci.store.db import check_version, indexes_sql, schema_sql
 
 BATCH = 50_000
 
-DATA_TABLES = ("files", "inventory", "nodes", "conditions", "call_sites", "call_site_candidates",
+DATA_TABLES = ("files", "inventory", "inventory_entries", "inventory_issues", "nodes", "conditions", "call_sites", "call_site_candidates",
                "data_accesses", "facts_cache", "edges", "node_stats", "file_edges", "dir_edges",
                "search_fts", "plugins", "scan_runs", "meta")
 
@@ -70,15 +70,21 @@ def _fill(con: sqlite3.Connection, bundle: GraphBundle,
               f.parse_status, f.adapter, f.adapter_version, f.error, f.cache_key) for f in bundle.files))
     _insert(con, "INSERT INTO inventory VALUES (?,?,?,?,?)",
             ((file_ids[i.path], i.lang, i.variant, i.confidence, i.decided_by) for i in bundle.inventory))
+    _insert(con, "INSERT INTO inventory_entries VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            ((i.path, i.parent, i.kind, i.extension, i.size, i.files, i.lang, i.variant, i.confidence, i.evidence,
+              i.eligibility, i.status, i.reason, i.link_target) for i in bundle.inventory_items))
+    _insert(con, "INSERT INTO inventory_issues VALUES (?,?,?)",
+            ((i.path, i.kind, i.message) for i in bundle.inventory_issues))
     say("nodes")
     _insert(con, "INSERT INTO nodes VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             ((node_ids[n.uid], n.uid, n.display_name, n.kind, n.subtype, n.lang, fid(n.file),
               n.line_start, n.line_end, int(n.in_scope), _json(n.attrs)) for n in bundle.nodes))
     _insert(con, "INSERT INTO conditions VALUES (?,?)", ((i, c) for c, i in cond_ids.items()))
     say("call_sites")
-    _insert(con, "INSERT INTO call_sites VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    _insert(con, "INSERT INTO call_sites VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             ((i, node_ids[s.src], file_ids[s.file], s.line, s.col, s.ref_kind, s.target_text, nid(s.dst),
-              s.resolution, s.confidence, s.origin, cond_ids.get(s.condition) if s.condition else None)
+              s.resolution, s.confidence, s.origin, cond_ids.get(s.condition) if s.condition else None,
+              _json(s.evidence) if s.evidence else None)
              for i, s in enumerate(bundle.call_sites, start=1)))
     _insert(con, "INSERT INTO call_site_candidates VALUES (?,?)",
             ((i, node_ids[c]) for i, s in enumerate(bundle.call_sites, start=1) for c in s.candidates))

@@ -1,21 +1,30 @@
 """Cross-language bridges (§3.8, lot 8). They only act on sites left unresolved (or external) by Link.
 
-Native bridges (generic, enabled by default):
+Native bridges (generic, enabled by default), declared in ``catalog.py``:
 * ``pybind11`` and ``python_extension``: Python calls into compiled modules -> bound C/C++ functions;
 * ``c_cpp``: C++ <-> C calls (``extern "C"`` linkage, same name);
 * ``fortran_c``: C/C++ <-> Fortran (trailing underscore, upper case, g77 double underscore, ``BIND(C, NAME=)``).
 
 Rule bridges (packs, profile rules, AI proposals), format of a pack ``bridges[]`` entry:
 * ``prefix_calls``: ``call_prefixes`` tried from the longest to the shortest, ``name_transform`` applied;
-* ``declaration_patterns``: declare a routine of the other language -> ``binding`` node, never a call site.
+* ``declaration_patterns``: declare a routine of the other language -> ``binding`` node, never a call site;
+* ``candidates``: several targets are kept as an ambiguous site (``keep_ambiguous``, default) or none is linked
+  (``unique``); a target is never picked among homonyms;
+* ``require_declaration``: a prefix call is linked only if a declaration pattern of the rule names its target;
+* ``files`` / ``target_files``: globs limiting the caller files and the files targets may come from.
+
+Every site resolved by a bridge records its evidence (phase 5): rule and version, mechanism, evidence kind,
+binding declaration, transformed name, candidate selection and reason.
 """
 
 from __future__ import annotations
 
+import fnmatch
 import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from codegraph_sci.core.bridge_catalog import MECHANISMS, NATIVE_VERSION
 from codegraph_sci.core.graph import CallSiteRecord, NodeRecord
 
 if TYPE_CHECKING:
@@ -41,6 +50,10 @@ def apply_transform(name: str, prefix: str, ops: list[str]) -> str:
     return out
 
 
+def _matches(path: str | None, globs: list[str] | None) -> bool:
+    return not globs or (path is not None and any(fnmatch.fnmatchcase(path, g) for g in globs))
+
+
 class BridgeEngine:
     def __init__(self, linker: Linker, rules: list[dict[str, Any]], native: bool,
                  read_text: Callable[[str], str | None] | None) -> None:
@@ -56,12 +69,36 @@ class BridgeEngine:
         info = self.lk.file_info.get(site.file)
         return info[0] if info else None
 
-    def set(self, site: CallSiteRecord, dst: str, bridge: str, candidates: list[str] | None = None) -> None:
+    @staticmethod
+    def evidence(bridge: str, mechanism: str, *, version: str | None = None, binding: str | None = None,
+                 name: str | None = None, policy: str = "unique", reason: str = "") -> dict[str, Any]:
+        out: dict[str, Any] = {"rule": f"bridge:{bridge}", "rule_version": version or NATIVE_VERSION,
+                               "mechanism": mechanism, "evidence_kind": MECHANISMS[mechanism].evidence,
+                               "candidate_selection": policy,
+                               "reason": reason or MECHANISMS[mechanism].description}
+        if binding is not None:
+            out["binding"] = binding
+        if name is not None:
+            out["name"] = name
+        return out
+
+    def set(self, site: CallSiteRecord, dst: str, bridge: str, evidence: dict[str, Any],
+            candidates: list[str] | None = None) -> None:
         site.dst = dst
         site.resolution = "resolved" if self.lk.nodes[dst].in_scope else "out_of_scope"
         site.confidence = "resolved"
         site.origin = f"bridge:{bridge}"
         site.candidates = sorted(set(candidates or []))
+        site.evidence = evidence
+
+    def set_ambiguous(self, site: CallSiteRecord, candidates: list[str], bridge: str,
+                      evidence: dict[str, Any]) -> None:
+        site.dst = None
+        site.resolution = "ambiguous"
+        site.confidence = "ambiguous"
+        site.origin = f"bridge:{bridge}"
+        site.candidates = sorted(set(candidates))
+        site.evidence = evidence
 
     @property
     def bind_c_index(self) -> dict[str, str]:
@@ -98,10 +135,11 @@ class BridgeEngine:
             self.c_cpp()
             self.fortran_c()
         for rule in self.rules:
-            if rule.get("call_prefixes"):
-                self.prefix_calls(rule)
+            declared: dict[str, str] = {}
             if rule.get("declaration_patterns"):
-                self.declarations(rule)
+                declared = self.declarations(rule)
+            if rule.get("call_prefixes"):
+                self.prefix_calls(rule, declared)
 
     # -------------------------------------------------- Python bindings
     def _binding_target(self, d_uid: str) -> str | None:
@@ -145,14 +183,17 @@ class BridgeEngine:
                     continue
                 mod_uid = modules[module]
                 bridge = str(self.lk.defs[mod_uid][0].attrs.get("bridge", "pybind11"))
+                prefix = "pybind11" if bridge == "pybind11" else "pyext"
                 rest = parts[i:]
                 if not rest:
-                    self.set(site, mod_uid, bridge)
+                    self.set(site, mod_uid, bridge, self.evidence(bridge, f"{prefix}_module", binding=mod_uid,
+                                                                  name=module))
                 elif len(rest) == 1 and (module, rest[0]) in members:
                     member = members[(module, rest[0])]
                     impl = self.binding_targets.get(member)
                     dst = member if site.ref_kind == "use" or impl is None else impl
-                    self.set(site, dst, bridge)
+                    self.set(site, dst, bridge, self.evidence(bridge, f"{prefix}_def", binding=member,
+                                                              name=f"{module}.{rest[0]}"))
                 break
 
     # ------------------------------------------------------------- C/C++
@@ -165,11 +206,11 @@ class BridgeEngine:
             if not name or "::" in name:
                 continue
             if lang == "cpp" and f"c:{name}" in self.lk.defs:
-                self.set(site, f"c:{name}", "c_cpp")
+                self.set(site, f"c:{name}", "c_cpp", self.evidence("c_cpp", "c_linkage_same_name", name=name))
             elif lang == "c":
                 uids = [u for u in self.lk.cpp_funcs.get(name, []) if "@" not in u]
                 if len(uids) == 1:
-                    self.set(site, uids[0], "c_cpp")
+                    self.set(site, uids[0], "c_cpp", self.evidence("c_cpp", "c_linkage_same_name", name=name))
 
     # ------------------------------------------------------------ Fortran
     def fortran_c(self) -> None:
@@ -182,66 +223,100 @@ class BridgeEngine:
                 if "::" in name or "." in name or "->" in name:
                     continue
                 target = self.fortran_bind_c(name)
+                evidence = self.evidence("fortran_c", "bind_c_name", binding=target, name=name)
                 if target is None and name.endswith("_"):
-                    base = name[:-1]
+                    base, mechanism = name[:-1], "trailing_underscore"
                     if base.endswith("_") and "_" in base[:-1]:
-                        base = base[:-1]
+                        base, mechanism = base[:-1], "g77_double_underscore"
                     target = self.fortran_routine(base)
+                    evidence = self.evidence("fortran_c", mechanism, name=base.lower())
                 if target is None and name.isupper() and any(c.isalpha() for c in name):
                     target = self.fortran_routine(name)
+                    evidence = self.evidence("fortran_c", "uppercase_name", name=name.lower())
                 if target is not None:
-                    self.set(site, target, "fortran_c")
+                    self.set(site, target, "fortran_c", evidence)
             elif lang == "fortran":
                 if "%" in name:
                     continue
                 bind = ref.hint.get("bind_c")
-                candidates = [str(bind)] if bind else [name.lower() + "_", name.lower(), name.upper(),
-                                                       name.lower() + "__"]
-                for cand in candidates:
+                low = name.lower()
+                candidates = [(str(bind), "bind_c_name")] if bind else [
+                    (low + "_", "trailing_underscore"), (low, "same_name"), (name.upper(), "uppercase_name"),
+                    (low + "__", "g77_double_underscore")]
+                for cand, mechanism in candidates:
                     target_c = self.c_function(cand)
                     if target_c is not None:
-                        self.set(site, target_c, "fortran_c")
+                        binding = f'BIND(C, NAME="{cand}") in {site.src}' if bind else None
+                        self.set(site, target_c, "fortran_c",
+                                 self.evidence("fortran_c", mechanism, binding=binding, name=cand))
                         break
 
     # -------------------------------------------------------------- rules
-    def _lookup(self, lang: str, name: str) -> str | None:
+    def _lookup_all(self, lang: str, name: str) -> list[str]:
+        """Every target of ``name`` in ``lang``: one for Fortran and C, all homonyms for C++."""
         if lang == "fortran":
-            return self.fortran_routine(name)
-        if lang in ("c", "cpp"):
-            return self.c_function(name) if lang == "c" else (
-                sorted(self.lk.cpp_funcs.get(name, []))[0] if self.lk.cpp_funcs.get(name) else None)
-        return None
+            found = self.fortran_routine(name)
+            return [found] if found else []
+        if lang == "c":
+            found = self.c_function(name)
+            return [found] if found else []
+        if lang == "cpp":
+            return sorted(self.lk.cpp_funcs.get(name, []))
+        return []
 
-    def prefix_calls(self, rule: dict[str, Any]) -> None:
+    def prefix_calls(self, rule: dict[str, Any], declared: dict[str, str] | None = None) -> None:
         src_lang, dst_lang = str(rule["from"]), str(rule["to"])
         prefixes = sorted((str(p) for p in rule["call_prefixes"]), key=lambda p: (-len(p), p))
         ops = [str(o) for o in rule.get("name_transform", ["strip_prefix"])]
-        origin = "prefix_calls" + (f"@{rule['id']}" if rule.get("id") else "")
+        bridge = "prefix_calls" + (f"@{rule['id']}" if rule.get("id") else "")
+        policy = str(rule.get("candidates", "keep_ambiguous"))
+        files, target_files = rule.get("files"), rule.get("target_files")
+        version = str(rule["version"]) if rule.get("version") else None
+        mechanism_label = str(rule.get("mechanism", ""))
+        declared_by_name = {k.lower(): v for k, v in (declared or {}).items()}
         for site in self.lk.sites:
             if site.resolution != "unresolved" or site.ref_kind not in _CALLS or self.lang_of(site) != src_lang:
                 continue
+            if not _matches(site.file, files):
+                continue
             for prefix in prefixes:
-                if site.target_text.startswith(prefix) and len(site.target_text) > len(prefix):
-                    target = self._lookup(dst_lang, apply_transform(site.target_text, prefix, ops))
-                    if target is not None:
-                        self.set(site, target, origin)
-                    break
+                if not (site.target_text.startswith(prefix) and len(site.target_text) > len(prefix)):
+                    continue
+                name = apply_transform(site.target_text, prefix, ops)
+                binding = declared_by_name.get(name.lower())
+                if rule.get("require_declaration") and binding is None:
+                    break  # a similar name alone is not evidence enough
+                targets = [u for u in self._lookup_all(dst_lang, name)
+                           if _matches(self.lk.nodes[u].file if u in self.lk.nodes else None, target_files)]
+                mechanism = "declaration_macro" if binding is not None else "prefix_call"
+                reason = (f"prefix {prefix!r} removed and {', '.join(ops)} applied"
+                          + (f"; declared by {binding}" if binding else "")
+                          + (f" ({mechanism_label})" if mechanism_label else ""))
+                evidence = self.evidence(bridge, mechanism, version=version, binding=binding, name=name,
+                                         policy=policy, reason=reason)
+                if len(targets) == 1:
+                    self.set(site, targets[0], bridge, evidence)
+                elif len(targets) > 1 and policy == "keep_ambiguous":
+                    self.set_ambiguous(site, targets, bridge, evidence)
+                break
 
-    def declarations(self, rule: dict[str, Any]) -> None:
+    def declarations(self, rule: dict[str, Any]) -> dict[str, str]:
+        """Binding nodes for declaration patterns; returns transformed target name -> binding uid."""
         src_lang, dst_lang = str(rule["from"]), str(rule["to"])
         ops = [o for o in rule.get("name_transform", ["lowercase"]) if o != "strip_prefix"] or ["lowercase"]
         patterns = [re.compile(str(p)) for p in rule["declaration_patterns"]]
         macro_names = {m.group(0) for p in rule["declaration_patterns"] for m in [re.match(r"[A-Za-z_]\w*", str(p))]
                        if m}
+        declared: dict[str, str] = {}
         # Declarations are never call sites.
         keep = [i for i, s in enumerate(self.lk.sites) if not (s.target_text in macro_names and
                                                                 self.lang_of(s) == src_lang)]
         self.lk.sites[:] = [self.lk.sites[i] for i in keep]
         self.lk.site_refs[:] = [self.lk.site_refs[i] for i in keep]
         if self.read_text is None:
-            return
+            return declared
         for path, (lang, _lines) in sorted(self.lk.file_info.items()):
-            if lang != src_lang:
+            if lang != src_lang or not _matches(path, rule.get("files")):
                 continue
             text = self.read_text(path)
             if not text:
@@ -258,6 +333,9 @@ class BridgeEngine:
                         if uid not in self.lk.nodes:
                             self.lk.nodes[uid] = NodeRecord(uid, name, "binding", "macro_declaration", lang, path,
                                                             number, number, True, {"pattern": rx.pattern})
-                        target = self._lookup(dst_lang, apply_transform(name, "", ops))
-                        if target is not None:
-                            self.binding_targets[uid] = target
+                        transformed = apply_transform(name, "", ops)
+                        declared.setdefault(transformed, uid)
+                        target = self._lookup_all(dst_lang, transformed)
+                        if len(target) == 1:
+                            self.binding_targets[uid] = target[0]
+        return declared

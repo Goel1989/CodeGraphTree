@@ -16,8 +16,17 @@
                                                                 "append_underscore", "strip_underscore"]}},
         "declaration_patterns": {"$ref": "#/$defs/names"},
         "extension_modules": {"$ref": "#/$defs/names"},
-        "id": {"type": "string"}
-      }
+        "id": {"type": "string"},
+        "version": {"type": "string", "pattern": "^\\d+\\.\\d+(\\.\\d+)?$"},
+        "mechanism": {"type": "string", "minLength": 1, "description": "documented mechanism, e.g. wrapper macro"},
+        "candidates": {"enum": ["unique", "keep_ambiguous"],
+                       "description": "several targets: keep them all as an ambiguous site (default) or link none"},
+        "require_declaration": {"type": "boolean",
+                                "description": "link a prefix call only if a declaration pattern names its target"},
+        "files": {"$ref": "#/$defs/names", "description": "globs of the caller files the rule applies to"},
+        "target_files": {"$ref": "#/$defs/names", "description": "globs of the files targets may come from"}
+      },
+      "dependentSchemas": {"require_declaration": {"required": ["declaration_patterns"]}}
     }
   },
   "properties": {
@@ -91,6 +100,11 @@
                 "properties": {"kind": {"type": "string"}, "glob": {"type": "string"},
                                "uses_entry_points": {"type": "boolean"}, "coverage": {"type": "string"}}}
     },
-    "glossary": {"type": "string"}
+    "glossary": {"type": "string"},
+    "validation": {
+      "type": "array",
+      "items": {"type": "object", "additionalProperties": false, "required": ["repo", "expected"],
+                "properties": {"repo": {"type": "string"}, "expected": {"type": "string"}}}
+    }
   }
 }

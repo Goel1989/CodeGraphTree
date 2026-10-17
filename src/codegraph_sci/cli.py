@@ -50,14 +50,24 @@ def _cmd_inventory(args: argparse.Namespace) -> int:
     if not root.is_dir():
         print(f"error: {root} is not a directory", file=sys.stderr)
         return 2
+    from codegraph_sci.core.profile import AnalysisProfile
+    from codegraph_sci.extract.registry import LanguagePackageError
+    from codegraph_sci.scan import language_hints, language_registry
+
     project = open_project(root, args.project)
     previous = load_profile(project.profile_path) if project.profile_path.is_file() else None
-    result = run_inventory(root, previous)
+    try:
+        hints = language_hints(language_registry(project, previous or AnalysisProfile()))
+    except LanguagePackageError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    result = run_inventory(root, previous, hints=hints)
     profile = profile_from_inventory(result, previous)
     if not args.no_write:
         save_profile(project.profile_path, profile)
     if args.json:
-        sys.stdout.write(json.dumps(inventory_dict(result), indent=1, ensure_ascii=False) + "\n")
+        sys.stdout.write(json.dumps(inventory_dict(result, entries=args.entries), indent=1, ensure_ascii=False)
+                         + "\n")
     else:
         sys.stdout.write(inventory_table(result))
         if not args.no_write:
@@ -83,10 +93,16 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         elif event["event"] in ("extract", "done"):
             print(" ".join(f"{k}={v}" for k, v in event.items()), file=sys.stderr, flush=True)
 
+    from codegraph_sci.extract.registry import LanguagePackageError
+
     options = ScanOptions(full=args.full, timeout_s=args.timeout)
     if args.jobs:
         options.jobs = args.jobs
-    result = scan(project, options, progress)
+    try:
+        result = scan(project, options, progress)
+    except LanguagePackageError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     if args.progress != "json":
         s = result.stats
         print(f"Database: {result.db_path}")
@@ -96,6 +112,70 @@ def _cmd_scan(args: argparse.Namespace) -> int:
               f"{s['ambiguous']}, external {s['external']}, out of scope {s['out_of_scope']}, unresolved "
               f"{s['unresolved']})  edges: {s['edges']}  time: {s['seconds']} s")
     return 0
+
+
+def _cmd_languages(args: argparse.Namespace) -> int:
+    """Language packages: the one selected for each language (with its level), and the inactive ones."""
+    from codegraph_sci.core.profile import AnalysisProfile
+    from codegraph_sci.core.project import open_project
+    from codegraph_sci.extract.registry import LanguagePackageError
+    from codegraph_sci.inventory.profile_io import load_profile
+    from codegraph_sci.scan import language_registry
+
+    project = open_project(args.root, args.project)
+    profile = load_profile(project.profile_path) if project.profile_path.is_file() else AnalysisProfile()
+    try:
+        registry = language_registry(project, profile)
+    except LanguagePackageError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps({"packages": [registry.packages[k].summary() for k in sorted(registry.packages)],
+                          "inactive": [{**i.package.summary(), "reason": i.reason} for i in registry.inactive]},
+                         indent=1, ensure_ascii=False))
+        return 0
+    print(f"{'Language':<16}{'Version':<10}{'Level':<10}{'Backend':<18}Extensions")
+    for lang, p in sorted(registry.packages.items()):
+        print(f"{lang:<16}{p.version:<10}{p.level:<10}{p.backend:<18}{' '.join(p.extensions)}")
+    for i in registry.inactive:
+        print(f"inactive: {i.package.language} ({i.package.level}, {i.package.path}): {i.reason}")
+    return 0
+
+
+def _cmd_rules(args: argparse.Namespace) -> int:
+    """Rule workflow: exit code 0 success, 1 invalid rule or failing tests, 2 usage error."""
+    from codegraph_sci.core.project import open_project
+    from codegraph_sci.rules import RuleWorkflowError, activate_rule, new_rule, run_rule_tests, validate_rule
+
+    try:
+        if args.action == "new":
+            if not args.root:
+                print("error: cgs rules new <kind> <name> <repository folder> [--project P]", file=sys.stderr)
+                return 2
+            path = new_rule(args.kind, args.name, open_project(args.root, args.project), extension=args.extension)
+            print(f"created {path} (proposed): edit it, then cgs rules test {path}")
+            return 0
+        path = Path(args.path)
+        if args.action == "validate":
+            check = validate_rule(path)
+            for error in check.errors:
+                print(f"error: {error}")
+            print(f"{check.kind or 'rule'} {check.name or path.name}: {'invalid' if check.errors else 'valid'}")
+            return 1 if check.errors else 0
+        if args.action == "test":
+            results = run_rule_tests(path)
+            for result in results:
+                print(f"[{'PASS' if result.passed else 'FAIL'}] {result.name}")
+                for detail in result.details:
+                    print(f"    {detail}")
+            if not results:
+                print("no test case declared: at least one is required before activation")
+            return 0 if results and all(r.passed for r in results) else 1
+        print(activate_rule(path))
+        return 0
+    except RuleWorkflowError as exc:
+        print(f"error: {exc}")
+        return 1
 
 
 def _cmd_audit_corpus(args: argparse.Namespace) -> int:
@@ -162,6 +242,12 @@ def _cmd_profile(args: argparse.Namespace) -> int:
         profile.ignored = [g for g in profile.ignored if g.ext != ext]
         profile.ignored.append(IgnoredGroup(ext, 0, args.reason or "ignored by the user"))
         change = f"extension {ext} ignored"
+    elif args.action == "inventory-policy":
+        if args.glob not in ("analysis", "complete"):
+            raise SystemExit("error: inventory-policy takes 'analysis' or 'complete'")
+        profile.inventory_policy = args.glob
+        change = ("excluded content recorded in the inventory (never analyzed)" if args.glob == "complete"
+                  else "excluded folders recorded without their content")
     elif args.action == "all-subfolders":
         if args.glob not in ("on", "off"):
             raise SystemExit("error: all-subfolders takes 'on' or 'off'")
@@ -202,6 +288,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--project", help="project folder (default: in the user data folder)")
     p.add_argument("--json", action="store_true", help="JSON output")
     p.add_argument("--no-write", action="store_true", help="do not write the analysis profile")
+    p.add_argument("--entries", action="store_true", help="JSON output: also list every discovered entry")
     p.set_defaults(func=_cmd_inventory)
 
     p = sub.add_parser("scan", help="analyse a repository (deterministic, reads only the analysis profile)")
@@ -214,6 +301,27 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--progress", choices=["text", "json"], default="text", help="progress format")
     p.set_defaults(func=_cmd_scan)
 
+    p = sub.add_parser("languages", help="list the language packages (built-in, user, project) and their selection")
+    p.add_argument("root", help="repository folder")
+    p.add_argument("--project", help="project folder (default: in the user data folder)")
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.set_defaults(func=_cmd_languages)
+
+    p = sub.add_parser("rules", help="create, validate, test and activate rules (guide: docs/rules/README.md)")
+    rules = p.add_subparsers(dest="action", metavar="ACTION", required=True)
+    q = rules.add_parser("new", help="create a rule from its template (proposed)")
+    q.add_argument("kind", choices=["language", "bridge", "project"])
+    q.add_argument("name", help="rule name: lower case letters, digits and _")
+    q.add_argument("root", nargs="?", help="repository folder")
+    q.add_argument("--project", help="project folder (default: in the user data folder)")
+    q.add_argument("--extension", help="language: file extension (default: .<name>)")
+    for action, text in (("validate", "check syntax, schema, pattern limits and test files"),
+                         ("test", "run the rule's test cases"),
+                         ("activate", "validate, test (all must pass), then approve")):
+        q = rules.add_parser(action, help=text)
+        q.add_argument("path", help="rule file (language.yaml, bridges/<name>.yaml, projects/<name>.yaml)")
+    p.set_defaults(func=_cmd_rules)
+
     p = sub.add_parser("benchmark", help="measure the analysis phases: cold, unchanged and changed rescans")
     p.add_argument("root", help="source folder (never modified)")
     p.add_argument("--project", help="project folder to use (default: a temporary one, removed afterwards)")
@@ -223,9 +331,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output", help="also write the JSON report to this file")
     p.set_defaults(func=_cmd_benchmark)
     p = sub.add_parser("profile", help="show or change the analysis profile")
-    p.add_argument("action", choices=["show", "set-language", "ignore", "all-subfolders"])
+    p.add_argument("action", choices=["show", "set-language", "ignore", "all-subfolders", "inventory-policy"])
     p.add_argument("root", help="repository folder")
-    p.add_argument("glob", nargs="?", default="", help="file glob (set-language), extension (ignore) or on/off (all-subfolders)")
+    p.add_argument("glob", nargs="?", default="",
+                   help="file glob (set-language), extension (ignore), on/off (all-subfolders) or "
+                        "analysis/complete (inventory-policy)")
     p.add_argument("language", nargs="?", default="", help="language (set-language)")
     p.add_argument("--project", help="project folder")
     p.add_argument("--reason", help="reason recorded in the profile")

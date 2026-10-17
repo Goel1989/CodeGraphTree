@@ -7,6 +7,7 @@ Every list is sorted in a stable way and paginated.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import os
@@ -18,14 +19,24 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from codegraph_sci.core.bridge_catalog import MECHANISMS, NATIVE_BRIDGES
+from codegraph_sci.core.graph import InventoryIssue, InventoryItem
 from codegraph_sci.core.model import CALL_PATH
 from codegraph_sci.core.plugins import decode_bytes
 from codegraph_sci.query.types import (
+    DEPENDENCY_LEVELS,
+    DEPENDENCY_SORTS,
     REFERENCE_CATEGORIES,
+    RELATIONSHIPS,
     CallerReport,
     CallSite,
     DataAccessView,
     DefaultRoots,
+    DependencyEvidence,
+    DependencyFilter,
+    DependencyGroup,
+    DependencyPage,
+    DependencyRow,
     Direction,
     FileLink,
     Graph3D,
@@ -35,6 +46,7 @@ from codegraph_sci.query.types import (
     GroupsReport,
     GroupSummary,
     ImpactReport,
+    InventoryAccounting,
     InventoryReport,
     LanguageLine,
     Level,
@@ -108,8 +120,138 @@ class GraphQuery:
         return self._summary(row)
 
     def _site(self, row: tuple[Any, ...]) -> CallSite:
+        evidence = site_evidence(stored=row[12], adapter=row[13], adapter_version=row[14], origin=row[6],
+                                 resolution=row[8], confidence=row[7], candidates=int(row[15] or 0))
         return CallSite(file=row[0], line=row[1], col=row[2], target_text=row[3], ref_kind=row[4], condition=row[5],
-                        origin=row[6], confidence=row[7], resolution=row[8], src=row[9], dst=row[10])
+                        origin=row[6], confidence=row[7], resolution=row[8], src=row[9], dst=row[10],
+                        evidence=evidence)
+
+    # ------------------------------------------------- dependency tables
+    def _dependency_where(self, f: DependencyFilter) -> tuple[str, list[Any]]:
+        where: list[str] = []
+        args: list[Any] = []
+        if f.text:
+            like = "%" + f.text.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+            where.append("(lower(caller) LIKE ? ESCAPE '\\' OR lower(target_text) LIKE ? ESCAPE '\\' "
+                         "OR lower(coalesce(target, '')) LIKE ? ESCAPE '\\' OR lower(caller_file) LIKE ? ESCAPE '\\')")
+            args += [like] * 4
+        for column, values in (("relationship", f.relationships), ("resolution", f.statuses)):
+            if values:
+                unknown = sorted(set(values) - set(RELATIONSHIPS if column == "relationship" else RESOLUTION_NAMES))
+                if unknown:
+                    raise QueryError(f"unknown {column}: {', '.join(unknown)}")
+                where.append(f"{column} IN ({','.join('?' * len(values))})")
+                args += list(values)
+        for column, value in (("caller_lang", f.language), ("caller", f.caller), ("target", f.target),
+                              ("caller_file", f.caller_file), ("target_file", f.target_file)):
+            if value is not None:
+                where.append(f"{column} = ?")
+                args.append(value)
+        for column, value in (("caller_file", f.path), ("rule", f.rule)):
+            if value:
+                where.append(f"substr({column}, 1, ?) = ?")
+                args += [len(value), value]
+        for column, value in (("caller_file", f.caller_dir), ("target_file", f.target_dir)):
+            if value is not None:
+                where.append(f"{_DIR.format(column)} = ?")
+                args.append(value)
+        return (" WHERE " + " AND ".join(where)) if where else "", args
+
+    def dependencies(self, filters: DependencyFilter | None = None, *, sort: str = "path", descending: bool = False,
+                     limit: int = 200, offset: int = 0) -> DependencyPage:
+        """One row per relationship occurrence (call sites and binding declarations), filtered, sorted and paged
+        by SQLite."""
+        if sort not in _DEPENDENCY_ORDER:
+            raise QueryError(f"unknown sort key {sort!r} (expected one of {', '.join(DEPENDENCY_SORTS)})")
+        where, args = self._dependency_where(filters or DependencyFilter())
+        direction = " DESC" if descending else ""
+        order = ", ".join(f"{c}{direction}" for c in _DEPENDENCY_ORDER[sort])
+        total = self.con.execute(f"{_DEPENDENCIES} SELECT count(*) FROM deps{where}", args).fetchone()[0]
+        rows = self.con.execute(f"{_DEPENDENCIES} SELECT {_DEP_COLUMNS} FROM deps{where} ORDER BY {order} "
+                                "LIMIT ? OFFSET ?", (*args, limit, offset)).fetchall()
+        ids = [r[0] for r in rows if r[0] is not None]
+        candidates: dict[int, list[str]] = defaultdict(list)
+        for start in range(0, len(ids), 500):
+            chunk = ids[start:start + 500]
+            for site_id, uid in self.con.execute(
+                    "SELECT c.site_id, n.uid FROM call_site_candidates c JOIN nodes n ON n.id = c.dst_node "
+                    f"WHERE c.site_id IN ({','.join('?' * len(chunk))}) ORDER BY n.uid", chunk):
+                candidates[site_id].append(uid)
+        out = [DependencyRow(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], candidates.get(r[0], []) if r[0] else [],
+                             r[8], r[9], r[10], r[11], r[12], r[13], r[14], r[15], r[16]) for r in rows]
+        return DependencyPage(total, offset, out)
+
+    def dependency_groups(self, level: str, filters: DependencyFilter | None = None, *, sort: str = "source",
+                          descending: bool = False, limit: int = 200, offset: int = 0) -> DependencyPage:
+        """Rows aggregated per (source, target, relationship) at the ``entity``, ``file`` or ``directory`` level,
+        each with its count, its statuses and the filter that lists its occurrences."""
+        if level not in DEPENDENCY_LEVELS:
+            raise QueryError(f"unknown level {level!r} (expected one of {', '.join(DEPENDENCY_LEVELS)})")
+        if sort not in ("source", "target", "relationship", "count"):
+            raise QueryError(f"unknown sort key {sort!r} (expected source, target, relationship or count)")
+        src, dst = {"entity": ("caller", "target"), "file": ("caller_file", "target_file"),
+                    "directory": (_DIR.format("caller_file"), f"CASE WHEN target_file IS NULL THEN NULL ELSE "
+                                                             f"{_DIR.format('target_file')} END")}[level]
+        where, args = self._dependency_where(filters or DependencyFilter())
+        statuses = ", ".join(f"sum(resolution = '{r}')" for r in RESOLUTION_NAMES)
+        grouped = (f"{_DEPENDENCIES} SELECT {src} AS g_src, {dst} AS g_dst, relationship, count(*) AS n, {statuses} "
+                   f"FROM deps{where} GROUP BY g_src, g_dst, relationship")
+        total = self.con.execute(f"SELECT count(*) FROM ({grouped})", args).fetchone()[0]
+        direction = " DESC" if descending else ""
+        order = {"source": "g_src", "target": "g_dst", "relationship": "relationship", "count": "n"}[sort]
+        rows = self.con.execute(f"{grouped} ORDER BY {order}{direction}, g_src, g_dst, relationship LIMIT ? OFFSET ?",
+                                (*args, limit, offset)).fetchall()
+        base = filters or DependencyFilter()
+        out = []
+        for g_src, g_dst, relationship, n, *counts in rows:
+            keys: dict[str, Any] = {"relationships": (relationship,)}
+            if level == "entity":
+                keys.update(caller=g_src, target=g_dst)
+            elif level == "file":
+                keys.update(caller_file=g_src, target_file=g_dst)
+            else:
+                keys.update(caller_dir=g_src, target_dir=g_dst)
+            occurrences = dataclasses.replace(base, **keys)
+            if g_dst is None:  # no resolved target: an exact NULL cannot be filtered, list them by status instead
+                occurrences = dataclasses.replace(occurrences, target=None, target_file=None, target_dir=None,
+                                                  statuses=tuple(r for r in RESOLUTION_NAMES if r != "resolved"
+                                                                 and r != "out_of_scope"))
+            out.append(DependencyGroup(level, g_src, g_dst, relationship, n,
+                                       {r: int(c or 0) for r, c in zip(RESOLUTION_NAMES, counts, strict=True) if c},
+                                       occurrences))
+        return DependencyPage(total, offset, out)
+
+    def dependency_evidence(self, row: DependencyRow, context: int = 3) -> DependencyEvidence:
+        """The source lines around a row and its evidence (extraction rule, resolution rule, reason…)."""
+        if row.site_id is not None:
+            site = self.con.execute(self._SITE_COLS + "WHERE s.id = ?", (row.site_id,)).fetchone()
+            evidence = self._site(site).evidence if site is not None else {}
+        else:
+            adapter = self.con.execute("SELECT adapter, adapter_version FROM files WHERE path = ?",
+                                       (row.caller_file,)).fetchone()
+            evidence = {"extraction": (f"{adapter[0] if ':' in (adapter[0] or ':') else 'native:' + adapter[0]}"
+                                       f"@{adapter[1]}") if adapter and adapter[0] else None,
+                        "resolution_rule": row.rule, "candidate_selection": "single target",
+                        "reason": "binding declaration matched by a declaration pattern of a bridge rule"}
+        start = max(1, row.line - context)
+        excerpt = self.source(f"file:{row.caller_file}", start, row.line + context)
+        return DependencyEvidence(row, evidence, excerpt)
+
+    def bridges(self) -> list[dict[str, Any]]:
+        """Bridges used by the last analysis: native ones with their declaration (``core.bridge_catalog``), and
+        rule bridges with their identifier and version."""
+        out: list[dict[str, Any]] = []
+        for name, kind, version in self.con.execute(
+                "SELECT name, type, version FROM plugins WHERE type IN ('bridge', 'bridge_rule') ORDER BY type, name"):
+            spec = next((b for b in NATIVE_BRIDGES if b.id == name), None) if kind == "bridge" else None
+            entry: dict[str, Any] = {"id": name, "type": kind, "version": version}
+            if spec is not None:
+                entry.update(source_languages=list(spec.source_languages), target_languages=list(spec.target_languages),
+                             mechanisms={m: MECHANISMS[m].evidence for m in spec.mechanisms},
+                             matching=spec.matching, transform=spec.transform, constraints=spec.constraints,
+                             candidates=spec.candidates, description=spec.description)
+            out.append(entry)
+        return out
 
     @property
     def root(self) -> Path | None:
@@ -133,12 +275,43 @@ class GraphQuery:
         langs = [LanguageLine(lang, sum(st.values()), lines[lang], adapters.get(lang), dict(sorted(st.items())))
                  for lang, st in sorted(counts.items())]
         unknown: dict[str, int] = defaultdict(int)
-        for (path,) in self.con.execute("SELECT f.path FROM inventory i JOIN files f ON f.id = i.file_id "
-                                        "WHERE i.lang IS NULL"):
-            name = path.rsplit("/", 1)[-1]
-            unknown[name[name.rfind("."):].lower() if "." in name[1:] else "(none)"] += 1
+        for (ext,) in self.con.execute("SELECT extension FROM inventory_entries WHERE kind = 'file' "
+                                       "AND reason = 'unknown language'"):
+            unknown[(ext or "").lower() or "(none)"] += 1
         total = self.con.execute("SELECT count(*) FROM files").fetchone()[0]
         return InventoryReport(langs, dict(sorted(unknown.items())), total)
+
+    def inventory_entries(self, parent: str | None = None, *, eligibility: str | None = None,
+                          kind: str | None = None, limit: int = 1000, offset: int = 0) -> list[InventoryItem]:
+        """Discovered entries sorted by path, optionally those directly in ``parent`` ("." for the root)."""
+        where, args = [], []
+        for column, value in (("parent", parent), ("eligibility", eligibility), ("kind", kind)):
+            if value is not None:
+                where.append(f"{column} = ?")
+                args.append(value)
+        sql = ("SELECT path, parent, kind, extension, size, files, lang, variant, confidence, evidence, eligibility, "
+               "status, reason, link_target FROM inventory_entries"
+               + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY path LIMIT ? OFFSET ?")
+        return [InventoryItem(*row) for row in self.con.execute(sql, (*args, limit, offset))]
+
+    def inventory_issues(self) -> list[InventoryIssue]:
+        """Discovery problems of the last analysis: unreadable entries, link loops, broken or external links."""
+        return [InventoryIssue(*row) for row in self.con.execute(
+            "SELECT path, kind, message FROM inventory_issues ORDER BY path, kind, message")]
+
+    def inventory_accounting(self) -> InventoryAccounting:
+        """How every discovered entry was handled: counts by kind, eligibility, status and reason."""
+        def counts(column: str) -> dict[str, int]:
+            return {str(k): int(n) for k, n in self.con.execute(
+                f"SELECT {column}, count(*) FROM inventory_entries WHERE {column} IS NOT NULL "  # noqa: S608
+                f"GROUP BY {column} ORDER BY {column}")}
+
+        row = self.con.execute("SELECT stats FROM scan_runs ORDER BY id DESC LIMIT 1").fetchone()
+        policy = str((json.loads(row[0] or "{}") if row else {}).get("inventory_policy", "analysis"))
+        total = self.con.execute("SELECT count(*) FROM inventory_entries").fetchone()[0]
+        issues = self.con.execute("SELECT count(*) FROM inventory_issues").fetchone()[0]
+        return InventoryAccounting(policy, total, counts("kind"), counts("eligibility"), counts("status"),
+                                   counts("reason"), issues)
 
     def files(self) -> list[dict[str, Any]]:
         """Every file with its language, status, number of routines and of linked files (explorer)."""
@@ -230,7 +403,9 @@ class GraphQuery:
 
     # ---------------------------------------------------- callers/callees
     _SITE_COLS = ("SELECT f.path, s.line, s.col, s.target_text, s.ref_kind, c.expr, s.origin, s.confidence, "
-                  "s.resolution, src.uid, dst.uid, s.id FROM call_sites s JOIN files f ON f.id = s.file_id "
+                  "s.resolution, src.uid, dst.uid, s.id, s.evidence, f.adapter, f.adapter_version, "
+                  "(SELECT count(*) FROM call_site_candidates k WHERE k.site_id = s.id) "
+                  "FROM call_sites s JOIN files f ON f.id = s.file_id "
                   "JOIN nodes src ON src.id = s.src_node LEFT JOIN nodes dst ON dst.id = s.dst_node "
                   "LEFT JOIN conditions c ON c.id = s.condition_id ")
 
@@ -940,7 +1115,7 @@ class GraphQuery:
                 break
         if mode == "both":
             self._files_layer(nodes, links, add_node)
-        return _finish3d(start, mode, nodes, links, truncated=truncated, hidden_noise=hidden)
+        return self._finish(start, mode, nodes, links, truncated=truncated, hidden_noise=hidden)
 
     def _files_layer(self, nodes: dict[str, Graph3DNode], links: dict[tuple[str, str, str], Graph3DLink],
                      add_node: Callable[[str], bool]) -> None:
@@ -992,7 +1167,7 @@ class GraphQuery:
             add_node(path.steps[0].uid)
         if mode == "both":
             self._files_layer(nodes, links, add_node)
-        graph = _finish3d(root, mode, nodes, links, truncated=report.truncated)
+        graph = self._finish(root, mode, nodes, links, truncated=report.truncated)
         return graph, report
 
     def _node3d(self, uid: str, is_root: bool) -> Graph3DNode:
@@ -1143,7 +1318,7 @@ class GraphQuery:
         if include_noncode and level is Level.FILE:
             for n in self._noncode_nodes():
                 nodes[n.id] = n
-        return _finish3d("", mode, nodes, links, hidden_noise=report.hidden_noise)
+        return self._finish("", mode, nodes, links, hidden_noise=report.hidden_noise)
 
     def _links_among(self, level: Level, nodes: dict[str, Graph3DNode],
                      links: dict[tuple[str, str, str], Graph3DLink]) -> None:
@@ -1164,6 +1339,61 @@ class GraphQuery:
             if a in nodes and b in nodes and a != b:
                 links[(a, b, kind)] = Graph3DLink(a, b, kind, int(count), str(conf))
 
+    def _finish(self, root: str, mode: str, nodes: dict[str, Graph3DNode],
+                links: dict[tuple[str, str, str], Graph3DLink], **kwargs: Any) -> Graph3D:
+        """``_finish3d`` plus what needs the database: definitions outside the analysis scope."""
+        graph = _finish3d(root, mode, nodes, links, **kwargs)
+        ids = [n.id for n in graph.nodes if ":" in n.id and not n.id.startswith(("file:", "dir:", "group:", "more:",
+                                                                                    "isolated:", "noncode:"))]
+        out: set[str] = set()
+        for start in range(0, len(ids), 500):
+            chunk = ids[start:start + 500]
+            out |= {u for (u,) in self.con.execute(
+                f"SELECT uid FROM nodes WHERE in_scope = 0 AND uid IN ({','.join('?' * len(chunk))})", chunk)}
+        for node in graph.nodes:
+            node.in_scope = node.id not in out
+        for link in graph.links:
+            if link.target in out and link.status == "resolved":
+                link.status = "out_of_scope"
+        graph.level = "file" if mode == "files" else "entity"
+        return graph
+
+    def graph3d_directories(self, *, max_nodes: int = 300) -> Graph3D:
+        """Directory level (D34): one node per folder holding analyzed files, links aggregated between folders."""
+        counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        for path, lang in self.con.execute("SELECT path, lang FROM files"):
+            counts[posixpath.dirname(path) or "."][lang or "-"] += 1
+        ranked = sorted(counts, key=lambda d: (-sum(counts[d].values()), d))
+        kept = ranked[:max_nodes]
+        nodes: dict[str, Graph3DNode] = {}
+        for d in kept:
+            langs = counts[d]
+            lang = max(sorted(langs), key=lambda k: langs[k])
+            size = sum(langs.values())
+            nodes[f"dir:{d}"] = Graph3DNode(f"dir:{d}", d.rsplit("/", 1)[-1] if d != "." else ".", "directory",
+                                            None if lang == "-" else lang, None, None, 0, 0, size=size,
+                                            note=", ".join(f"{k} {v}" for k, v in sorted(langs.items())),
+                                            group=posixpath.dirname(d) or "." if d != "." else "")
+        links: dict[tuple[str, str, str], Graph3DLink] = {}
+        for a, b, kind, count in self.con.execute("SELECT src_dir, dst_dir, kind, count FROM dir_edges"):
+            src, dst = f"dir:{a}", f"dir:{b}"
+            if src in nodes and dst in nodes and src != dst:
+                links[(src, dst, kind)] = Graph3DLink(src, dst, kind, int(count), "exact", cross_dir=True)
+                nodes[src].fan_out += 1
+                nodes[dst].fan_in += 1
+        graph = _finish3d("", "directories", nodes, links, truncated=len(ranked) > max_nodes)
+        graph.level = "directory"
+        return graph
+
+    @staticmethod
+    def link_evidence(source: str, target: str) -> DependencyFilter:
+        """Filter of the dependency rows behind a drawn link (D34): the table and the graph open the same evidence."""
+        if source.startswith("dir:") and target.startswith("dir:"):
+            return DependencyFilter(caller_dir=source[4:], target_dir=target[4:])
+        if source.startswith("file:") and target.startswith("file:"):
+            return DependencyFilter(caller_file=source[5:], target_file=target[5:])
+        return DependencyFilter(caller=source, target=target)
+
     def graph3d_group(self, group_id: str, *, mode: str = "functions", max_nodes: int = 300,
                       hide_noise: bool = True) -> Graph3D:
         """Content of one overview node: a group (all its links), the isolated members, or the next groups."""
@@ -1174,13 +1404,13 @@ class GraphQuery:
         if group_id.startswith("isolated:"):
             report = self.groups(level, hide_noise=hide_noise)
             iso_nodes = {u: self._node3d(u, False) for u in report.isolated[:max_nodes]}
-            return _finish3d(group_id, mode, iso_nodes, {}, truncated=len(report.isolated) > max_nodes,
+            return self._finish(group_id, mode, iso_nodes, {}, truncated=len(report.isolated) > max_nodes,
                              hidden_noise=report.hidden_noise)
         if group_id.startswith("more:"):
             report = self.groups(level, hide_noise=hide_noise)
             start = int(group_id.rsplit(":", 1)[1])
             more_nodes = {n.id: n for n in self._spheres(report, start, max_nodes, unit)}
-            return _finish3d(group_id, mode, more_nodes, {}, hidden_noise=report.hidden_noise)
+            return self._finish(group_id, mode, more_nodes, {}, hidden_noise=report.hidden_noise)
         raise QueryError(f"unknown group: {group_id}")
 
     def non_code_files(self) -> NonCodeReport:
@@ -1202,13 +1432,94 @@ class GraphQuery:
         return out
 
 
+RESOLUTION_NAMES = ("resolved", "ambiguous", "external", "out_of_scope", "unresolved")
+# Directory of a path column ("." at the root): everything before the last "/".
+_DIR = ("CASE WHEN instr({0}, '/') = 0 THEN '.' ELSE "
+        "substr({0}, 1, length(rtrim({0}, replace({0}, '/', ''))) - 1) END")
+_RELATIONSHIP = ("CASE WHEN s.origin LIKE 'bridge:pybind11%' OR s.origin LIKE 'bridge:python_extension%' "
+                 "THEN 'binding' "
+                 "WHEN s.origin LIKE 'bridge:%' AND s.ref_kind IN ('call', 'maybe_call', 'dynamic_call') THEN 'bridge' "
+                 "WHEN s.ref_kind IN ('call', 'maybe_call') THEN 'call' "
+                 "WHEN s.ref_kind = 'dynamic_call' THEN 'dynamic_call' WHEN s.ref_kind = 'use' THEN 'import' "
+                 "WHEN s.ref_kind = 'include' THEN 'include' WHEN s.ref_kind = 'inherit' THEN 'inherit' "
+                 "WHEN s.ref_kind = 'bind' THEN 'binding' ELSE s.ref_kind END")
+# Every relationship occurrence: call sites, and binding declarations (``binds`` edges without call site).
+_DEPENDENCIES = (
+    "WITH deps AS ("
+    "SELECT s.id AS site_id, src.uid AS caller, src.display_name AS caller_name, f.path AS caller_file, "
+    "f.lang AS caller_lang, s.target_text AS target_text, dst.uid AS target, dst.display_name AS target_name, "
+    f"tf.path AS target_file, tf.lang AS target_lang, {_RELATIONSHIP} AS relationship, s.line AS line, s.col AS col, "
+    "s.resolution AS resolution, s.confidence AS confidence, s.origin AS rule, c.expr AS condition, "
+    "s.file_id AS file_order "
+    "FROM call_sites s JOIN nodes src ON src.id = s.src_node JOIN files f ON f.id = s.file_id "
+    "LEFT JOIN nodes dst ON dst.id = s.dst_node LEFT JOIN files tf ON tf.id = dst.file_id "
+    "LEFT JOIN conditions c ON c.id = s.condition_id "
+    "UNION ALL "
+    "SELECT NULL, src.uid, src.display_name, f.path, f.lang, src.display_name, dst.uid, dst.display_name, tf.path, "
+    "tf.lang, 'binding_declaration', coalesce(src.line_start, 1), 1, 'resolved', e.min_confidence, "
+    "coalesce(json_extract(e.origins, '$[0]'), 'rule'), NULL, f.id "
+    "FROM edges e JOIN nodes src ON src.id = e.src JOIN nodes dst ON dst.id = e.dst "
+    "JOIN files f ON f.id = src.file_id LEFT JOIN files tf ON tf.id = dst.file_id "
+    "WHERE e.kind = 'binds' AND e.site_count = 0 AND src.kind = 'binding')")
+_DEP_COLUMNS = ("site_id, caller, caller_name, caller_file, caller_lang, target_text, target, target_name, "
+                "target_file, target_lang, relationship, line, col, resolution, confidence, rule, condition")
+_DEPENDENCY_ORDER = {
+    "path": ("file_order", "line", "col", "caller", "target_text"),
+    "line": ("line", "file_order", "col", "caller", "target_text"),
+    "caller": ("caller", "file_order", "line", "col", "target_text"),
+    "target": ("coalesce(target, target_text)", "file_order", "line", "col", "caller"),
+    "relationship": ("relationship", "file_order", "line", "col", "caller"),
+    "status": ("resolution", "file_order", "line", "col", "caller"),
+    "language": ("caller_lang", "file_order", "line", "col", "caller"),
+    "rule": ("rule", "file_order", "line", "col", "caller"),
+}
+
+_REASONS = {
+    ("resolved", "exact"): "single definition found by the language's name lookup",
+    ("resolved", "resolved"): "target selected by a language rule (scope, signature, import or variant)",
+    ("resolved", "heuristic"): "heuristic match (dynamic call, keyword language or name only)",
+    ("out_of_scope", None): "target found outside the analysis scope",
+    ("external", None): "known external library or module",
+    ("ambiguous", None): "several possible targets; none was chosen",
+    ("unresolved", None): "no target found",
+}
+
+
+def site_evidence(*, stored: str | None, adapter: str | None, adapter_version: str | None, origin: str,
+                  resolution: str, confidence: str, candidates: int) -> dict[str, Any]:
+    """Evidence of a call site: the extraction rule (adapter and version of the file), the resolution rule
+    (origin), how the candidate was selected, the reason, and what a bridge recorded."""
+    name = adapter if adapter is None or ":" in adapter else f"native:{adapter}"  # keyword adapters: keywords:<l>
+    out: dict[str, Any] = {"extraction": f"{name}@{adapter_version}" if name else None,
+                           "resolution_rule": origin,
+                           "candidate_selection": (f"{candidates} candidates kept" if candidates
+                                                   else "single target" if resolution in ("resolved", "out_of_scope")
+                                                   else "none"),
+                           "reason": _REASONS.get((resolution, confidence)) or _REASONS.get((resolution, None), "")}
+    if stored:
+        recorded = json.loads(stored)
+        out.update(recorded)
+        out["resolution_rule"] = origin
+        if candidates and recorded.get("candidate_selection") == "keep_ambiguous":
+            out["candidate_selection"] = "keep_ambiguous"
+    return out
+
+
 def _finish3d(root: str, mode: str, nodes: dict[str, Graph3DNode], links: dict[tuple[str, str, str], Graph3DLink],
               *, truncated: bool = False, hidden_noise: int = 0) -> Graph3D:
-    """Sorted graph; links between two folders are marked ``cross_dir``."""
+    """Sorted graph; links between two folders are marked ``cross_dir``; nodes get their folder as ``group``; links
+    get a status (external target, ambiguous, or resolved)."""
+    for node in nodes.values():
+        if node.file and not node.group:
+            node.group = posixpath.dirname(node.file) or "."
     for link in links.values():
         a, b = nodes.get(link.source), nodes.get(link.target)
         if a is not None and b is not None and a.file and b.file and link.kind != "defines":
             link.cross_dir = posixpath.dirname(a.file) != posixpath.dirname(b.file)
+        if b is not None and b.kind == "external":
+            link.status = "external"
+        elif link.confidence == "ambiguous":
+            link.status = "ambiguous"
     return Graph3D(root=root, mode=mode, nodes=sorted(nodes.values(), key=lambda n: n.id),
                    links=sorted(links.values(), key=lambda lk: (lk.source, lk.target, lk.kind)),
                    truncated=truncated, hidden_noise=hidden_noise)

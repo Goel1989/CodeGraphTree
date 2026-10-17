@@ -1,0 +1,24 @@
+# Built-in language package (requirements plan phase 3): the native C++ adapter behind the package contract.
+package_format: 1
+language: cpp
+version: "1.0"
+description: C++, with the C preprocessor; .C and .H are C++ (case-sensitive).
+extensions: [".cc", ".cpp", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h++", ".ipp", ".tpp", ".txx", ".C", ".H"]
+backend: native:cpp
+naming:
+  case_sensitive: true
+  qualification: signature
+  description: "cpp:<namespace>::<class>::<name>(<parameter types>)."
+relationships: [calls, includes, inherits, binds]
+resolution:
+  confidence: exact
+  capabilities: [names, nested_scopes, includes, overloads, types, preprocessor]
+limitations:
+  - "Overloads are resolved by arity and literal argument types; other calls to overloaded names stay ambiguous."
+  - "Virtual dispatch and template instantiation are not modeled beyond the statically named target."
+tests:
+  - {source: "tests/fixtures/cpp_basic", expected: "tests/fixtures/cpp_basic/expected_graph.json"}
+  - {source: "tests/fixtures/cpp_overloads", expected: "tests/fixtures/cpp_overloads/expected_graph.json"}
+provenance:
+  source: builtin
+  notes: "Fixtures live in the source repository; they are not shipped in the installed package."

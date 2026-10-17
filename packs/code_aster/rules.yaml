@@ -46,3 +46,7 @@ bridges:
 tests:
   - { kind: regression_case, glob: "astest/*.comm", uses_entry_points: true, coverage: optional }
 glossary: glossary_code_aster.md
+# Validation like any project pack (cgs rules test packs/code_aster/rules.yaml): a fictional miniature written for
+# the pack, following the conventions above; the real corpus is validated by cgs audit corpus (tests/corpus/).
+validation:
+  - { repo: tests/conventions, expected: tests/conventions.expected.json }

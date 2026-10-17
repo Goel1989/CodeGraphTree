@@ -267,3 +267,10 @@ Remove the prefix `bridges` entry from the pack and run the completion loop. Exp
 - **C/C++ → Fortran bridges:** `CALL_X` / `CALLO_X` macros are `#define`s in `bibc/include/aster_fort_*.h` expanding to `F_FUNC(X, x)` → `x_`; Fortran-callable C functions are declared via `DEFS…(X, x, …)`. Generic C macro expansion in the core plus the `fortran_c` bridge handle v17 directly; the prefix rule remains in the pack for builds without headers.
 - **`mmalgo`** was replaced in v17; the starter corpus expectation uses `mmbouc` (contact loop).
 - **`libaster`:** pybind11 module defined by `PYBIND11_MODULE(libaster, mod)` in `bibcxx/PythonBindings/LibAster.cxx`.
+
+## Validation of the pack (phase 10)
+
+Like any project pack, `packs/code_aster/rules.yaml` declares a `validation` repository: a fictional miniature
+written for the pack (no Code_Aster source) that follows the conventions it describes (a `CALLO_` bridge with a
+look-alike negative case, `te0000` dispatch, a command catalog entry). Run `cgs rules test
+packs/code_aster/rules.yaml`. The real code base is validated separately with `cgs audit corpus` (`tests/corpus/`).
