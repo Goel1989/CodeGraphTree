@@ -239,7 +239,7 @@ subprocesses, and pipes. cgs scan never calls AI.
 
 - **Main process:** Qt interface. Never reads source files for analysis and never executes long queries itself.
 - **Query threads:** each query (callers, expand, search) runs in a Qt threadpool thread, with its own read-only SQLite connection, returning results via signals.
-- **Analysis process:** interface spawns `cgs inventory` then `cgs scan` (same CLI executable) as subprocesses, reads progress (one JSON line per event), and can cancel them. A parser crash cannot crash the UI; a file exceeding its timeout is flagged as failed, and analysis proceeds.
+- **Analysis process:** interface spawns `cgs inventory` then `cgs scan` (same CLI executable) as subprocesses, reads progress (one JSON line per event), and can cancel them. A parser crash cannot crash the UI; a file exceeding its deadline is stored with `parse_status = timeout` (only that file: its worker process is killed and replaced, the other files continue), and analysis proceeds.
 - **AI process:** dedicated subprocess loading the model; communicates via stdin/stdout (one JSON message per line). **No network ports**, even internally. Never called by `cgs scan`.
 - **Project files:** analysis profile (`analysis_profile.yaml`, adopted rules) and SQLite database.
 
@@ -311,7 +311,7 @@ history:
 | Step | Input | Output | Where | Properties |
 | :--- | :--- | :--- | :--- | :--- |
 | **Inventory** | Repository | Language of each file, include paths, coverage report | `inventory/` | Deterministic; < 1 min |
-| **Extract** | One file + language + included files | *Facts*: definitions with local symbols, unresolved call sites, data accesses, directives, includes | `extract/` (one adapter per language, or keyword adapter) | Per file, in parallel, with timeout; cache (§3.6) |
+| **Extract** | One file + language + included files | *Facts*: definitions with local symbols, unresolved call sites, data accesses, directives, includes — **FULL** for files in the analysis scope, **OUTLINE** (definitions and includes only) for the others | `extract/` (one adapter per language, or keyword adapter) | Per file, in worker processes (`extract_pool.py`), **one deadline per file**; cache keyed by file, includes, adapter version, parameters and extraction mode (§3.6) |
 | **Link** | All facts | Resolved, ambiguous, external, out-of-scope, or unresolved call sites; nodes | `link/` (symbol table + bridges) | Global; normalizes names (casing, mangling) |
 | **Enrich** | Graph | Hiding, data accesses, dispatches, entry points, tests | `enrich/` (packs) | Declarative frozen rules |
 | **Index** | Enriched graph | Aggregated edges, counts, file/directory links, impact size, full-text search | `store/`, `algo/` | Standard Python algorithms (§3.6) |
@@ -451,7 +451,7 @@ class LanguageAdapter(Protocol):
     version: str
     languages: list[str]           # inventory languages it can read
     def extract(self, file: SourceFile, ctx: ExtractContext) -> FileFacts: ...
-        # ctx: include paths, macros, timeout, names known as arrays
+        # ctx: include paths, macros, timeout, names known as arrays, outline (definitions and includes only)
 
 class Bridge(Protocol):
     name: str                      # "pybind11", "fortran_c", "prefix_calls", ...
@@ -1086,6 +1086,18 @@ packs: [<pack_name>]
 scope: ["<subdirectories analyzed in detail>"]   # rest of repo is indexed (definitions only)
 ```
 
+**The manifest is authoritative** (`cgs audit corpus`, `codegraph_sci/corpus_audit.py`): the analysis profile of the
+audit is rebuilt from the inventory of the sources and the manifest (scope, packs) — never taken from a user profile;
+every required pack must load; when the sources are a Git checkout, the requested revision must be the commit or one
+of its tags. The report (`--json`) records the SHA-256 of the manifest, the expectations and the audit profile, the
+source revision (requested, commit, tags, verified), the tool version and the adapter and pack versions.
+
+**Expectation states.** Each expectation ends `PASS`, `FAIL` or `SKIP`. Every expectation is required unless it says
+`required: false`; a required expectation that cannot be evaluated (unsupported kind, query error) is a `FAIL` with its
+reason; only an optional one may be `SKIP`. Exit codes: `0` every required expectation PASS, `1` a required FAIL, `2`
+configuration error (manifest, expectations, sources, revision, packs), `3` internal audit error — never `0` when the
+required validation did not run.
+
 ```yaml
 # tests/corpus/<code>_start/expectations.yaml — fictional example
 inventory:
@@ -1209,6 +1221,7 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 | D16 | Graph algorithms written in-house (iterative Tarjan, bitsets); NetworkX removed |
 | D17 | Fortran parser chosen via comparative benchmark on real files, among permissive candidates; fxtran (GPL-3.0) excluded from default distribution |
 | D18 | *(Lot 4)* Main Fortran parser: **in-house logical statement analyzer** (fixed and free form, continuations, preprocessor branches preserved, exact positions). Benchmark on fixtures (`docs/bench/fortran_parsers.md`): only candidate with 100% recall and precision; tree-sitter-fortran fails on fixed form (text past col 72, `C`/`*` comments) and loses `#ifdef` branches; fparser fails on 4/23 files and is 25x slower; LFortran not evaluated (binary missing). Fallback and dual extraction: independent pattern extractor. **To confirm on real sample files from test case #1** (`python tools/bench_fortran.py <folder>`) |
+| D25 | *(Engine reliability, corrective audit P1)* (1) **FULL / OUTLINE extraction**: out-of-scope files are extracted for their definitions and includes only (the Fortran parser skips executable statements except SELECT CASE, whose values feed pack dispatch rules); the extraction mode is part of the facts (`extraction_mode`) and of the cache key, and an OUTLINE result is never reused as FULL. (2) **Per-file deadlines** in worker processes (`extract_pool.py`): a late file kills only its own worker and is stored as `timeout`; extraction never runs without a deadline unless `timeout_s <= 0` is requested explicitly. Cost: about 0.6 s of worker start-up per analysis. (3) **Corpus audit**: PASS/FAIL/SKIP, exit codes 0/1/2/3, authoritative manifest and provenance |
 | D24 | *(Single product)* CodeGraph-Sci is **one product, one source tree, one feature set**. The former `codegraph_sci_pro` package is merged: the local AI is `codegraph_sci.ai` (commands in `cli_ai.py`), domain packs are data in `packs/` at the root of the repository or of the portable folder (outside the core, rule 7). Free versus commercial use is a **licensing** distinction (community non-commercial license and separate commercial license), never a technical feature gate: no license key, no activation, no telemetry. Supersedes the Pro separation of Lot 16 |
 | D23 | *(Whole-project view)* The 3D graphs open on an overview of everything: all nodes and links when they fit under the node ceiling, otherwise one sphere per connected group (separate or parallel programs), so that C4 still holds on large codes. Groups are computed at query time (fast enough, no schema change); non-code files come from the inventory and are stored in the scan statistics; links between folders are flagged |
 | D22 | *(UI look)* Dark & orange theme (`ui/theme.py`: palette, style sheet, icons painted with QPainter, no image file) and a frameless shell (`ui/shell.py`: title bar, resize margins, popovers, hero card) replacing the toolbar, menu and docks. Window move and resize go through the platform (`startSystemMove` / `startSystemResize`) |

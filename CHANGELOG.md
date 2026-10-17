@@ -152,3 +152,10 @@
 - `docs/strategie_licence.md` becomes `docs/licensing_strategy.md` v2.0: Free/Pro/Enterprise feature tiers and the Ed25519 license-key system are withdrawn (D24); legal review checklist.
 - The portable folder's `licenses/` now receives `LICENSE`, `NOTICE`, `LICENSING.md`, `COMMERCIAL_LICENSE.md` and `THIRD_PARTY_NOTICES.md`.
 
+## Engine reliability (decision D25, corrective audit phase 3)
+- `cgs audit corpus`: expectations end PASS, FAIL or SKIP (`required: false` for optional ones); exit codes 0 (all required PASS), 1 (a required FAIL), 2 (configuration: manifest, expectations, sources, revision, packs), 3 (internal error); never 0 when validation did not run.
+- The manifest is authoritative: the audit profile is rebuilt from the inventory and the manifest, required packs must load, the Git revision is verified; the report (`--json`) records manifest, expectations and audit-profile hashes, source revision, tool, adapter and pack versions.
+- Per-file extraction deadlines in worker processes (`extract_pool.py`): a stuck file kills only its own worker and is stored with `parse_status = timeout`; extraction used to run without any deadline for small analyses or `jobs=1`. Workers now honour `keep_all_branches`.
+- FULL / OUTLINE extraction: out-of-scope files keep only definitions and includes; the mode is part of the facts and of the cache key. Code_Aster: identical definitions on 3,000 sampled Fortran files, 39% less parsing time for them.
+- Fix: a backspace character had replaced `\b` in the Fortran END SELECT pattern since lot 12, so nested SELECT CASE values could be attributed to the wrong selector (Fortran adapter 1.6). New test: no control character in project sources.
+- Code_Aster 17.5.7 re-validated with the new audit: exit code 0, 16 PASS / 0 FAIL / 0 SKIP, revision verified; graph identical (47,161 call edges); full re-extraction of 18,438 files in 91 s (803 s for the previous full analysis on the same machine; the shares of OUTLINE, worker processes and machine load were not isolated).
