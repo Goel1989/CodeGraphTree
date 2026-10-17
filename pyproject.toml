@@ -30,9 +30,6 @@ dev = [
 [project.scripts]
 cgs = "codegraph_sci.cli:main"
 
-[project.entry-points."codegraph_sci.commands"]
-pro = "codegraph_sci_pro.cli:register"
-
 [project.gui-scripts]
 codegraph-sci = "codegraph_sci.ui.app:main"
 
@@ -63,7 +60,7 @@ ignore = ["E501"]
 python_version = "3.12"
 strict = true
 mypy_path = "src"
-packages = ["codegraph_sci", "codegraph_sci_pro"]
+packages = ["codegraph_sci"]
 exclude = ["codegraph_sci/ui/"]
 
 [[tool.mypy.overrides]]
@@ -81,7 +78,7 @@ source_modules = ["codegraph_sci.core"]
 forbidden_modules = [
     "codegraph_sci.algo", "codegraph_sci.inventory", "codegraph_sci.extract", "codegraph_sci.link",
     "codegraph_sci.enrich", "codegraph_sci.store", "codegraph_sci.query", "codegraph_sci.layout",
-    "codegraph_sci.audit", "codegraph_sci.scan", "codegraph_sci.cli", "codegraph_sci.ui",
+    "codegraph_sci.audit", "codegraph_sci.scan", "codegraph_sci.cli", "codegraph_sci.ui", "codegraph_sci.ai",
 ]
 
 [[tool.importlinter.contracts]]
@@ -93,7 +90,7 @@ source_modules = [
 ]
 forbidden_modules = [
     "codegraph_sci.query", "codegraph_sci.audit", "codegraph_sci.scan", "codegraph_sci.cli",
-    "codegraph_sci.ui",
+    "codegraph_sci.ui", "codegraph_sci.ai",
 ]
 
 [[tool.importlinter.contracts]]
@@ -111,7 +108,7 @@ source_modules = ["codegraph_sci.query"]
 forbidden_modules = [
     "codegraph_sci.inventory", "codegraph_sci.extract", "codegraph_sci.link", "codegraph_sci.enrich",
     "codegraph_sci.layout", "codegraph_sci.audit", "codegraph_sci.scan", "codegraph_sci.cli",
-    "codegraph_sci.ui",
+    "codegraph_sci.ui", "codegraph_sci.ai",
 ]
 
 [[tool.importlinter.contracts]]
@@ -122,4 +119,11 @@ source_modules = ["codegraph_sci.ui"]
 forbidden_modules = [
     "codegraph_sci.extract", "codegraph_sci.link", "codegraph_sci.enrich", "codegraph_sci.store",
     "codegraph_sci.algo", "codegraph_sci.audit", "codegraph_sci.scan", "codegraph_sci.inventory",
+    "codegraph_sci.ai",
 ]
+
+[[tool.importlinter.contracts]]
+name = "the analysis never uses the AI (rule 8)"
+type = "forbidden"
+source_modules = ["codegraph_sci.scan", "codegraph_sci.audit"]
+forbidden_modules = ["codegraph_sci.ai", "codegraph_sci.cli_ai"]

@@ -1,4 +1,7 @@
-"""Commands of the Pro extension, added to ``cgs`` through the ``codegraph_sci.commands`` entry point."""
+"""AI commands of ``cgs`` (local model only): ``ai-worker``, ``complete``, ``ai-approve``.
+
+The analysis itself (``cgs scan``) never imports this module nor ``codegraph_sci.ai``.
+"""
 
 from __future__ import annotations
 
@@ -10,16 +13,16 @@ from typing import Any
 
 
 def _ai_worker(args: argparse.Namespace) -> int:
-    from codegraph_sci_pro.ai.models import load_model
-    from codegraph_sci_pro.ai.worker import serve
+    from codegraph_sci.ai.models import load_model
+    from codegraph_sci.ai.worker import serve
 
     return serve(load_model(args.model))
 
 
 def _complete(args: argparse.Namespace) -> int:
+    from codegraph_sci.ai.complete import Completion
+    from codegraph_sci.ai.worker import AIClient
     from codegraph_sci.core.project import open_project
-    from codegraph_sci_pro.ai.complete import Completion
-    from codegraph_sci_pro.ai.worker import AIClient
 
     project = open_project(args.root, args.project)
     client = AIClient(args.model, in_process=args.in_process)
@@ -40,8 +43,8 @@ def _complete(args: argparse.Namespace) -> int:
 
 
 def _approve(args: argparse.Namespace) -> int:
+    from codegraph_sci.ai.complete import set_rule_status
     from codegraph_sci.core.project import open_project
-    from codegraph_sci_pro.ai.complete import set_rule_status
 
     set_rule_status(open_project(args.root, args.project), args.id, "rejected" if args.reject else "approved")
     print(f"{args.id}: {'rejected' if args.reject else 'approved'} (run `cgs scan` to apply)")

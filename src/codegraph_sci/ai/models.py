@@ -1,4 +1,4 @@
-"""Language models for the local AI (Pro). Every answer is a JSON object constrained by a schema.
+"""Language models for the local AI. Every answer is a JSON object constrained by a schema.
 
 * ``FakeModel``: recorded answers (tests and CI, deterministic, no model file);
 * ``LlamaModel``: a GGUF model run on CPU by ``llama-cpp-python`` (temperature 0, fixed seed),

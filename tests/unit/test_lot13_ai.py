@@ -7,12 +7,12 @@ from pathlib import Path
 
 from tests.helpers import FIXTURES, graph_diff, load_expected
 
+from codegraph_sci.ai.complete import Completion, set_rule_status
+from codegraph_sci.ai.worker import AIClient
 from codegraph_sci.core.project import open_project
 from codegraph_sci.inventory.profile_io import load_profile
 from codegraph_sci.scan import ScanOptions, scan
 from codegraph_sci.store.export import export_dict, export_json
-from codegraph_sci_pro.ai.complete import Completion, set_rule_status
-from codegraph_sci_pro.ai.worker import AIClient
 
 AI = Path(__file__).parents[1] / "ai"
 GOOD = f"fake:{AI / 'responses.json'}"
@@ -110,6 +110,6 @@ def test_worker_process_and_scan_never_runs_ai(tmp_path: Path) -> None:
     code = ("import sys; from pathlib import Path; from codegraph_sci.core.project import open_project;"
             "from codegraph_sci.scan import scan; "
             f"scan(open_project(Path(r'{FIXTURES / 'fortran_basic' / 'src'}'), Path(r'{tmp_path / 'p'}')));"
-            "print(any(m.startswith('codegraph_sci_pro') for m in sys.modules))")
+            "print(any(m.startswith('codegraph_sci.ai') for m in sys.modules))")
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
     assert out.stdout.strip() == "False"

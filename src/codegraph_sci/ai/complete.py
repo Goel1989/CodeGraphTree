@@ -16,6 +16,7 @@ from typing import Any
 
 import yaml
 
+from codegraph_sci.ai.worker import AIClient
 from codegraph_sci.core.facts import FileFacts, SourceFile, decode_facts
 from codegraph_sci.core.plugins import ExtractContext, decode_bytes
 from codegraph_sci.core.profile import FileOverride, HistoryEntry, LanguageEntry, RuleRef
@@ -28,7 +29,6 @@ from codegraph_sci.link.linker import Linker
 from codegraph_sci.query.api import GraphQuery, site_pattern
 from codegraph_sci.scan import ScanOptions, in_scope, load_bridge_rules, native_adapters, scan
 from codegraph_sci.store.cache import load_cache
-from codegraph_sci_pro.ai.worker import AIClient
 
 NATIVE = ("fortran", "python", "c", "cpp")
 IDENTIFY_SCHEMA: dict[str, Any] = {

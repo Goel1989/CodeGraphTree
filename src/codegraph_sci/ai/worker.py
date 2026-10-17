@@ -11,7 +11,7 @@ import subprocess
 import sys
 from typing import Any, TextIO
 
-from codegraph_sci_pro.ai.models import Model, ModelError, load_model, validated
+from codegraph_sci.ai.models import Model, ModelError, load_model, validated
 
 
 def serve(model: Model, stdin: TextIO = sys.stdin, stdout: TextIO = sys.stdout) -> int:
