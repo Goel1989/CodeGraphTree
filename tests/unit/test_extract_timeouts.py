@@ -6,9 +6,10 @@ import shutil
 import time
 from pathlib import Path
 
+import pytest
 from tests.helpers import FIXTURES
 
-from codegraph_sci.extract_pool import TIMEOUT_PREFIX, run_tasks
+from codegraph_sci.extract_pool import TIMEOUT_PREFIX, WorkerStartError, run_tasks
 
 
 def job(path: str, kind: str, _variant: str | None) -> tuple[str, bytes | None, str | None]:
@@ -80,3 +81,32 @@ def test_scan_records_timeout_status_and_continues(tmp_path: Path) -> None:
         assert q.resolve("main")  # the other files were analysed
     assert status["solve.f90"] == "timeout" and status["main.f90"] == "ok"
     assert health.files_by_status.get("timeout") == 1
+
+
+def timed_job(path: str, delay: float) -> tuple[str, bytes | None, str | None]:
+    time.sleep(delay)
+    return path, b"ok", None
+
+
+def test_late_result_is_not_accepted_when_parent_is_busy() -> None:
+    done = {}
+
+    def on_done(path, blob, error):
+        done[path] = (blob, error)
+        if path == "fast":
+            time.sleep(0.6)
+
+    run_tasks([("fast", 0.05), ("late", 0.4)], workers=2, timeout_s=0.3,
+              job=timed_job, on_done=on_done)
+    assert done["fast"] == (b"ok", None)
+    assert done["late"][0] is None and done["late"][1].startswith(TIMEOUT_PREFIX)
+
+
+def bad_init() -> None:
+    raise ValueError("cannot initialize adapter")
+
+
+def test_initializer_failure_does_not_respawn_forever() -> None:
+    with pytest.raises(WorkerStartError):
+        run_tasks([("a", 0.0)], workers=1, timeout_s=1, job=timed_job,
+                  init=bad_init, on_done=lambda *_: None)

@@ -141,6 +141,8 @@ def write_full(db_path: Path | str, bundle: GraphBundle,
         con.commit()
         con.execute("ANALYZE")
         con.commit()
+        if progress is not None:
+            progress("commit")  # last cancellation checkpoint before publishing the temporary database
     except BaseException:
         con.close()
         tmp.unlink(missing_ok=True)
@@ -168,6 +170,8 @@ def write_incremental(db_path: Path | str, bundle: GraphBundle,
             for table in DATA_TABLES:
                 con.execute(f"DELETE FROM {table}")  # noqa: S608 - fixed table names
             _fill(con, bundle, progress)
+            if progress is not None:
+                progress("commit")  # still inside the rollback boundary
             con.execute("COMMIT")
         except BaseException:
             con.execute("ROLLBACK")

@@ -5,13 +5,14 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
 
 from codegraph_sci.core.project import open_project
 from codegraph_sci.inventory.profile_io import load_profile, save_profile
-from codegraph_sci.scan import ScanOptions, scan
+from codegraph_sci.scan import ScanCancelled, ScanOptions, scan
 from codegraph_sci.store.export import export_dict, export_json
 
 
@@ -108,3 +109,56 @@ def test_incompatible_and_damaged_facts_are_cache_misses() -> None:
     old["format_version"] = 1
     assert get_facts({"old": zlib.compress(json.dumps(old).encode())}, "old") is None
     assert get_facts({"damaged": b"invalid"}, "damaged") is None
+
+
+def _blocked(path: str, lang: str, variant: str | None, mode: str):
+    time.sleep(3600)
+
+
+@pytest.mark.parametrize("stage", ["extract", "write"])
+@pytest.mark.parametrize("full", [False, True])
+def test_cancellation_preserves_committed_database(tmp_path: Path, stage: str, full: bool) -> None:
+    import multiprocessing
+
+    project = _project(tmp_path, {"a.py": "def hello(): pass\n"})
+    scan(project, ScanOptions(jobs=1))
+    before = project.db_path.read_bytes()
+    (project.root / "a.py").write_text("def changed(): pass\n", encoding="utf-8")
+    started = None
+
+    def progress(event):
+        nonlocal started
+        if event["event"] == stage:
+            started = time.monotonic()
+
+    def cancelled():
+        return started is not None and (stage == "write" or time.monotonic() - started > 2)
+
+    with pytest.raises(ScanCancelled):
+        scan(project, ScanOptions(jobs=1, full=full, cancel=cancelled,
+                                  extract_job=_blocked if stage == "extract" else None), progress)
+    assert project.db_path.read_bytes() == before
+    assert not multiprocessing.active_children()
+
+
+@pytest.mark.parametrize("timeout", [0.0, -1.0, float("nan"), float("inf")])
+def test_scan_requires_finite_positive_deadline(tmp_path: Path, timeout: float) -> None:
+    project = _project(tmp_path, {"a.py": "pass\n"})
+    with pytest.raises(ValueError, match="timeout"):
+        scan(project, ScanOptions(timeout_s=timeout))
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "nan", "inf", "abc"])
+def test_cli_rejects_a_deadline_that_is_not_finite_and_positive(
+        tmp_path: Path, value: str, capsys: pytest.CaptureFixture[str]) -> None:
+    from codegraph_sci.cli import main
+    from codegraph_sci.core import netguard
+
+    project = _project(tmp_path, {"a.py": "pass\n"})
+    try:
+        with pytest.raises(SystemExit) as exc:
+            main(["scan", str(project.root), "--project", str(project.folder), "--timeout", value])
+    finally:
+        netguard.uninstall()
+    assert exc.value.code == 2  # argparse usage error, no traceback
+    assert "finite number of seconds greater than zero" in capsys.readouterr().err

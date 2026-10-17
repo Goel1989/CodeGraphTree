@@ -9,6 +9,7 @@ completion order; callers sort what they keep (determinism).
 
 from __future__ import annotations
 
+import math
 import multiprocessing as mp
 import time
 from collections import deque
@@ -34,7 +35,7 @@ class Task:
     started_at: float = 0.0
     deadline: float = 0.0
     pid: int | None = None
-    status: str = "pending"  # pending, running, done, timeout, crashed
+    status: str = "pending"  # pending, assigned, running, done, timeout, crashed
     finished_at: float = 0.0
 
 
@@ -51,11 +52,12 @@ def _worker_main(conn: Connection, init: Callable[..., None] | None, init_args: 
         if message is None:
             break
         task_id, args = message
+        conn.send(("started", (task_id, time.perf_counter())))
         try:
             result = job(*args)
         except Exception as exc:  # noqa: BLE001 - an extractor bug fails its file, never the pool
             result = (args[0], None, f"{type(exc).__name__}: {exc}")
-        conn.send((task_id, result))
+        conn.send((task_id, (time.perf_counter(), result)))
 
 
 @dataclass
@@ -74,6 +76,10 @@ def run_tasks(jobs: Sequence[tuple[Any, ...]], *, workers: int, timeout_s: float
 
     ``check`` is called regularly and may raise to cancel (the workers are then stopped).
     """
+    if not math.isfinite(timeout_s) or timeout_s <= 0:
+        raise ValueError("timeout_s must be finite and greater than zero")
+    if not jobs:
+        return []
     ctx = mp.get_context("spawn")
     pending: deque[Task] = deque(Task(i, str(args[0]), tuple(args)) for i, args in enumerate(jobs))
     tasks = list(pending)
@@ -87,10 +93,10 @@ def run_tasks(jobs: Sequence[tuple[Any, ...]], *, workers: int, timeout_s: float
         return _Worker(process, parent, spawned_at=time.perf_counter())
 
     def assign(worker: _Worker) -> None:
-        if pending and worker.ready:
+        if pending and worker.ready and worker.task is None:
             task = pending.popleft()
-            now = time.perf_counter()
-            task.started_at, task.deadline, task.pid, task.status = now, now + timeout_s, worker.process.pid, "running"
+            task.deadline = time.perf_counter() + STARTUP_TIMEOUT_S
+            task.pid, task.status = worker.process.pid, "assigned"
             worker.task = task
             worker.conn.send((task.task_id, task.args))
 
@@ -124,11 +130,23 @@ def run_tasks(jobs: Sequence[tuple[Any, ...]], *, workers: int, timeout_s: float
                         tag, payload = None, None
                     if tag == "ready":
                         worker.ready = True
+                    elif tag == "started" and task is not None and payload[0] == task.task_id:
+                        task.started_at = payload[1]
+                        task.deadline = task.started_at + timeout_s
+                        task.status = "running"
                     elif task is not None and tag == task.task_id:
-                        task.status, task.finished_at = "done", time.perf_counter()
+                        task.finished_at, result = payload
+                        late = task.finished_at > task.deadline
+                        task.status = "timeout" if late else "done"
                         worker.task = None
-                        on_done(*payload)
+                        if late:
+                            on_done(task.path, None, f"{TIMEOUT_PREFIX} {timeout_s:g} s")
+                            replace(worker)
+                            continue
+                        on_done(*result)
                     elif tag is None:  # the worker died while answering
+                        if not worker.ready:
+                            raise WorkerStartError("extraction worker failed during initialization")
                         if task is not None:
                             task.status, task.finished_at = "crashed", time.perf_counter()
                             on_done(task.path, None, "worker process ended unexpectedly")
@@ -136,11 +154,15 @@ def run_tasks(jobs: Sequence[tuple[Any, ...]], *, workers: int, timeout_s: float
                         continue
                     assign(worker)
                 elif not worker.process.is_alive():
+                    if not worker.ready:
+                        raise WorkerStartError("extraction worker failed during initialization")
                     if task is not None:
                         task.status, task.finished_at = "crashed", time.perf_counter()
                         on_done(task.path, None, "worker process ended unexpectedly")
                     replace(worker)
                 elif task is not None and time.perf_counter() >= task.deadline:
+                    if task.status == "assigned":
+                        raise WorkerStartError("extraction worker did not acknowledge its task")
                     task.status, task.finished_at = "timeout", time.perf_counter()
                     on_done(task.path, None, f"{TIMEOUT_PREFIX} {timeout_s:g} s")
                     replace(worker)  # only this worker: the other tasks continue
@@ -156,6 +178,7 @@ def run_tasks(jobs: Sequence[tuple[Any, ...]], *, workers: int, timeout_s: float
                     worker.conn.send(None)
             except (OSError, ValueError):
                 pass
-            worker.process.join(1)
+            if worker.task is None:
+                worker.process.join(1)
             stop(worker)
     return tasks

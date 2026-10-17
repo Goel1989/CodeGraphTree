@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import errno
 import json
+import math
 import os
 import sys
 from collections.abc import Sequence
@@ -177,6 +178,17 @@ def _cmd_profile(args: argparse.Namespace) -> int:
     return 0
 
 
+def _deadline(text: str) -> float:
+    """Per-file extraction deadline: a finite number of seconds greater than zero (rule 12)."""
+    try:
+        value = float(text)
+    except ValueError:
+        value = float("nan")
+    if not math.isfinite(value) or value <= 0:
+        raise argparse.ArgumentTypeError(f"{text!r}: a finite number of seconds greater than zero is required")
+    return value
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cgs", description="CodeGraph-Sci command line.")
     parser.add_argument("--version", action="version", version=f"CodeGraph-Sci {APP_VERSION}")
@@ -196,7 +208,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("root", help="repository folder")
     p.add_argument("--project", help="project folder (default: in the user data folder)")
     p.add_argument("--jobs", type=int, default=0, help="worker processes (default: cores - 1)")
-    p.add_argument("--timeout", type=float, default=60.0, help="time limit per file, in seconds")
+    p.add_argument("--timeout", type=_deadline, default=60.0,
+                   help="deadline per file, in seconds (finite, greater than zero; rule 12)")
     p.add_argument("--full", action="store_true", help="ignore the facts cache")
     p.add_argument("--progress", choices=["text", "json"], default="text", help="progress format")
     p.set_defaults(func=_cmd_scan)

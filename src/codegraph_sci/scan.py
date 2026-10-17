@@ -1,13 +1,14 @@
 """``cgs scan``: deterministic pipeline Inventory -> Extract -> Link -> Index -> store (§3.3).
 
 The scan reads only the analysis profile; it never calls the AI. Extraction runs file by file
-(in worker processes for large repositories), each file with a time limit; a failure is recorded
+(in worker processes), each file with a time limit; a failure is recorded
 and never blocks the analysis. Facts are cached (key: file + included files + adapter + parameters).
 """
 
 from __future__ import annotations
 
 import dataclasses
+import math
 import os
 import posixpath
 import subprocess
@@ -109,7 +110,7 @@ class ScanCancelled(Exception):
 @dataclass
 class ScanOptions:
     jobs: int = max(1, (os.cpu_count() or 2) - 1)
-    timeout_s: float = 60.0  # deadline of each file (rule 12); <= 0 extracts in-process, without deadline
+    timeout_s: float = 60.0  # finite, positive deadline of each file (rule 12)
     full: bool = False  # ignore the cache
     extra_known_arrays: set[str] = field(default_factory=set)
     cancel: Callable[[], bool] | None = None
@@ -239,6 +240,8 @@ def _failed_facts(path: str, lang: str, message: str) -> FileFacts:
 # ------------------------------------------------------------------- scan
 def scan(project: Project, options: ScanOptions | None = None, progress: Progress | None = None) -> ScanResult:
     options = options or ScanOptions()
+    if not math.isfinite(options.timeout_s) or options.timeout_s <= 0:
+        raise ValueError("timeout_s must be finite and greater than zero")
     say = progress or (lambda _e: None)
     started = datetime.now(UTC).isoformat(timespec="seconds")
     t0 = time.perf_counter()
@@ -371,22 +374,13 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
     say({"event": "extract", "done": 0, "total": total, "cached": reused})
     init_args = (str(root), profile.include_paths, dict(profile.preprocessor.defines), sorted(known_arrays), py_paths,
                  kw_paths, profile.preprocessor.keep_all_branches)
-    if options.timeout_s > 0:
-        # Worker processes, one deadline per file: a stuck file never blocks or fails the others.
-        tasks = run_tasks(to_extract, workers=options.jobs, timeout_s=options.timeout_s, on_done=on_done,
-                          job=options.extract_job or _extract_job, init=_worker_init, init_args=init_args,
-                          check=check_cancel)
-        for task in tasks:
-            if task.finished_at:
-                task_ms[str(task.args[3])] += (task.finished_at - task.started_at) * 1000
-    else:  # explicit opt-out (debugging): in-process, no deadline
-        _WORKER.clear()
-        _worker_init(*init_args)
-        for path, lang, variant, mode in to_extract:
-            check_cancel()
-            start = time.perf_counter()
-            on_done(*(options.extract_job or _extract_job)(path, lang, variant, mode))
-            task_ms[mode] += (time.perf_counter() - start) * 1000
+    # Worker processes, one deadline per file: a stuck file never blocks or fails the others.
+    tasks = run_tasks(to_extract, workers=options.jobs, timeout_s=options.timeout_s, on_done=on_done,
+                      job=options.extract_job or _extract_job, init=_worker_init, init_args=init_args,
+                      check=check_cancel)
+    for task in tasks:
+        if task.finished_at and task.started_at:
+            task_ms[str(task.args[3])] += (task.finished_at - task.started_at) * 1000
     for path, _lang, _variant, _mode in to_extract:
         if path not in errors and path in facts_by_path:
             keys[path] = key_for(facts_by_path[path], shas[path], lang_of[path])
@@ -501,11 +495,12 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
                                     [{"name": p.name, "type": p.type, "version": p.version} for p in bundle.plugins],
                                     {**stats, "app_version": APP_VERSION})
     say({"event": "write"})
+    check_cancel()
     project.folder.mkdir(parents=True, exist_ok=True)
     if project.db_path.exists() and not options.full:
-        write_incremental(project.db_path, bundle)
+        write_incremental(project.db_path, bundle, progress=lambda _phase: check_cancel())
     else:
-        write_full(project.db_path, bundle)
+        write_full(project.db_path, bundle, progress=lambda _phase: check_cancel())
     lap("sqlite_write_ms")  # after the database is written: in the result and the progress, not in scan_runs
     stats["phases_ms"] = {**phases_ms, "sqlite_write_ms": round(phases["sqlite_write_ms"], 1),
                           "total_ms": round((time.perf_counter() - t0) * 1000, 1)}
