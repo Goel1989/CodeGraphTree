@@ -311,3 +311,18 @@ class NonCodeReport:
     counts: dict[str, int]
     files: list[NonCodeFile]  # at most NON_CODE_LIMIT, sorted by category then path
     truncated: bool = False
+
+
+REFERENCE_CATEGORIES = ("external_known", "out_of_scope", "ambiguous", "dynamic", "parser_limitation", "unknown")
+
+
+@dataclass
+class ReferenceCategories:
+    """Every reference site that is not resolved to a routine of the analysis scope, in exactly one category."""
+
+    counts: dict[str, int]  # category -> sites (REFERENCE_CATEGORIES, all present)
+    by_kind: dict[str, dict[str, int]]  # category -> ref_kind -> sites
+    examples: dict[str, list[str]]  # category -> up to 5 "file:line target" (sorted)
+    call_sites_total: int  # every call-like site (call, maybe_call, dynamic_call), resolved or not
+    references_total: int  # every reference site (calls, uses, includes, inheritance)
+

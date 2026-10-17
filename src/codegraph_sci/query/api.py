@@ -21,6 +21,7 @@ from typing import Any
 from codegraph_sci.core.model import CALL_PATH
 from codegraph_sci.core.plugins import decode_bytes
 from codegraph_sci.query.types import (
+    REFERENCE_CATEGORIES,
     CallerReport,
     CallSite,
     DataAccessView,
@@ -47,6 +48,7 @@ from codegraph_sci.query.types import (
     Page,
     PathReport,
     PathStep,
+    ReferenceCategories,
     ScanHealth,
     SiteGroup,
     SourceExcerpt,
@@ -496,6 +498,55 @@ class GraphQuery:
                for (lang, res, pattern), items in groups.items()]
         out.sort(key=lambda g: (-g.count, g.lang, g.pattern))
         return out[:limit]
+
+    def reference_categories(self) -> ReferenceCategories:
+        """Non-resolved reference sites by category (corrective audit §10), first matching rule wins:
+
+        ``external_known`` resolved to a recognised external symbol (C library, MPI, BLAS/LAPACK, HDF5, intrinsics,
+        C++ standard library, Python standard library); ``out_of_scope`` defined outside the analysis scope;
+        ``ambiguous`` several candidates; ``dynamic`` dynamic call (procedure pointer, dummy procedure) or Python
+        attribute call whose target is only known at run time; ``parser_limitation`` site of a file analysed by the
+        fallback extractor; ``unknown`` everything else, including imports and includes not found and Python modules
+        outside the standard library (assumed third-party, not verified). No site is left out; the resolution stored
+        for each site is unchanged.
+        """
+        import sys
+
+        stdlib = set(sys.stdlib_module_names)
+        rows = self.con.execute(
+            "SELECT s.resolution, s.ref_kind, s.target_text, f.path, f.lang, f.parse_status, s.line, d.uid "
+            "FROM call_sites s LEFT JOIN files f ON f.id = s.file_id LEFT JOIN nodes d ON d.id = s.dst_node "
+            "WHERE s.resolution != 'resolved'").fetchall()
+        counts = dict.fromkeys(REFERENCE_CATEGORIES, 0)
+        by_kind: dict[str, dict[str, int]] = {c: {} for c in REFERENCE_CATEGORIES}
+        examples: dict[str, list[str]] = {c: [] for c in REFERENCE_CATEGORIES}
+        for resolution, kind, target, path, lang, status, line, dst in rows:
+            python_attribute = lang == "python" and kind == "call" and "." in str(target)
+            if resolution == "external" and dst is None:
+                cat = "dynamic" if python_attribute else "unknown"
+            elif resolution == "external" and str(dst).startswith("ext:python:"):
+                root_module = str(dst)[len("ext:python:"):].split(".", 1)[0]
+                cat = "external_known" if root_module in stdlib else "unknown"
+            elif resolution == "external":
+                cat = "external_known"
+            elif resolution == "out_of_scope":
+                cat = "out_of_scope"
+            elif resolution == "ambiguous":
+                cat = "ambiguous"
+            elif kind == "dynamic_call" or python_attribute:
+                cat = "dynamic"
+            elif status in ("fallback", "failed"):
+                cat = "parser_limitation"
+            else:
+                cat = "unknown"
+            counts[cat] += 1
+            by_kind[cat][kind] = by_kind[cat].get(kind, 0) + 1
+            examples[cat].append(f"{path}:{line} {target}")
+        kinds = ",".join(f"'{k}'" for k in CALL_REFS)
+        calls = self.con.execute(f"SELECT count(*) FROM call_sites WHERE ref_kind IN ({kinds})").fetchone()[0]
+        refs = self.con.execute("SELECT count(*) FROM call_sites").fetchone()[0]
+        return ReferenceCategories(counts, {c: dict(sorted(k.items())) for c, k in by_kind.items()},
+                                   {c: sorted(e)[:5] for c, e in examples.items()}, int(calls), int(refs))
 
     def scan_health(self) -> ScanHealth:
         files = dict(self.con.execute("SELECT parse_status, count(*) FROM files GROUP BY parse_status").fetchall())

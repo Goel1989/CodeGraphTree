@@ -189,12 +189,16 @@ def cmd_unresolved(args: argparse.Namespace) -> int:
 def cmd_health(args: argparse.Namespace) -> int:
     with GraphQuery(_db(args)) as q:
         health = q.scan_health()
+        categories = q.reference_categories()
     if args.json:
-        _json(health)
+        _json({**dataclasses.asdict(health), "reference_categories": dataclasses.asdict(categories)})
         return 0
     print("Files: " + ", ".join(f"{k} {v}" for k, v in health.files_by_status.items()))
     print("Call sites: " + ", ".join(f"{k} {v}" for k, v in health.sites_by_resolution.items()))
     print(f"Unresolved rate: {health.unresolved_rate:.2%}   ambiguous sites: {health.ambiguous}")
+    total = categories.references_total
+    print("Non-resolved references by category (every one counted once): " + ", ".join(
+        f"{name} {n} ({n / total:.1%})" if total else f"{name} {n}" for name, n in categories.counts.items()))
     last = health.last_scan
     if last:
         print(f"Last analysis: {last['finished_at']}  profile v{last['profile_version']}  "

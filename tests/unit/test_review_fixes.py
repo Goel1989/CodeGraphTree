@@ -172,3 +172,19 @@ end subroutine disp
 """
     facts = extract_fortran("d.f90", text, "utf-8", "free", ExtractContext())
     assert facts.definitions[0].attrs["select_cases"] == {"i": ["1", "2"], "j": ["10"]}
+
+
+def test_reference_categories_cover_every_non_resolved_site(tmp_path: Path) -> None:
+    """Corrective audit §10: one category per non-resolved site, never hidden to improve a metric."""
+    py = "import missing_lib\n\n\ndef run(obj):\n    obj.compute()\n    missing_lib.go()\n"
+    db = _scan(tmp_path, {"m.f90": GENERIC_SAME_NAME, "app/run.py": py})
+    with GraphQuery(db) as q:
+        cats = q.reference_categories()
+        total = q.con.execute("SELECT count(*) FROM call_sites WHERE resolution != 'resolved'").fetchone()[0]
+    counts = cats.counts
+    assert sum(counts.values()) == total
+    assert set(counts) == {"external_known", "out_of_scope", "ambiguous", "dynamic", "parser_limitation", "unknown"}
+    assert counts["external_known"] >= 2  # system_clock, char (Fortran intrinsics)
+    assert counts["dynamic"] == 1  # obj.compute(): attribute call on an object known only at run time
+    assert counts["unknown"] >= 3  # call nowhere(t); import missing_lib and missing_lib.go(): not verifiable
+    assert cats.examples["unknown"] and cats.call_sites_total > 0

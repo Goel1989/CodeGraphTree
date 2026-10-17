@@ -84,12 +84,12 @@ def run_tasks(jobs: Sequence[tuple[Any, ...]], *, workers: int, timeout_s: float
         process = ctx.Process(target=_worker_main, args=(child, init, init_args, job), daemon=True)
         process.start()
         child.close()
-        return _Worker(process, parent, spawned_at=time.monotonic())
+        return _Worker(process, parent, spawned_at=time.perf_counter())
 
     def assign(worker: _Worker) -> None:
         if pending and worker.ready:
             task = pending.popleft()
-            now = time.monotonic()
+            now = time.perf_counter()
             task.started_at, task.deadline, task.pid, task.status = now, now + timeout_s, worker.process.pid, "running"
             worker.task = task
             worker.conn.send((task.task_id, task.args))
@@ -110,7 +110,7 @@ def run_tasks(jobs: Sequence[tuple[Any, ...]], *, workers: int, timeout_s: float
         while pending or any(w.task is not None for w in pool):
             if check is not None:
                 check()
-            now = time.monotonic()
+            now = time.perf_counter()
             limits = [w.task.deadline for w in pool if w.task is not None]
             limits += [w.spawned_at + STARTUP_TIMEOUT_S for w in pool if not w.ready]
             delay = max(0.0, min([POLL_S] + [t - now for t in limits]))
@@ -125,26 +125,26 @@ def run_tasks(jobs: Sequence[tuple[Any, ...]], *, workers: int, timeout_s: float
                     if tag == "ready":
                         worker.ready = True
                     elif task is not None and tag == task.task_id:
-                        task.status, task.finished_at = "done", time.monotonic()
+                        task.status, task.finished_at = "done", time.perf_counter()
                         worker.task = None
                         on_done(*payload)
                     elif tag is None:  # the worker died while answering
                         if task is not None:
-                            task.status, task.finished_at = "crashed", time.monotonic()
+                            task.status, task.finished_at = "crashed", time.perf_counter()
                             on_done(task.path, None, "worker process ended unexpectedly")
                         replace(worker)
                         continue
                     assign(worker)
                 elif not worker.process.is_alive():
                     if task is not None:
-                        task.status, task.finished_at = "crashed", time.monotonic()
+                        task.status, task.finished_at = "crashed", time.perf_counter()
                         on_done(task.path, None, "worker process ended unexpectedly")
                     replace(worker)
-                elif task is not None and time.monotonic() >= task.deadline:
-                    task.status, task.finished_at = "timeout", time.monotonic()
+                elif task is not None and time.perf_counter() >= task.deadline:
+                    task.status, task.finished_at = "timeout", time.perf_counter()
                     on_done(task.path, None, f"{TIMEOUT_PREFIX} {timeout_s:g} s")
                     replace(worker)  # only this worker: the other tasks continue
-                elif not worker.ready and time.monotonic() >= worker.spawned_at + STARTUP_TIMEOUT_S:
+                elif not worker.ready and time.perf_counter() >= worker.spawned_at + STARTUP_TIMEOUT_S:
                     raise WorkerStartError(f"extraction worker did not start within {STARTUP_TIMEOUT_S:g} s")
             for worker in pool:
                 if worker.task is None:
