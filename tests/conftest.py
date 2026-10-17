@@ -17,6 +17,22 @@ except ImportError:  # pragma: no cover - PySide6 without QtWebEngine
     pass
 
 FIXTURES = Path(__file__).parent / "fixtures"
+# Everything a test run writes stays inside this folder (gitignored): temporary folders and the Hypothesis database.
+ARTIFACTS = Path(__file__).parent / ".artifacts"
+
+try:  # Hypothesis home: example database and constants cache (otherwise ``.hypothesis`` in the current folder)
+    from hypothesis.configuration import set_hypothesis_home_dir
+
+    set_hypothesis_home_dir(ARTIFACTS / "hypothesis")
+except ImportError:  # pragma: no cover - Hypothesis is a development dependency
+    pass
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_configure(config: pytest.Config) -> None:
+    """Temporary folders go under ``tests/.artifacts/tmp`` unless ``--basetemp`` is given explicitly."""
+    if config.option.basetemp is None:
+        config.option.basetemp = str(ARTIFACTS / "tmp")
 
 
 @pytest.fixture(autouse=True)

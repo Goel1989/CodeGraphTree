@@ -109,8 +109,8 @@ def test_keyword_coverage_is_measured(tmp_path: Path) -> None:
 def test_isolation_no_pack_identifier_in_core() -> None:
     """§6.4: identifiers declared by code packs never appear in the core."""
     identifiers: set[str] = set()
-    for rules in list((ROOT / "packs").rglob("rules.yaml")) + list(
-            (ROOT / "tests").rglob("packs/*/rules.yaml")):
+    for rules in list((ROOT / "packs").rglob("rules.yaml")) + [
+            p for p in (ROOT / "tests").rglob("packs/*/rules.yaml") if ".artifacts" not in p.parts]:
         identifiers |= set(load_pack_file(rules).identifiers)
     identifiers |= {"jeveux", "jemarq", "jedema", "utmess", "CALLO_", "code_aster", "zk24", "mmalgo"}
     core = ROOT / "src" / "codegraph_sci"

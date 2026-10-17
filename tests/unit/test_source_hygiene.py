@@ -13,7 +13,7 @@ def test_no_control_characters_in_sources() -> None:
     for folder in ("src", "tests", "tools", "packs"):
         for path in (ROOT / folder).rglob("*"):
             if path.suffix not in (".py", ".yaml", ".json", ".sql", ".js", ".html", ".md", ".toml") or \
-                    "vendor" in path.parts or "fixtures" in path.parts:
+                    "vendor" in path.parts or "fixtures" in path.parts or ".artifacts" in path.parts:
                 continue
             for number, line in enumerate(path.read_bytes().split(b"\n"), start=1):
                 if any(b < 32 and b not in ALLOWED for b in line):

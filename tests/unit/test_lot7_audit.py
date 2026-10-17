@@ -133,3 +133,58 @@ def test_cli_audit_report(hybrid_db: tuple[Path, Path], capsys: pytest.CaptureFi
         netguard.uninstall()
     out = capsys.readouterr().out
     assert "definitions_recall" in out and "V1 criteria" in out
+
+
+@pytest.fixture()
+def flaky_replace(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Path.replace refused (Windows "access denied") on the first calls; returns the call counter."""
+    import codegraph_sci.audit.sample as sample
+
+    calls = [0]
+    real = Path.replace
+
+    def replace(self: Path, target: Path) -> Path:
+        calls[0] += 1
+        if calls[0] <= sample.REPLACE_ATTEMPTS - 1:
+            raise PermissionError(13, "access denied")
+        return real(self, target)
+
+    monkeypatch.setattr(Path, "replace", replace)
+    monkeypatch.setattr(sample.time, "sleep", lambda _s: None)
+    return calls
+
+
+def test_save_sheet_retries_a_replace_refused_by_another_process(tmp_path: Path, flaky_replace: list[int],
+                                                                monkeypatch: pytest.MonkeyPatch) -> None:
+    """Non-regression: a scanner (antivirus, indexer) briefly holding the sheet made the full suite fail on Windows."""
+    import codegraph_sci.audit.sample as sample
+
+    monkeypatch.setattr(sample, "RETRY_REPLACE", True)
+    path = tmp_path / "precision.yaml"
+    save_sheet(path, {"sheet_version": 1, "items": []})
+    assert flaky_replace[0] == sample.REPLACE_ATTEMPTS
+    assert load_sheet(path) == {"sheet_version": 1, "items": []}
+    assert not path.with_name(path.name + ".tmp").exists()
+
+
+def test_save_sheet_gives_up_after_the_attempts_and_never_retries_elsewhere(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import codegraph_sci.audit.sample as sample
+
+    calls = [0]
+
+    def refuse(self: Path, target: Path) -> Path:
+        calls[0] += 1
+        raise PermissionError(13, "access denied")
+
+    monkeypatch.setattr(Path, "replace", refuse)
+    monkeypatch.setattr(sample.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(sample, "RETRY_REPLACE", True)
+    with pytest.raises(PermissionError):
+        save_sheet(tmp_path / "a.yaml", {"sheet_version": 1})
+    assert calls[0] == sample.REPLACE_ATTEMPTS
+    monkeypatch.setattr(sample, "RETRY_REPLACE", False)  # other systems: a refusal is not transient
+    calls[0] = 0
+    with pytest.raises(PermissionError):
+        save_sheet(tmp_path / "b.yaml", {"sheet_version": 1})
+    assert calls[0] == 1

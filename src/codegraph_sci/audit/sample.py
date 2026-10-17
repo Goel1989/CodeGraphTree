@@ -6,8 +6,10 @@ automatically: the manual effort is done once per corpus.
 
 from __future__ import annotations
 
+import os
 import random
 import re
+import time
 from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
@@ -18,6 +20,11 @@ import yaml
 from codegraph_sci.audit.common import SourceLines, connect, rows, scan_root, wilson_interval
 
 SHEET_VERSION = 1
+# Windows refuses to replace a file another process holds open for a moment (antivirus, search indexer): the
+# replacement is retried a few times there. Elsewhere such a refusal is not transient and is raised at once.
+RETRY_REPLACE = os.name == "nt"
+REPLACE_ATTEMPTS = 5
+REPLACE_DELAY_S = 0.1
 _CALLISH = {
     "fortran": re.compile(r"\b[a-z_]\w*\s*\(", re.I),
     "python": re.compile(r"\b[A-Za-z_][\w.]*\s*\("),
@@ -38,7 +45,14 @@ def load_sheet(path: Path) -> dict[str, Any]:
 def save_sheet(path: Path, data: dict[str, Any]) -> None:
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True, width=120), encoding="utf-8")
-    tmp.replace(path)
+    for attempt in range(1, REPLACE_ATTEMPTS + 1):
+        try:
+            tmp.replace(path)
+            return
+        except PermissionError:
+            if not RETRY_REPLACE or attempt == REPLACE_ATTEMPTS:
+                raise
+            time.sleep(REPLACE_DELAY_S * attempt)
 
 
 def precision_sample(db: Path, per_group: int = 150, seed: int = 42, revision: str | None = None) -> dict[str, Any]:
