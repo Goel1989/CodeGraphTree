@@ -67,7 +67,8 @@ contracts, decisions) before changing the code. Each analysed codebase is descri
 
 ## License
 
-Core: PolyForm Noncommercial 1.0.0 (noncommercial use, study, modification and sharing; public research,
-education and government use allowed); a separate commercial license is offered by the author. See
-[`docs/strategie_licence.md`](docs/strategie_licence.md). Third-party notices are in `packaging/licenses/` and
-`src/codegraph_sci/ui/web/vendor/`.
+One product, two licensing paths (same software, same features): the community path under the
+[PolyForm Noncommercial License 1.0.0](LICENSE) for the uses it permits, and a separate
+[commercial license](COMMERCIAL_LICENSE.md) for commercial use. See [`LICENSING.md`](LICENSING.md) (plain-language
+explanation and examples), [`NOTICE`](NOTICE) and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). There is no
+license key, no activation and no license telemetry. Contributions: [`CONTRIBUTING.md`](CONTRIBUTING.md).
