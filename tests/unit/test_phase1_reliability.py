@@ -10,8 +10,12 @@ from pathlib import Path
 
 import pytest
 
+from codegraph_sci.core.facts import SourceFile
+from codegraph_sci.core.plugins import ExtractContext
 from codegraph_sci.core.project import open_project
+from codegraph_sci.extract.keywords import KeywordAdapter, KeywordProfile
 from codegraph_sci.inventory.profile_io import load_profile, save_profile
+from codegraph_sci.link.linker import Linker
 from codegraph_sci.scan import ScanCancelled, ScanOptions, scan
 from codegraph_sci.store.export import export_dict, export_json
 
@@ -79,6 +83,14 @@ def test_link_settings_do_not_invalidate_extraction(tmp_path: Path) -> None:
     assert scan(project, ScanOptions(jobs=1, native_bridges=False)).stats["files_cached"] == 1
 
 
+def test_keyword_version_is_stable_across_hash_seeds() -> None:
+    script = ("from codegraph_sci.extract.keywords import KeywordAdapter, KeywordProfile; "
+              "print(KeywordAdapter(KeywordProfile('demo', {'version': 1})).version)")
+    versions = [subprocess.check_output([sys.executable, "-c", script],
+                env={**os.environ, "PYTHONHASHSEED": str(seed)}, text=True).strip() for seed in (1, 2)]
+    assert versions[0] == versions[1]
+
+
 def test_bridge_partition_is_stable_across_hash_seeds() -> None:
     script = ("from codegraph_sci.ai.complete import _sample_half; "
               "print([_sample_half(f'file{i}.py') for i in range(30)])")
@@ -109,6 +121,35 @@ def test_incompatible_and_damaged_facts_are_cache_misses() -> None:
     old["format_version"] = 1
     assert get_facts({"old": zlib.compress(json.dumps(old).encode())}, "old") is None
     assert get_facts({"damaged": b"invalid"}, "damaged") is None
+
+
+def test_keyword_homonyms_preserve_owners_and_ambiguous_targets() -> None:
+    adapter = KeywordAdapter(KeywordProfile("demo", {
+        "definitions": [{"keywords": ["proc"], "end_keywords": ["endproc"]}],
+        "calls": [{"keywords": ["run"]}],
+    }))
+    text = "proc same\nrun missing_a\nendproc\nproc same\nrun missing_b\nendproc\nrun same\n"
+    facts = adapter.extract(SourceFile("a.demo", "demo", None, "utf-8", text), ExtractContext())
+    other = adapter.extract(SourceFile("b.demo", "demo", None, "utf-8", text), ExtractContext())
+    assert len({d.uid for f in (facts, other) for d in f.definitions}) == 4
+    result = Linker([facts, other], [], {"a.demo": ("demo", 7), "b.demo": ("demo", 7)}).run()
+    sites = [s for s in result.call_sites if s.file == "a.demo"]
+    assert sites[0].src != sites[1].src
+    assert sites[2].resolution == "ambiguous" and len(sites[2].candidates) == 4
+
+
+def test_duplicate_python_definitions_keep_their_call_sites(tmp_path: Path) -> None:
+    project = _project(tmp_path, {"a.py": "def same():\n    missing_a()\ndef same():\n    missing_b()\n"})
+    scan(project, ScanOptions(jobs=1))
+    graph = export_dict(project.db_path)
+    owners = {n["uid"]: n for n in graph["nodes"]}
+    sites = graph["call_sites"]
+    assert sites[0]["src"] != sites[1]["src"]
+    assert owners[sites[0]["src"]]["line_start"] == 1
+    assert owners[sites[1]["src"]]["line_start"] == 3
+    attrs = [owners[s["src"]]["attrs"] for s in sites]
+    assert attrs[0]["symbol_uid"] == attrs[1]["symbol_uid"] == "py:a.same"
+    assert attrs[0]["occurrence_uid"] != attrs[1]["occurrence_uid"]
 
 
 def _blocked(path: str, lang: str, variant: str | None, mode: str):

@@ -15,7 +15,7 @@ from typing import Any
 
 from codegraph_sci.core.facts import Definition, FileFacts, Reference
 from codegraph_sci.core.graph import CallSiteRecord, DataAccessRecord, EdgeRecord, NodeRecord
-from codegraph_sci.core.ids import file_uid, variant_uid
+from codegraph_sci.core.ids import file_uid, occurrence_uid, variant_uid
 from codegraph_sci.core.model import CONFIDENCE_RANK
 from codegraph_sci.link.bridges import BridgeEngine
 from codegraph_sci.link.externals import external_for
@@ -60,6 +60,8 @@ class Linker:
         self.nodes: dict[str, NodeRecord] = {}
         self.defs: dict[str, tuple[Definition, str, str]] = {}  # uid -> (definition, path, lang)
         self.renames: dict[tuple[str, str], str] = {}
+        self.occurrences: dict[tuple[str, str], list[tuple[int, int, str]]] = defaultdict(list)
+        self.keyword_names: dict[tuple[str, str], list[str]] = defaultdict(list)
         self.sites: list[CallSiteRecord] = []
         self.site_refs: list[Reference] = []
         self.bridge_rules = bridge_rules or []
@@ -131,6 +133,8 @@ class Linker:
             self.renames[(facts.path, uid)] = new
             uid = new
         attrs: dict[str, Any] = {k: v for k, v in d.attrs.items() if k not in _NODE_ATTRS_SKIP}
+        attrs["symbol_uid"] = _base(d.uid)
+        attrs["occurrence_uid"] = occurrence_uid(d.uid, facts.path, *d.span)
         if d.signature:
             attrs["signature"] = d.signature
         if d.doc:
@@ -141,10 +145,18 @@ class Linker:
                                      d.span[1], in_scope, attrs)
         self.defs[uid] = (d, facts.path, facts.lang)
         if d.parent:
-            self.parent[uid] = self.renames.get((facts.path, d.parent), d.parent)
+            self.parent[uid] = self._src(facts, d.parent, d.span[0])
+        self.occurrences[(facts.path, d.uid)].append((*d.span, uid))
+        if d.subtype.startswith("kw_"):
+            self.keyword_names[(facts.lang, d.name)].append(uid)
         self.variants[_base(uid)].append(uid)
 
-    def _src(self, facts: FileFacts, uid: str) -> str:
+    def _src(self, facts: FileFacts, uid: str, line: int | None = None) -> str:
+        if line is not None:
+            matches = [(end - start, start, actual) for start, end, actual in
+                       self.occurrences.get((facts.path, uid), []) if start <= line <= end]
+            if matches:
+                return min(matches)[2]
         return self.renames.get((facts.path, uid), uid)
 
     def _ext(self, uid: str, subtype: str, display: str | None = None) -> str:
@@ -200,7 +212,7 @@ class Linker:
         origin = self.origin_prefix.get(facts.lang, f"native:{facts.lang}")
         self.site_refs.append(ref)
         self.sites.append(CallSiteRecord(
-            src=self._src(facts, ref.src), file=facts.path, line=ref.line, col=ref.col, ref_kind=ref.kind,
+            src=self._src(facts, ref.src, ref.line), file=facts.path, line=ref.line, col=ref.col, ref_kind=ref.kind,
             target_text=ref.target_text, dst=dst, resolution=resolution, confidence=res.confidence, origin=origin,
             condition=ref.condition, candidates=sorted(set(res.candidates))))
 
@@ -244,9 +256,11 @@ class Linker:
                 if lang == facts.lang and (stem == ref.target_text or stem.lower() == name):
                     return Resolution(file_uid(path), "resolved", "heuristic")
             return Resolution(None, "unresolved", "heuristic")
-        uid = f"kw:{facts.lang}:{name}"
-        if uid in self.nodes:
-            return self._with_variants(uid, "heuristic")
+        candidates = sorted(self.keyword_names.get((facts.lang, name), []))
+        if len(candidates) == 1:
+            return Resolution(candidates[0], "resolved", "heuristic")
+        if candidates:
+            return Resolution(None, "ambiguous", "heuristic", candidates)
         if ref.kind == "maybe_call" and ref.hint.get("only_known_names", True):
             return Resolution(_DROP, "unresolved", "heuristic")
         return Resolution(None, "unresolved", "heuristic")
@@ -300,7 +314,7 @@ class Linker:
         return None
 
     def _resolve_fortran(self, facts: FileFacts, ref: Reference) -> Resolution:
-        src = self._src(facts, ref.src)
+        src = self._src(facts, ref.src, ref.line)
         if ref.kind == "use":
             name = ref.target_text.lower()
             if f"fmod:{name}" in self.defs:
@@ -684,7 +698,7 @@ class Linker:
         """Fortran shared data: COMMON blocks, and module variables found through the USE of each routine."""
         for facts in self.facts:
             for a in facts.data_accesses:
-                src = self._src(facts, a.src)
+                src = self._src(facts, a.src, a.line)
                 if src not in self.defs:
                     continue
                 if a.data_key.startswith("common:"):

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 
 _WS = re.compile(r"\s+")
@@ -57,8 +59,14 @@ def py_uid(module: str, qualname: str | None = None) -> str:
     return f"py:{module}.{qualname}" if qualname else f"py:{module}"
 
 
-def kw_uid(language: str, name: str) -> str:
-    return f"kw:{language}:{name}"
+def kw_uid(language: str, name: str, path: str) -> str:
+    return f"kw:{language}:{name}@{norm_path(path)}"
+
+
+def occurrence_uid(symbol: str, path: str, start: int, end: int) -> str:
+    """Source occurrence identity, separate from a language's semantic symbol identity."""
+    payload = json.dumps([symbol, norm_path(path), start, end], ensure_ascii=False, separators=(",", ":"))
+    return "occ:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def file_uid(path: str) -> str:

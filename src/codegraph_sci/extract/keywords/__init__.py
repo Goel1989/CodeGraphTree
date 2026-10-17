@@ -17,11 +17,11 @@ from typing import Any
 import jsonschema
 import yaml
 
-from codegraph_sci.core.facts import Definition, FileFacts, ParseError, Reference, SourceFile
-from codegraph_sci.core.ids import file_uid, kw_uid
-from codegraph_sci.core.plugins import ExtractContext
+from codegraph_sci.core.facts import Definition, FileFacts, ParseError, Reference, SourceFile, canonical_json
+from codegraph_sci.core.ids import file_uid, kw_uid, variant_uid
+from codegraph_sci.core.plugins import ExtractContext, sha256_text
 
-VERSION = "1.0"
+VERSION = "2.0"
 
 
 class KeywordProfileError(ValueError):
@@ -99,7 +99,7 @@ class KeywordAdapter:
     def __init__(self, profile: KeywordProfile) -> None:
         self.profile = profile
         self.name = f"keywords:{profile.language}"
-        self.version = f"{VERSION}+{abs(hash(json.dumps(profile.data, sort_keys=True))) % 10**8}"
+        self.version = f"{VERSION}+{sha256_text(canonical_json(profile.data))}"
         self.languages = [profile.language]
 
     def extract(self, file: SourceFile, ctx: ExtractContext) -> FileFacts:
@@ -113,6 +113,8 @@ class KeywordAdapter:
         references: list[Reference] = []
         errors: list[ParseError] = []
         stack: list[tuple[str, str, int, str]] = []  # (uid, name, start line, kind)
+        counts: dict[str, int] = {}
+        parents: dict[str, str | None] = {}
         def norm(s: str) -> str:
             return s if p.case_sensitive else s.lower()
 
@@ -136,7 +138,7 @@ class KeywordAdapter:
             if first in end_words and stack:
                 uid, name, start, kind = stack.pop()
                 definitions.append(Definition(uid, name, "routine" if kind == "routine" else kind,
-                                              f"kw_{kind}", norm(name), (start, number)))
+                                              f"kw_{kind}", norm(name), (start, number), parent=parents[uid]))
                 continue
             src = stack[-1][0] if stack else file_uid(file.path)
             matched_def = False
@@ -144,7 +146,12 @@ class KeywordAdapter:
                 m = rx.match(line)
                 if m:
                     name = m.group(1)
-                    stack.append((kw_uid(lang, norm(name)), name, number, str(kind)))
+                    qualified = ".".join([norm(s[1]) for s in stack] + [norm(name)])
+                    base = kw_uid(lang, qualified, file.path)
+                    counts[base] = counts.get(base, 0) + 1
+                    uid = variant_uid(base, counts[base])
+                    parents[uid] = stack[-1][0] if stack else None
+                    stack.append((uid, name, number, str(kind)))
                     matched_def = True
                     break
             if matched_def:
@@ -174,7 +181,8 @@ class KeywordAdapter:
         while stack:
             uid, name, start, kind = stack.pop()
             errors.append(ParseError(f"definition {name} not closed", start))
-            definitions.append(Definition(uid, name, "routine", f"kw_{kind}", norm(name), (start, len(lines))))
+            definitions.append(Definition(uid, name, "routine", f"kw_{kind}", norm(name), (start, len(lines)),
+                                          parent=parents[uid]))
         return FileFacts(path=file.path, lang=lang, encoding=file.encoding, adapter=self.name,
                          adapter_version=self.version, definitions=definitions, references=references,
                          errors=errors, variant=file.variant).sort()
