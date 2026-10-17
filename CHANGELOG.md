@@ -168,3 +168,9 @@
 - `tools/prepare_corpus.py`: fetch a corpus at the exact revision of its manifest (repository, sparse folders).
 - `docs/validation/code_aster_start.md` / `.json`: Code_Aster 17.5.7 validation with provenance (tag and commit, manifest, expectations and audit-profile hashes, versions, machine): 16 PASS / 0 FAIL / 0 SKIP; unresolved call sites 8.53% (target 2% not met), split by category; precision and recall not measured yet (review sheets not filled).
 
+## Final consistency (corrective audit phase 5)
+- Offline promise stated precisely (no cloud service, analysed code never sent; Python-level socket guard, not an operating-system sandbox) in README, About dialog, constraint C2 and decision D3.
+- Performance table: targets kept, with a "Measured (documented)" column; unmeasured items say so. README and pack status no longer claim validation beyond the measured expectations.
+- Architecture repository tree matches the repository; planned items (`models.lock`, `tests/portable`) are marked.
+- `docs/migration_report.md`: changes by phase, tests, Definition of Done status, remaining risks, legal-review items and decisions pending with the owner.
+
