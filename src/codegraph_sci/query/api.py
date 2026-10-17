@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import posixpath
 import re
 import sqlite3
 from collections import defaultdict, deque
@@ -30,6 +31,8 @@ from codegraph_sci.query.types import (
     Graph3DLink,
     Graph3DNode,
     GraphPath,
+    GroupsReport,
+    GroupSummary,
     ImpactReport,
     InventoryReport,
     LanguageLine,
@@ -39,6 +42,8 @@ from codegraph_sci.query.types import (
     NeighborsReport,
     NodeDetail,
     NodeSummary,
+    NonCodeFile,
+    NonCodeReport,
     Page,
     PathReport,
     PathStep,
@@ -875,9 +880,7 @@ class GraphQuery:
                 break
         if mode == "both":
             self._files_layer(nodes, links, add_node)
-        return Graph3D(root=start, mode=mode, nodes=sorted(nodes.values(), key=lambda n: n.id),
-                       links=sorted(links.values(), key=lambda lk: (lk.source, lk.target, lk.kind)),
-                       truncated=truncated, hidden_noise=hidden)
+        return _finish3d(start, mode, nodes, links, truncated=truncated, hidden_noise=hidden)
 
     def _files_layer(self, nodes: dict[str, Graph3DNode], links: dict[tuple[str, str, str], Graph3DLink],
                      add_node: Callable[[str], bool]) -> None:
@@ -929,9 +932,7 @@ class GraphQuery:
             add_node(path.steps[0].uid)
         if mode == "both":
             self._files_layer(nodes, links, add_node)
-        graph = Graph3D(root=root, mode=mode, nodes=sorted(nodes.values(), key=lambda n: n.id),
-                        links=sorted(links.values(), key=lambda lk: (lk.source, lk.target, lk.kind)),
-                        truncated=report.truncated)
+        graph = _finish3d(root, mode, nodes, links, truncated=report.truncated)
         return graph, report
 
     def _node3d(self, uid: str, is_root: bool) -> Graph3DNode:
@@ -949,3 +950,206 @@ class GraphQuery:
         s = self._summary(row)
         return Graph3DNode(s.uid, s.display_name, s.kind, s.lang, s.file, s.line, s.fan_in, s.fan_out, is_root,
                            s.is_noise)
+
+    # ------------------------------------------------------- 3D groups
+    def _group_members(self, level: Level, hide_noise: bool) -> tuple[dict[str, tuple[str, str | None, str, int]],
+                                                                     list[tuple[str, str]], int]:
+        """Members ``uid -> (label, lang, path, degree)`` and undirected links of the grouping graph."""
+        members: dict[str, tuple[str, str | None, str, int]] = {}
+        pairs: list[tuple[str, str]] = []
+        hidden = 0
+        if level is Level.FILE:
+            degree: dict[int, int] = defaultdict(int)
+            raw = self.con.execute("SELECT src_file, dst_file FROM file_edges").fetchall()
+            for a, b in raw:
+                degree[int(a)] += 1
+                degree[int(b)] += 1
+            uid_of: dict[int, str] = {}
+            for fid, path, lang in self.con.execute("SELECT id, path, lang FROM files"):
+                uid_of[int(fid)] = f"file:{path}"
+                members[f"file:{path}"] = (str(path).rsplit("/", 1)[-1], lang, str(path), degree.get(int(fid), 0))
+            pairs = [(uid_of[int(a)], uid_of[int(b)]) for a, b in raw
+                     if int(a) in uid_of and int(b) in uid_of and a != b]
+            return members, pairs, 0
+        uid_by_id: dict[int, str] = {}
+        for nid, uid, name, lang, path, deg, noise in self.con.execute(
+                "SELECT n.id, n.uid, n.display_name, n.lang, f.path, COALESCE(s.fan_in, 0) + COALESCE(s.fan_out, 0), "
+                "COALESCE(s.is_noise, 0) FROM nodes n JOIN files f ON f.id = n.file_id "
+                "LEFT JOIN node_stats s ON s.node_id = n.id WHERE n.kind IN ('routine', 'entry_point', 'binding')"):
+            if hide_noise and noise:
+                hidden += 1
+                continue
+            uid_by_id[int(nid)] = str(uid)
+            members[str(uid)] = (str(name), lang, str(path), int(deg))
+        kinds = sorted(CALL_PATH)
+        for a, b in self.con.execute(f"SELECT src, dst FROM edges WHERE kind IN ({','.join('?' * len(kinds))})",
+                                     kinds):
+            if int(a) in uid_by_id and int(b) in uid_by_id and a != b:
+                pairs.append((uid_by_id[int(a)], uid_by_id[int(b)]))
+        return members, pairs, hidden
+
+    def groups(self, level: Level = Level.ROUTINE, *, hide_noise: bool = True) -> GroupsReport:
+        """Connected groups of routines (call links) or files (file links), whatever their folders.
+
+        Separate groups are separate programs (or parallel ones); members linked to nothing are ``isolated``.
+        Utility routines (noise) are left out when ``hide_noise``: they would glue unrelated programs together.
+        """
+        members, pairs, hidden = self._group_members(level, hide_noise)
+        parent: dict[str, str] = {}
+
+        def find(x: str) -> str:
+            root = x
+            while parent.get(root, root) != root:
+                root = parent[root]
+            while parent.get(x, x) != root:
+                parent[x], x = root, parent[x]
+            return root
+
+        for a, b in pairs:
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[max(ra, rb)] = min(ra, rb)
+        comps: dict[str, list[str]] = defaultdict(list)
+        for uid in members:
+            comps[find(uid)].append(uid)
+        out: list[GroupSummary] = []
+        isolated: list[str] = []
+        for uids in comps.values():
+            if len(uids) == 1:
+                isolated.append(uids[0])
+                continue
+            uids.sort()
+            rep = min(uids, key=lambda u: (-members[u][3], u))
+            langs: dict[str, int] = defaultdict(int)
+            dirs: dict[str, int] = defaultdict(int)
+            for u in uids:
+                langs[members[u][1] or "-"] += 1
+                path = members[u][2]
+                dirs[path.split("/", 1)[0] if "/" in path else "."] += 1
+            top = sorted(dirs.items(), key=lambda kv: (-kv[1], kv[0]))
+            out.append(GroupSummary(f"group:{rep}", rep, members[rep][0], len(uids), uids,
+                                    dict(sorted(langs.items())), top))
+        out.sort(key=lambda g: (-g.size, g.representative))
+        return GroupsReport("files" if level is Level.FILE else "functions", out, sorted(isolated), hidden)
+
+    def _sphere(self, g: GroupSummary, unit: str) -> Graph3DNode:
+        lang = max(g.langs.items(), key=lambda kv: (kv[1], kv[0]))[0]
+        dirs = ", ".join(f"{d}/ {n}" for d, n in g.top_dirs[:4]) + (" …" if len(g.top_dirs) > 4 else "")
+        langs = ", ".join(f"{k} {v}" for k, v in sorted(g.langs.items(), key=lambda kv: (-kv[1], kv[0])))
+        return Graph3DNode(g.id, f"{g.label} +{g.size - 1}", "group", None if lang == "-" else lang, None, None,
+                           0, 0, size=g.size, note=f"{g.size} {unit} · folders: {dirs} · {langs}")
+
+    def _spheres(self, report: GroupsReport, start: int, limit: int, unit: str) -> list[Graph3DNode]:
+        """Group spheres from ``start``; a "more" bucket when they do not all fit in ``limit`` nodes."""
+        rest = report.groups[start:]
+        if len(rest) <= limit:
+            return [self._sphere(g, unit) for g in rest]
+        shown = rest[:max(1, limit - 1)]
+        left = rest[len(shown):]
+        more = Graph3DNode(f"more:{report.level}:{start + len(shown)}", f"{len(left)} more groups", "more", None,
+                           None, None, 0, 0, size=len(left),
+                           note=f"{sum(g.size for g in left)} {unit} in smaller groups · click to show them")
+        return [self._sphere(g, unit) for g in shown] + [more]
+
+    def graph3d_overview(self, *, mode: str = "functions", max_nodes: int = 300, hide_noise: bool = True,
+                         include_noncode: bool = True) -> Graph3D:
+        """Everything at once: every node and link when it fits in ``max_nodes``, else one sphere per group.
+
+        In ``files`` mode the files that are not analyzed code are added apart (``noncode`` nodes, no link).
+        """
+        if mode not in ("functions", "files", "both"):
+            raise QueryError(f"unknown 3D mode: {mode}")
+        level = Level.FILE if mode == "files" else Level.ROUTINE
+        unit = "files" if level is Level.FILE else "functions"
+        report = self.groups(level, hide_noise=hide_noise)
+        total = sum(g.size for g in report.groups) + len(report.isolated)
+        nodes: dict[str, Graph3DNode] = {}
+        links: dict[tuple[str, str, str], Graph3DLink] = {}
+        if total <= max_nodes:
+            for uid in sorted([u for g in report.groups for u in g.members] + report.isolated):
+                nodes[uid] = self._node3d(uid, False)
+            self._links_among(level, nodes, links)
+            if mode == "both":
+                self._files_layer(nodes, links, lambda uid: True if uid in nodes else bool(
+                    nodes.setdefault(uid, self._node3d(uid, False))))
+        else:
+            for n in self._spheres(report, 0, max(1, max_nodes - (1 if report.isolated else 0)), unit):
+                nodes[n.id] = n
+            if report.isolated:
+                iso = f"isolated:{report.level}"
+                nodes[iso] = Graph3DNode(iso, f"{len(report.isolated)} isolated", "isolated", None, None, None, 0, 0,
+                                         size=len(report.isolated),
+                                         note=f"{len(report.isolated)} {unit} linked to nothing · click to show them")
+        if include_noncode and level is Level.FILE:
+            for n in self._noncode_nodes():
+                nodes[n.id] = n
+        return _finish3d("", mode, nodes, links, hidden_noise=report.hidden_noise)
+
+    def _links_among(self, level: Level, nodes: dict[str, Graph3DNode],
+                     links: dict[tuple[str, str, str], Graph3DLink]) -> None:
+        """Every link whose two ends are drawn, inside a folder or between folders."""
+        if level is Level.FILE:
+            rows = self.con.execute("SELECT fa.path, fb.path, e.kind, e.count FROM file_edges e "
+                                    "JOIN files fa ON fa.id = e.src_file JOIN files fb ON fb.id = e.dst_file")
+            for a, b, kind, count in rows:
+                src, dst = f"file:{a}", f"file:{b}"
+                if src in nodes and dst in nodes and src != dst:
+                    links[(src, dst, kind)] = Graph3DLink(src, dst, kind, int(count), "exact")
+            return
+        kinds = sorted(CALL_PATH)
+        rows = self.con.execute(
+            f"SELECT na.uid, nb.uid, e.kind, e.site_count, e.min_confidence FROM edges e JOIN nodes na ON na.id = e.src "
+            f"JOIN nodes nb ON nb.id = e.dst WHERE e.kind IN ({','.join('?' * len(kinds))})", kinds)
+        for a, b, kind, count, conf in rows:
+            if a in nodes and b in nodes and a != b:
+                links[(a, b, kind)] = Graph3DLink(a, b, kind, int(count), str(conf))
+
+    def graph3d_group(self, group_id: str, *, mode: str = "functions", max_nodes: int = 300,
+                      hide_noise: bool = True) -> Graph3D:
+        """Content of one overview node: a group (all its links), the isolated members, or the next groups."""
+        level = Level.FILE if mode == "files" else Level.ROUTINE
+        unit = "files" if level is Level.FILE else "functions"
+        if group_id.startswith("group:"):
+            return self.graph3d(group_id[6:], mode=mode, depth=10_000, max_nodes=max_nodes, hide_noise=hide_noise)
+        if group_id.startswith("isolated:"):
+            report = self.groups(level, hide_noise=hide_noise)
+            iso_nodes = {u: self._node3d(u, False) for u in report.isolated[:max_nodes]}
+            return _finish3d(group_id, mode, iso_nodes, {}, truncated=len(report.isolated) > max_nodes,
+                             hidden_noise=report.hidden_noise)
+        if group_id.startswith("more:"):
+            report = self.groups(level, hide_noise=hide_noise)
+            start = int(group_id.rsplit(":", 1)[1])
+            more_nodes = {n.id: n for n in self._spheres(report, start, max_nodes, unit)}
+            return _finish3d(group_id, mode, more_nodes, {}, hidden_noise=report.hidden_noise)
+        raise QueryError(f"unknown group: {group_id}")
+
+    def non_code_files(self) -> NonCodeReport:
+        """Files of the repository that are not analyzed code (recorded by the last analysis)."""
+        row = self.con.execute("SELECT stats FROM scan_runs ORDER BY id DESC LIMIT 1").fetchone()
+        data = (json.loads(row[0] or "{}") if row else {}).get("non_code") or {}
+        files = [NonCodeFile(str(p), str(c)) for p, c in data.get("files", [])]
+        return NonCodeReport({str(k): int(v) for k, v in (data.get("counts") or {}).items()}, files,
+                             bool(data.get("truncated", False)))
+
+    def _noncode_nodes(self, limit: int = 500) -> list[Graph3DNode]:
+        report = self.non_code_files()
+        out = [Graph3DNode(f"noncode:{f.path}", f.path.rsplit("/", 1)[-1], "noncode", None, f.path, None, 0, 0,
+                           note=f.category) for f in report.files[:limit]]
+        hidden = sum(report.counts.values()) - len(out)
+        if hidden > 0:
+            out.append(Graph3DNode("noncode:…", f"{hidden} more", "noncode", None, None, None, 0, 0, size=hidden,
+                                   note=", ".join(f"{k} {v}" for k, v in report.counts.items())))
+        return out
+
+
+def _finish3d(root: str, mode: str, nodes: dict[str, Graph3DNode], links: dict[tuple[str, str, str], Graph3DLink],
+              *, truncated: bool = False, hidden_noise: int = 0) -> Graph3D:
+    """Sorted graph; links between two folders are marked ``cross_dir``."""
+    for link in links.values():
+        a, b = nodes.get(link.source), nodes.get(link.target)
+        if a is not None and b is not None and a.file and b.file and link.kind != "defines":
+            link.cross_dir = posixpath.dirname(a.file) != posixpath.dirname(b.file)
+    return Graph3D(root=root, mode=mode, nodes=sorted(nodes.values(), key=lambda n: n.id),
+                   links=sorted(links.values(), key=lambda lk: (lk.source, lk.target, lk.kind)),
+                   truncated=truncated, hidden_noise=hidden_noise)
+

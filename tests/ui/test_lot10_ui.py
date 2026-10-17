@@ -112,8 +112,24 @@ def test_graphs_3d_start_from_main(window, qtbot) -> None:  # type: ignore[no-un
     qtbot.waitUntil(lambda: "py:app.run.run_case" in graph_fn.node_ids and "c:c_solve" in graph_fn.node_ids,
                     timeout=5000)
     qtbot.waitUntil(lambda: "file:app/run.py" in graph_fl.node_ids, timeout=5000)
-    assert graph_fn.main_uid == graph_fn.root_uid
+    # The project fits under the node ceiling: the overview shows every node and every link.
+    assert graph_fn.overview and graph_fn.main_uid == "py:app.run.run_case"
     assert ("py:app.run.run_case", "cpp:hybrid::solve(int)") in {(s, t) for s, t, _ in graph_fn.link_keys}
+    graph_fn.btn_from_main.click()
+    qtbot.waitUntil(lambda: not graph_fn.overview and graph_fn.root_uid == graph_fn.main_uid, timeout=5000)
+
+
+def test_graph_3d_groups_open_and_back(window, qtbot) -> None:  # type: ignore[no-untyped-def]
+    graph = window.graph_functions
+    qtbot.waitUntil(lambda: graph.overview and bool(graph.node_ids), timeout=5000)
+    everything = set(graph.node_ids)
+    selected = []
+    graph.node_selected.connect(selected.append)
+    graph.handle_event({"event": "select", "uid": "group:f:kernel"})  # a group opens, it is not a symbol
+    qtbot.waitUntil(lambda: not graph.overview and "f:kernel" in graph.node_ids, timeout=5000)
+    assert selected == [] and "c:c_solve" in graph.node_ids
+    graph.btn_groups.click()
+    qtbot.waitUntil(lambda: graph.overview and graph.node_ids == everything, timeout=5000)
 
 
 def test_graph_3d_events_select_expand_link_and_paths(window, qtbot) -> None:  # type: ignore[no-untyped-def]

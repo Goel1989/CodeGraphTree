@@ -41,6 +41,7 @@ from codegraph_sci.extract.context import make_include_resolver
 from codegraph_sci.extract.cpp import CppAdapter
 from codegraph_sci.extract.fortran import FortranAdapter
 from codegraph_sci.extract.python import PythonAdapter
+from codegraph_sci.inventory.noncode import non_code_stats
 from codegraph_sci.inventory.profile_io import (
     load_profile,
     profile_from_inventory,
@@ -435,6 +436,7 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
         "files_failed": len(errors), "files_fallback": sum(1 for f in facts_by_path.values() if f.used_fallback),
         **link.stats, "edges": len(edges), "seconds": round(time.perf_counter() - t0, 2),
         "all_subfolders": profile.all_subfolders, "skipped_dirs": skipped_list(inventory, 200),
+        "non_code": non_code_stats(inventory),
         "skipped_total": {"entries": len(inventory.skipped_dirs),
                           "files": sum(s.files for s in inventory.skipped_dirs)},
         "timings": {**timings, "index": round(time.perf_counter() - t0 - sum(timings.values()), 2)},
@@ -450,5 +452,5 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
     else:
         write_full(project.db_path, bundle)
     stats["seconds"] = round(time.perf_counter() - t0, 2)
-    say({"event": "done", **stats})
+    say({"event": "done", **{k: v for k, v in stats.items() if k not in ("skipped_dirs", "non_code")}})
     return ScanResult(project.db_path, stats)

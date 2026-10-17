@@ -249,6 +249,8 @@ class Graph3DNode:
     fan_out: int
     is_root: bool = False
     is_noise: bool = False
+    size: int = 0  # members of a group, isolated or "more" bucket
+    note: str = ""  # extra tooltip text (folders and languages of a group, category of a non-code file)
 
 
 @dataclass
@@ -258,6 +260,7 @@ class Graph3DLink:
     kind: str  # calls, bridges, binds, dispatches, implements, uses, defines
     count: int
     confidence: str
+    cross_dir: bool = False  # the two ends are in different folders
 
 
 @dataclass
@@ -270,3 +273,37 @@ class Graph3D:
     links: list[Graph3DLink]
     truncated: bool = False
     hidden_noise: int = 0
+
+
+@dataclass
+class GroupSummary:
+    """A connected group of routines or files: linked to each other, linked to nothing outside."""
+
+    id: str  # "group:<representative uid>"
+    representative: str  # most connected member (then smallest uid)
+    label: str
+    size: int
+    members: list[str]
+    langs: dict[str, int]
+    top_dirs: list[tuple[str, int]]  # first-level folders, largest first
+
+
+@dataclass
+class GroupsReport:
+    level: str  # "functions" or "files"
+    groups: list[GroupSummary]  # two members or more, largest first
+    isolated: list[str]  # members linked to nothing (sorted)
+    hidden_noise: int = 0  # utility routines left out of the grouping
+
+
+@dataclass
+class NonCodeFile:
+    path: str
+    category: str  # docs, data, configuration, images, archives, binary, unknown type, code (not analyzed), other
+
+
+@dataclass
+class NonCodeReport:
+    counts: dict[str, int]
+    files: list[NonCodeFile]  # at most NON_CODE_LIMIT, sorted by category then path
+    truncated: bool = False

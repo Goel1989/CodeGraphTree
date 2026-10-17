@@ -34,6 +34,7 @@ from codegraph_sci.ui.workers import QueryRunner
 
 ALLOWED_SCHEMES = frozenset({"file", "data", "blob", "about"})
 EXPAND_MAX_NODES = 150  # one right-click adds at most this many nodes (C4)
+GROUP_PREFIXES = ("group:", "isolated:", "more:")  # overview nodes that open a group, not symbols
 
 _page_file: Path | None = None
 _interceptor: OfflineInterceptor | None = None
@@ -101,7 +102,11 @@ class _Page(QWebEnginePage):
 
 
 class Graph3DView(QWidget):
-    """One 3D graph (functions or files): starts at ``main``, follows the selection, expands on right-click."""
+    """One 3D graph (functions or files).
+
+    Starts with the overview of the whole project (every node and link, or one sphere per group when it does not fit);
+    a click on a sphere opens its group; follows the selection of the other panels; expands on right-click.
+    """
 
     node_selected = Signal(str)
     sites_requested = Signal(str, str)  # (caller uid, callee uid) for the detailed calls of a link
@@ -114,6 +119,8 @@ class Graph3DView(QWidget):
         self.root_uid: str | None = None
         self.main_uid: str | None = None
         self.selected_uid: str | None = None
+        self.overview = False  # showing the overview of every group
+        self.group_id: str | None = None  # showing one group of the overview
         self.hide_noise = True
         self.node_ids: set[str] = set()
         self.link_keys: set[tuple[str, str, str]] = set()
@@ -124,6 +131,9 @@ class Graph3DView(QWidget):
         self._pending: list[str] = []
         self._gen = 0
 
+        self.btn_groups = QPushButton("All groups")
+        self.btn_groups.setToolTip("Overview of the whole project: separate groups are separate (or parallel) programs")
+        self.btn_groups.clicked.connect(self._reset_to_groups)
         self.btn_from_main = QPushButton("From main")
         self.btn_from_main.setToolTip("Detect the main entry point and show its neighbourhood")
         self.btn_from_main.clicked.connect(self._reset_to_main)
@@ -148,7 +158,7 @@ class Graph3DView(QWidget):
         self.with_files.setVisible(not files)
         self.info = QLabel("")
         top = QHBoxLayout()
-        for w in (self.btn_from_main, self.btn_to_main, QLabel("Depth:"), self.depth, QLabel("Max nodes:"),
+        for w in (self.btn_groups, self.btn_from_main, self.btn_to_main, QLabel("Depth:"), self.depth, QLabel("Max nodes:"),
                   self.max_nodes, self.with_files):
             top.addWidget(w)
         top.addStretch()
@@ -179,6 +189,52 @@ class Graph3DView(QWidget):
         return self._gen
 
     # ------------------------------------------------------------ loading
+    def load_overview(self, db: Path) -> None:
+        """The whole project: every node and link if it fits, else one sphere per group (and ``main`` detected)."""
+        self.db = db
+        gen = self._next_gen()
+        mode, limit, hide, files = self.mode, self.max_nodes.value(), self.hide_noise, self.files
+
+        def work(q: GraphQuery) -> tuple[str | None, Graph3D]:
+            roots = q.default_roots(hide_noise=hide)
+            main = roots.main_file if files else roots.main_routine
+            return (main.uid if main else None,
+                    q.graph3d_overview(mode=mode, max_nodes=limit, hide_noise=hide, include_noncode=files))
+
+        def done(data: tuple[str | None, Graph3D]) -> None:
+            if gen != self._gen:
+                return
+            self.main_uid = data[0]
+            self.overview, self.group_id, self.root_uid = True, None, None
+            self._show(data[1])
+
+        self.runner.submit(db, self._key("load"), work, done, self._error)
+
+    def open_group(self, group_id: str) -> None:
+        """Content of an overview sphere: a group with all its links, the isolated nodes, or the next groups."""
+        if self.db is None:
+            return
+        gen = self._next_gen()
+        mode, limit, hide = self.mode, self.max_nodes.value(), self.hide_noise
+
+        def done(graph: Graph3D) -> None:
+            if gen != self._gen:
+                return
+            self.overview, self.group_id = False, group_id
+            self._show(graph)
+
+        self.runner.submit(self.db, self._key("load"),
+                           lambda q: q.graph3d_group(group_id, mode=mode, max_nodes=limit, hide_noise=hide),
+                           done, self._error)
+
+    def _reset_to_groups(self) -> None:
+        if self.btn_to_main.isChecked():
+            self.btn_to_main.blockSignals(True)
+            self.btn_to_main.setChecked(False)
+            self.btn_to_main.blockSignals(False)
+        if self.db is not None:
+            self.load_overview(self.db)
+
     def load_from_main(self, db: Path) -> None:
         """Detect ``main`` (routine or file) and show its neighbourhood."""
         self.db = db
@@ -197,12 +253,14 @@ class Graph3DView(QWidget):
             if gen != self._gen:
                 return
             self.main_uid = self.root_uid = self.selected_uid = data[0]
+            self.overview, self.group_id = False, None
             self._show(data[1])
 
         self.runner.submit(db, self._key("load"), work, done, self._error)
 
     def set_root(self, db: Path, uid: str) -> None:
         self.db = db
+        self.overview, self.group_id = False, None
         self.root_uid = uid
         self.selected_uid = uid
         if self.btn_to_main.isChecked():
@@ -212,6 +270,12 @@ class Graph3DView(QWidget):
 
     def rebuild(self) -> None:
         if self.db is None:
+            return
+        if self.overview:
+            self.load_overview(self.db)
+            return
+        if self.group_id is not None:
+            self.open_group(self.group_id)
             return
         if self.root_uid is None:
             self.load_from_main(self.db)
@@ -225,6 +289,7 @@ class Graph3DView(QWidget):
 
         def done(graph: Graph3D) -> None:
             if gen == self._gen:
+                self.overview, self.group_id = False, None
                 self._show(graph)
 
         self.runner.submit(self.db, self._key("load"),
@@ -242,6 +307,7 @@ class Graph3DView(QWidget):
             if gen != self._gen:
                 return
             graph, report = data
+            self.overview, self.group_id = False, None
             self._show(graph)
             if not report.paths:
                 self.info.setText(f"No path found from main ({report.root_uid}) to {report.target_uid}")
@@ -281,9 +347,15 @@ class Graph3DView(QWidget):
         self.link_keys |= {(lk.source, lk.target, lk.kind) for lk in graph.links if
                            lk.source in self.node_ids and lk.target in self.node_ids}
         self._run_js(f"window.cgs.{'merge' if merge else 'load'}({safe_json(graph_dict(graph))});")
-        hidden = f", {graph.hidden_noise} utility link(s) hidden" if graph.hidden_noise else ""
+        hidden = f", {graph.hidden_noise} utility item(s) hidden" if graph.hidden_noise else ""
         limit = " — limit reached" if graph.truncated else ""
-        self.info.setText(f"{len(self.node_ids)} node(s), {len(self.link_keys)} link(s){hidden}{limit}")
+        spheres = sum(1 for n in graph.nodes if n.kind == "group")
+        where = (f"Overview, {spheres} group sphere(s): click one to open it — " if spheres
+                 else "Overview of the whole project — " if self.overview
+                 else f"Group {self.group_id.split(':', 1)[1]} — " if self.group_id else "")
+        crossing = sum(1 for lk in graph.links if lk.cross_dir)
+        self.info.setText(f"{where}{len(self.node_ids)} node(s), {len(self.link_keys)} link(s), "
+                          f"{crossing} between folders{hidden}{limit}")
 
     def _run_js(self, script: str) -> None:
         if self.page_ready:
@@ -326,6 +398,11 @@ class Graph3DView(QWidget):
                 self.page.runJavaScript(script)
         elif kind == "loaded" and isinstance(event.get("nodes"), int):
             self.js_nodes = event["nodes"]
+        elif kind in ("select", "expand") and isinstance(event.get("uid"), str) \
+                and event["uid"].startswith(GROUP_PREFIXES):
+            self.open_group(event["uid"])
+        elif kind in ("select", "expand") and isinstance(event.get("uid"), str) and event["uid"].startswith("noncode:"):
+            return  # not analyzed code: nothing to select or expand
         elif kind == "select" and isinstance(event.get("uid"), str):
             self.selected_uid = event["uid"]
             self.node_selected.emit(event["uid"])

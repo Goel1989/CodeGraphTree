@@ -10,6 +10,8 @@
   const LINK_COLORS = { calls: "#6e7681", bridges: "#f0883e", binds: "#d2a8ff", dispatches: "#3fb950",
                         implements: "#56d364", uses: "#388bfd", defines: "#30363d", inherits: "#db61a2",
                         includes: "#8b949e", imports: "#58a6ff" };
+  const CROSS_DIR = "#39c5cf";  // links between two folders
+  const BUCKET_KINDS = new Set(["group", "isolated", "more"]);
   const state = { nodes: new Map(), links: new Map(), hover: null, neighbours: new Set(), hoverLinks: new Set(),
                   meta: { root: "", mode: "functions", truncated: false, hidden_noise: 0 }, pendingFit: false };
 
@@ -54,6 +56,7 @@
     state.meta = { root: data.root, mode: data.mode, truncated: data.truncated, hidden_noise: data.hidden_noise };
     document.getElementById("details").style.display = "none";
     merge(data);
+    placeNonCode();
     redraw();
     updateInfo(data.truncated);
     state.pendingFit = true;
@@ -73,9 +76,29 @@
   window.addEventListener("resize", shown);
   document.addEventListener("visibilitychange", shown);
 
+  // Non-code files: a fixed grid set apart from the code (one block per category), never linked.
+  function placeNonCode() {
+    const items = [...state.nodes.values()].filter((n) => n.kind === "noncode")
+      .sort((a, b) => (a.note + a.label).localeCompare(b.note + b.label));
+    // Just below the code, at a distance that grows with the size of the code graph.
+    const code = state.nodes.size - items.length;
+    const cols = Math.min(16, Math.max(6, Math.ceil(Math.sqrt(items.length)))), step = 7;
+    const y0 = -(40 + 18 * Math.cbrt(Math.max(1, code))), x0 = -((cols - 1) * step) / 2;
+    let row = 0, col = 0, category = null;
+    for (const n of items) {
+      if (category !== null && n.note !== category) { row += col === 0 ? 1 : 2; col = 0; }
+      category = n.note;
+      n.fx = x0 + col * step; n.fy = y0 - row * step; n.fz = 0;
+      col += 1;
+      if (col === cols) { col = 0; row += 1; }
+    }
+  }
+
   function visibleData() {
     const showFiles = document.getElementById("files").checked || state.meta.mode === "files";
-    const nodes = [...state.nodes.values()].filter((n) => showFiles || n.kind !== "file");
+    const showNonCode = document.getElementById("noncode").checked;
+    const nodes = [...state.nodes.values()].filter((n) => (showFiles || n.kind !== "file")
+                                                     && (showNonCode || n.kind !== "noncode"));
     const ids = new Set(nodes.map((n) => n.id));
     const links = [...state.links.values()].filter((l) => ids.has(idOf(l.source)) && ids.has(idOf(l.target)));
     return { nodes, links };
@@ -87,6 +110,9 @@
     if (state.hover && !state.neighbours.has(n.id) && state.hover !== n.id) return "rgba(90,100,110,0.35)";
     if (n.kind === "file" && state.meta.mode !== "files") return "#c9d1d9";  // files mode: colour by language
     if (n.kind === "external") return "#484f58";
+    if (n.kind === "noncode") return "#6b6b6b";
+    if (n.kind === "isolated") return "#9e9e9e";
+    if (n.kind === "more") return "#4a4a4a";
     if (n.kind === "entry_point") return "#ff7b72";
     return LANG_COLORS[n.lang] || "#8b949e";
   }
@@ -94,7 +120,9 @@
   function tooltip(n) {
     const where = n.file ? `${n.file}${n.line ? ":" + n.line : ""}` : "outside the repository";
     return `<b>${escapeHtml(n.label)}</b><br><span style="color:#9e9e9e">${escapeHtml(n.kind)} · ${escapeHtml(n.lang || "-")}</span>`
-      + `<br>${escapeHtml(where)}<br>callers ${n.fan_in} · callees ${n.fan_out}`;
+      + (BUCKET_KINDS.has(n.kind) ? `<br>${escapeHtml(n.note)}<br>click to open`
+         : n.kind === "noncode" ? `<br>${escapeHtml(n.note)} · not analyzed code<br>${escapeHtml(n.file || "")}`
+         : `<br>${escapeHtml(where)}<br>callers ${n.fan_in} · callees ${n.fan_out}`);
   }
 
   function escapeHtml(s) {
@@ -109,12 +137,14 @@
       .nodeId("id")
       .nodeLabel(tooltip)
       .nodeColor(nodeColor)
-      .nodeVal((n) => (n.kind === "file" && state.meta.mode === "both" ? 7 : 1 + Math.log2(1 + n.fan_in)))
+      .nodeVal((n) => (BUCKET_KINDS.has(n.kind) ? Math.max(2, n.size)  // radius grows as the cube root of the size
+                       : n.kind === "noncode" ? 1
+                       : n.kind === "file" && state.meta.mode === "both" ? 7 : 1 + Math.log2(1 + n.fan_in)))
       .cooldownTime(6000)  // modest CPUs (C4): the layout settles within a few seconds
       .onEngineStop(() => fitIfVisible(true))
       .nodeOpacity(0.92)
       .linkColor((l) => (state.hoverLinks.size && !state.hoverLinks.has(linkKey(l)) ? "rgba(60,60,60,0.25)"
-                                                                                       : LINK_COLORS[l.kind] || "#6e7681"))
+                                                                                       : linkColor(l)))
       .linkWidth((l) => (l.kind === "defines" ? 0.3 : Math.min(4, 0.5 + Math.log2(1 + l.count))))
       .linkDirectionalArrowLength((l) => (document.getElementById("arrows").checked && l.kind !== "defines" ? 3.5 : 0))
       .linkDirectionalArrowRelPos(1)
@@ -145,6 +175,11 @@
     send({ event: "error", message: "3D rendering unavailable: " + err });
   }
 
+  function linkColor(l) {
+    if (l.cross_dir && document.getElementById("crossdir").checked) return CROSS_DIR;
+    return LINK_COLORS[l.kind] || "#6e7681";
+  }
+
   function redraw() { if (graph) graph.graphData(visibleData()); }
   function refreshStyle() { if (graph) graph.nodeColor(graph.nodeColor()).linkColor(graph.linkColor()); }
 
@@ -162,14 +197,22 @@
     box.innerHTML = `<h3>${escapeHtml(n.label)}</h3><code>${escapeHtml(n.id)}</code><br>`
       + `${escapeHtml(n.file || "")}${n.line ? ":" + n.line : ""}<br>`
       + `shown: ${ins} incoming, ${outs} outgoing link(s)<br>`
-      + (canExpand() ? "Right-click: expand its neighbours" : "Open in CodeGraph-Sci to expand");
+      + (BUCKET_KINDS.has(n.kind) ? escapeHtml(n.note)
+         : canExpand() ? "Right-click: expand its neighbours" : "Open in CodeGraph-Sci to expand");
     box.style.display = "block";
   }
 
   function updateInfo(truncated) {
     const nodes = state.nodes.size, links = state.links.size;
+    const all = [...state.nodes.values()];
+    const groups = all.filter((n) => n.kind === "group").length;
+    const nonCode = all.filter((n) => n.kind === "noncode").reduce((s, n) => s + (n.size || 1), 0);
+    const crossing = [...state.links.values()].filter((l) => l.cross_dir).length;
     const text = nodes === 0 ? "No graph yet."
-      : `${nodes} node(s), ${links} link(s) · mode ${state.meta.mode}`
+      : (groups ? `${groups} group(s) shown as spheres · ` : "")
+        + `${nodes} node(s), ${links} link(s) (${crossing} between folders)`
+        + (nonCode ? ` · ${nonCode} non-code file(s) apart` : "")
+        + ` · mode ${state.meta.mode}`
         + (state.meta.hidden_noise ? ` · ${state.meta.hidden_noise} utility link(s) hidden` : "")
         + (truncated || state.meta.truncated ? " · limit reached: right-click a node to explore further" : "")
         + (graph ? " · drag to rotate, scroll to zoom, click to select, right-click to expand"
@@ -183,11 +226,14 @@
     const kinds = ["calls", "bridges", "binds", "dispatches", "uses", "defines"]
       .map((k) => `<div><b class="line" style="background:${LINK_COLORS[k]}"></b>${k}</div>`).join("");
     document.getElementById("legend").innerHTML =
-      `${langs}<div><i style="background:#c9d1d9"></i>file</div><div><i style="background:#f2c94c"></i>root</div><hr style="border-color:#3a3a3a">${kinds}`;
+      `${langs}<div><i style="background:#c9d1d9"></i>file</div><div><i style="background:#f2c94c"></i>root</div>`
+      + `<div><i style="background:#9e9e9e"></i>isolated</div><div><i style="background:#6b6b6b"></i>non-code (apart)</div>`
+      + `<hr style="border-color:#3a3a3a">${kinds}`
+      + `<div><b class="line" style="background:${CROSS_DIR}"></b>between folders</div>`;
   }
 
   document.getElementById("fit").onclick = () => { if (graph) graph.zoomToFit(600, 40); };
-  for (const id of ["files", "arrows", "particles"]) {
+  for (const id of ["files", "arrows", "particles", "crossdir", "noncode"]) {
     document.getElementById(id).onchange = () => { redraw(); refreshStyle(); };
   }
   document.getElementById("search").addEventListener("keydown", (e) => {

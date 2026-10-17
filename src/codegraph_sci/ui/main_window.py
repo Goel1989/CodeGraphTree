@@ -528,9 +528,9 @@ class MainWindow(QMainWindow):
         self.runner.submit(db, "health", lambda q: (q.scan_health(), q.unresolved(include_ambiguous=True, limit=30)),
                            self._show_health)
         self.graph_functions.hide_noise = self.hide_noise.isChecked()
-        self.graph_functions.load_from_main(db)
+        self.graph_functions.load_overview(db)
         self.graph_files.hide_noise = self.hide_noise.isChecked()
-        self.graph_files.load_from_main(db)
+        self.graph_files.load_overview(db)
 
     # ------------------------------------------------------------ analysis
     def _run_cgs(self, args: list[str]) -> None:

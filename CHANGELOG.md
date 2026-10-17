@@ -125,3 +125,9 @@
 ## Every sub-folder, and what is left out
 - The inventory reports each folder (or `.gitignore`d file) it leaves out, with its reason (default exclusion, .gitignore, profile) and file count: `cgs inventory`, `skipped_dirs` in the JSON output and the scan statistics, Inventory view.
 - New profile option `all_subfolders` (`cgs profile all-subfolders <folder> on|off`, "Analyze all subfolders" box in the Inventory view): analyze every sub-folder, ignoring `.gitignore` and the default exclusions; `.git`, `.hg`, `.svn` and the profile's `exclude_dirs` still apply.
+
+## Whole-project view: groups, links between folders, non-code files (decision D23)
+- Functions 3D and Files 3D open on the whole project: every node and link when it fits under the node ceiling, otherwise one sphere per group of linked routines or files (separate or parallel programs), an "isolated" sphere and a "more groups" sphere; a click opens a group, "All groups" comes back.
+- Links between two folders are flagged (`cross_dir`) and drawn in their own colour ("between folders" box).
+- Files that are not analyzed code are classified (docs, data, configuration, images, archives, binary, unknown type, code without adapter), recorded by the analysis and set apart in a grey grid in Files 3D ("non-code files" box).
+- `GraphQuery.groups`, `graph3d_overview`, `graph3d_group`, `non_code_files`; Code_Aster: 275 function groups (main program 7,538 functions, elementary routines 601, behaviour laws 87) in about 1 s.
