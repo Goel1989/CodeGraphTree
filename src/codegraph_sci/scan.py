@@ -7,6 +7,7 @@ and never blocks the analysis. Facts are cached (key: file + included files + ad
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import posixpath
 import subprocess
@@ -98,7 +99,7 @@ class ScanOptions:
     cancel: Callable[[], bool] | None = None
     native_bridges: bool = True
     # Extraction function run in the workers (tests inject a blocking one); default: _extract_job.
-    extract_job: Callable[[str, str, str | None], tuple[str, bytes | None, str | None]] | None = None
+    extract_job: Callable[[str, str, str | None, str], tuple[str, bytes | None, str | None]] | None = None
     bridge_rules: list[dict[str, Any]] = field(default_factory=list)
     keyword_profiles: list[Path] = field(default_factory=list)
     packs: list[str] = field(default_factory=list)
@@ -185,15 +186,17 @@ def _worker_init(root: str, include_paths: list[str], defines: dict[str, str], k
     _WORKER["adapters"] = all_adapters(keyword_profiles or [])
 
 
-def _extract_job(path: str, lang: str, variant: str | None) -> tuple[str, bytes | None, str | None]:
-    """Runs in a worker: returns (path, encoded facts, error)."""
+def _extract_job(path: str, lang: str, variant: str | None, mode: str = "full") -> tuple[str, bytes | None, str | None]:
+    """Runs in a worker: returns (path, encoded facts, error). ``mode``: ``full`` or ``outline`` (out of scope)."""
     try:
         data = (_WORKER["root"] / path).read_bytes()
         if len(data) > MAX_FILE_BYTES:
             return path, None, f"file too large ({len(data) / 1e6:.0f} MB): not analysed"
         text, enc = decode_bytes(data)
-        facts = _WORKER["adapters"][lang].extract(SourceFile(path, lang, variant, enc, text), _WORKER["ctx"])
-        return path, encode_facts(facts), None
+        outline = mode == "outline"
+        ctx = dataclasses.replace(_WORKER["ctx"], outline=True) if outline else _WORKER["ctx"]
+        facts = _WORKER["adapters"][lang].extract(SourceFile(path, lang, variant, enc, text), ctx)
+        return path, encode_facts(facts.outline() if outline else facts), None
     except Exception as exc:  # noqa: BLE001 - recorded as a failed file, never blocking
         return path, None, f"{type(exc).__name__}: {exc}"
 
@@ -258,15 +261,21 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
         return sha_cache[rel]
 
     def key_for(facts: FileFacts, file_sha: str, lang: str | None) -> str:
+        """Cache identity: file, included files, adapter and version, parameters and extraction mode (an OUTLINE
+        result is never reused as FULL)."""
         adapter = adapters[str(lang)]
         includes = sorted({f"{i.resolved_path}:{current_sha(i.resolved_path)}" for i in facts.includes
                            if i.resolved_path})
-        return cache_key(file_sha, includes, adapter.name, adapter.version, {**params, "lang": lang})
+        return cache_key(file_sha, includes, adapter.name, adapter.version,
+                         {**params, "lang": lang, "mode": facts.extraction_mode})
+
+    def mode_of(path: str) -> str:
+        return "full" if in_scope(path, profile) else "outline"
 
     facts_by_path: dict[str, FileFacts] = {}
     keys: dict[str, str] = {}
     shas: dict[str, str] = {}
-    to_extract: list[tuple[str, str, str | None]] = []
+    to_extract: list[tuple[str, str, str | None, str]] = []
     reused = 0
     for e in sources:
         sha = current_sha(e.path)
@@ -276,12 +285,13 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
         prev = old_files.get(e.path)
         if prev and prev[0] == sha and prev[1]:
             cached = get_facts(old_cache, prev[1])
-            if cached is not None and key_for(cached, sha, e.lang) == prev[1]:
+            if cached is not None and cached.extraction_mode == mode_of(e.path) and \
+                    key_for(cached, sha, e.lang) == prev[1]:
                 facts_by_path[e.path] = cached
                 keys[e.path] = prev[1]
                 reused += 1
                 continue
-        to_extract.append((e.path, str(e.lang), e.variant))
+        to_extract.append((e.path, str(e.lang), e.variant, mode_of(e.path)))
 
     errors: dict[str, str] = {}
     total = len(to_extract)
@@ -310,10 +320,10 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
     else:  # explicit opt-out (debugging): in-process, no deadline
         _WORKER.clear()
         _worker_init(*init_args)
-        for path, lang, variant in to_extract:
+        for path, lang, variant, mode in to_extract:
             check_cancel()
-            on_done(*(options.extract_job or _extract_job)(path, lang, variant))
-    for path, _lang, _variant in to_extract:
+            on_done(*(options.extract_job or _extract_job)(path, lang, variant, mode))
+    for path, _lang, _variant, _mode in to_extract:
         if path not in errors and path in facts_by_path:
             keys[path] = key_for(facts_by_path[path], shas[path], lang_of[path])
     check_cancel()

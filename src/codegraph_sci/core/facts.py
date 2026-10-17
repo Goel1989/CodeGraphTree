@@ -114,6 +114,9 @@ class FileFacts:
     errors: list[ParseError] = field(default_factory=list)
     used_fallback: bool = False
     variant: str | None = None
+    # "full": everything; "outline": only what symbol resolution needs (definitions, includes) for a file
+    # outside the analysis scope — no references, data accesses or directives.
+    extraction_mode: str = "full"
 
     def sort(self) -> FileFacts:
         """Sort every collection (line, column, then name): required for determinism."""
@@ -164,7 +167,14 @@ class FileFacts:
             errors=[ParseError(**e) for e in data["errors"]],
             used_fallback=data["used_fallback"],
             variant=data.get("variant"),
+            extraction_mode=data.get("extraction_mode", "full"),
         )
+
+    def outline(self) -> FileFacts:
+        """The OUTLINE view of these facts: definitions and includes only (references, data, directives dropped)."""
+        self.references, self.data_accesses, self.directives = [], [], []
+        self.extraction_mode = "outline"
+        return self
 
 
 def canonical_json(data: Any) -> str:

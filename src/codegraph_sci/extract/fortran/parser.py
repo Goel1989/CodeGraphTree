@@ -797,6 +797,10 @@ class FortranParser:
         s = stripped
         if not s:
             return
+        if self.ctx.outline and not re.match(r"(end\s*select\b|case\s*\(|select\s*case\s*\()", s):
+            # OUTLINE: no call, expression or data analysis. SELECT CASE is still followed: its case values are
+            # a definition attribute (dispatch tables of packs).
+            return
         if re.match(r"end\s*select\b", s):
             if self.selects:
                 self.selects.pop()

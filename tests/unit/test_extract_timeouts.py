@@ -22,13 +22,13 @@ def job(path: str, kind: str, _variant: str | None) -> tuple[str, bytes | None, 
     return path, path.encode(), None
 
 
-def blocking_extract(path: str, lang: str, variant: str | None) -> tuple[str, bytes | None, str | None]:
+def blocking_extract(path: str, lang: str, variant: str | None, mode: str) -> tuple[str, bytes | None, str | None]:
     """The real extraction, except for one file that never ends."""
     from codegraph_sci.scan import _extract_job
 
     if path.endswith("solve.f90"):
         time.sleep(3600)
-    return _extract_job(path, lang, variant)
+    return _extract_job(path, lang, variant, mode)
 
 
 def _run(jobs: list[tuple[str, str, None]], workers: int, timeout_s: float) -> tuple[dict, list, float]:
