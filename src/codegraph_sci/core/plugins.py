@@ -36,7 +36,7 @@ class ExtractContext:
 
     def params(self) -> dict[str, object]:
         """Extraction parameters that belong in the facts cache key."""
-        return {"include_paths": sorted(self.include_paths), "defines": dict(sorted(self.defines.items())),
+        return {"include_paths": list(self.include_paths), "defines": dict(sorted(self.defines.items())),
                 "known_arrays": sorted(self.known_arrays), "keep_all_branches": self.keep_all_branches}
 
 

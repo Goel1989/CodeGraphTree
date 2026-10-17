@@ -11,15 +11,25 @@ import dataclasses
 import os
 import posixpath
 import subprocess
+import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
 from codegraph_sci.algo.index import aggregate_edges, data_edges, file_and_dir_edges, node_statistics
-from codegraph_sci.core.facts import FileFacts, ParseError, SourceFile, decode_facts, encode_facts
+from codegraph_sci.core.facts import (
+    FileFacts,
+    IncludeLookup,
+    ParseError,
+    SourceFile,
+    canonical_json,
+    decode_facts,
+    encode_facts,
+)
 from codegraph_sci.core.graph import (
     DataAccessRecord,
     EdgeRecord,
@@ -29,7 +39,13 @@ from codegraph_sci.core.graph import (
     PluginRecord,
     ScanRunRecord,
 )
-from codegraph_sci.core.plugins import ExtractContext, LanguageAdapter, decode_bytes, sha256_bytes
+from codegraph_sci.core.plugins import (
+    ExtractContext,
+    IncludedFile,
+    LanguageAdapter,
+    decode_bytes,
+    sha256_bytes,
+)
 from codegraph_sci.core.profile import AnalysisProfile
 from codegraph_sci.core.project import Project
 from codegraph_sci.core.versions import APP_VERSION
@@ -197,8 +213,19 @@ def _extract_job(path: str, lang: str, variant: str | None, mode: str = "full") 
             return path, None, f"file too large ({len(data) / 1e6:.0f} MB): not analysed"
         text, enc = decode_bytes(data)
         outline = mode == "outline"
-        ctx = dataclasses.replace(_WORKER["ctx"], outline=True) if outline else _WORKER["ctx"]
+        base_ctx: ExtractContext = _WORKER["ctx"]
+        lookups: list[IncludeLookup] = []
+
+        def resolve(target: str, source: str) -> IncludedFile | None:
+            result = base_ctx.resolve_include(target, source) if base_ctx.resolve_include else None
+            lookups.append(IncludeLookup(source, target, result.path if result else None,
+                                         result.sha256 if result else None))
+            return result
+
+        ctx = dataclasses.replace(base_ctx, outline=outline, resolve_include=resolve)
         facts = _WORKER["adapters"][lang].extract(SourceFile(path, lang, variant, enc, text), ctx)
+        facts.include_lookups = lookups
+        facts.sort()
         return path, encode_facts(facts.outline() if outline else facts), None
     except Exception as exc:  # noqa: BLE001 - recorded as a failed file, never blocking
         return path, None, f"{type(exc).__name__}: {exc}"
@@ -249,6 +276,14 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
 
     sources = [e for e in inventory.source_files() if e.lang in adapters]
     py_paths = [e.path for e in sources if e.lang == "python"]
+    variant_of = {e.path: e.variant for e in sources}
+    module_name = python_module_namer(py_paths)
+    parser_versions: dict[str, str] = {"python": ".".join(map(str, sys.version_info[:3]))}
+    for package in ("tree-sitter", "tree-sitter-c", "tree-sitter-cpp", "tree-sitter-python"):
+        try:
+            parser_versions[package] = version(package)
+        except PackageNotFoundError:
+            parser_versions[package] = "unavailable"
     packs = load_packs(sorted(set(profile.packs) | set(options.packs), key=lambda n: (n not in BUILTIN_PACKS, n)),
                        default_search_paths(project.folder))
     known_arrays = set(options.extra_known_arrays) | {a for pk in packs for a in pk.known_arrays}
@@ -279,8 +314,15 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
         adapter = adapters[str(lang)]
         includes = sorted({f"{i.resolved_path}:{current_sha(i.resolved_path)}" for i in facts.includes
                            if i.resolved_path})
+        for lookup in facts.include_lookups:
+            resolved = ctx.resolve_include(lookup.target, lookup.source) if ctx.resolve_include else None
+            includes.append(canonical_json([lookup.source, lookup.target,
+                                            resolved.path if resolved else None,
+                                            resolved.sha256 if resolved else None]))
         return cache_key(file_sha, includes, adapter.name, adapter.version,
-                         {**params, "lang": lang, "mode": facts.extraction_mode})
+                         {**params, "path": facts.path, "lang": lang, "variant": variant_of[facts.path],
+                          "mode": facts.extraction_mode, "parser_versions": parser_versions,
+                          "module": module_name(facts.path) if lang == "python" else None})
 
     def mode_of(path: str) -> str:
         return "full" if in_scope(path, profile) else "outline"
@@ -298,7 +340,8 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
         prev = old_files.get(e.path)
         if prev and prev[0] == sha and prev[1] and e.path not in options.force_paths:
             cached = get_facts(old_cache, prev[1])
-            if cached is not None and cached.extraction_mode == mode_of(e.path) and \
+            if cached is not None and cached.path == e.path and cached.lang == e.lang and \
+                    cached.extraction_mode == mode_of(e.path) and \
                     key_for(cached, sha, e.lang) == prev[1]:
                 facts_by_path[e.path] = cached
                 keys[e.path] = prev[1]

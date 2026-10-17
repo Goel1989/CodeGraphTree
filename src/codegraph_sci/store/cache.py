@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
+import zlib
 from pathlib import Path
 
 from codegraph_sci.core.facts import FileFacts, canonical_json, decode_facts
+from codegraph_sci.core.versions import FACTS_FORMAT_VERSION
 from codegraph_sci.store.db import open_db
 
 
 def cache_key(file_sha256: str, included_sha256: list[str], adapter: str, adapter_version: str,
               params: dict[str, object]) -> str:
-    payload = canonical_json({"file": file_sha256, "includes": sorted(included_sha256),
+    payload = canonical_json({"identity_version": 2, "facts_format": FACTS_FORMAT_VERSION,
+                              "file": file_sha256, "includes": sorted(included_sha256),
                               "adapter": adapter, "adapter_version": adapter_version, "params": params})
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -47,5 +50,5 @@ def get_facts(cache: dict[str, bytes], key: str) -> FileFacts | None:
         return None
     try:
         return decode_facts(blob)
-    except (ValueError, KeyError, TypeError):
+    except (ValueError, KeyError, TypeError, zlib.error):
         return None

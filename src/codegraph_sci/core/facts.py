@@ -75,6 +75,16 @@ class IncludeRef:
 
 
 @dataclass(slots=True)
+class IncludeLookup:
+    """An extraction dependency, including unsuccessful and nested include lookups."""
+
+    source: str
+    target: str
+    resolved_path: str | None
+    sha256: str | None
+
+
+@dataclass(slots=True)
 class DataAccess:
     src: str
     data_key: str
@@ -117,6 +127,7 @@ class FileFacts:
     # "full": everything; "outline": only what symbol resolution needs (definitions, includes) for a file
     # outside the analysis scope — no references, data accesses or directives.
     extraction_mode: str = "full"
+    include_lookups: list[IncludeLookup] = field(default_factory=list)
 
     def sort(self) -> FileFacts:
         """Sort every collection (line, column, then name): required for determinism."""
@@ -129,6 +140,7 @@ class FileFacts:
         self.data_accesses.sort(key=lambda a: (a.line, a.src, a.data_key, a.mode))
         self.directives.sort(key=lambda d: (d.line, d.kind, d.text))
         self.includes.sort(key=lambda i: (i.line, i.text))
+        self.include_lookups.sort(key=lambda i: (i.source, i.target, i.resolved_path or "", i.sha256 or ""))
         self.errors.sort(key=lambda e: (e.line, e.message))
         return self
 
@@ -168,6 +180,7 @@ class FileFacts:
             used_fallback=data["used_fallback"],
             variant=data.get("variant"),
             extraction_mode=data.get("extraction_mode", "full"),
+            include_lookups=[IncludeLookup(**i) for i in data.get("include_lookups", [])],
         )
 
     def outline(self) -> FileFacts:

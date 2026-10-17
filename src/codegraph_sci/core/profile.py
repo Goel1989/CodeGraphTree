@@ -99,7 +99,7 @@ class AnalysisProfile:
             "format_version": self.format_version,
             "scope": {"include": list(self.scope.include), "exclude": list(self.scope.exclude)},
             "languages": {k: lang(v) for k, v in sorted(self.languages.items())},
-            "include_paths": sorted(self.include_paths),
+            "include_paths": list(self.include_paths),
             "preprocessor": {"defines": dict(sorted(self.preprocessor.defines.items())),
                              "keep_all_branches": self.preprocessor.keep_all_branches},
             "file_overrides": [override(o) for o in self.file_overrides],
