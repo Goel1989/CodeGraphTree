@@ -109,7 +109,7 @@ def test_keyword_coverage_is_measured(tmp_path: Path) -> None:
 def test_isolation_no_pack_identifier_in_core() -> None:
     """§6.4: identifiers declared by code packs never appear in the core."""
     identifiers: set[str] = set()
-    for rules in list((ROOT / "src" / "codegraph_sci_pro").rglob("rules.yaml")) + list(
+    for rules in list((ROOT / "packs").rglob("rules.yaml")) + list(
             (ROOT / "tests").rglob("packs/*/rules.yaml")):
         identifiers |= set(load_pack_file(rules).identifiers)
     identifiers |= {"jeveux", "jemarq", "jedema", "utmess", "CALLO_", "code_aster", "zk24", "mmalgo"}
@@ -139,3 +139,13 @@ def test_pack_acme_memory_dispatch_catalog_entries_tests(tmp_path: Path) -> None
     for uid, reason in expected["noise"].items():
         assert noise.get(uid) == reason
     assert {p["name"] for p in data["plugins"] if p["type"] == "pack"} == {"acme_solver"}
+
+
+def test_code_aster_pack_ships_with_the_product_outside_the_core(tmp_path: Path) -> None:
+    """The domain pack lives in ``packs/`` at the root (never in ``src/codegraph_sci``) and is found by default."""
+    from codegraph_sci.enrich.packs import default_search_paths, find_pack
+
+    path = find_pack("code_aster", default_search_paths(tmp_path))
+    assert path is not None and path == ROOT / "packs" / "code_aster" / "rules.yaml"
+    assert load_pack_file(path).name == "code_aster"
+    assert not list((ROOT / "src").rglob("code_aster"))

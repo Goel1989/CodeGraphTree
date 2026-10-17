@@ -54,6 +54,7 @@ def main() -> int:
     shutil.move(str(built), str(target))
     for sub in ("packs", "models", "data"):
         (target / sub).mkdir(exist_ok=True)
+    shutil.copytree(ROOT / "packs", target / "packs", dirs_exist_ok=True)  # domain packs shipped with the product
     shutil.copytree(ROOT / "packaging" / "licenses", target / "licenses", dirs_exist_ok=True)
     shutil.copy(ROOT / "packaging" / "LISEZ-MOI.txt", target / "LISEZ-MOI.txt")
     archive = shutil.make_archive(str(target), "zip" if sys.platform == "win32" else "gztar",
