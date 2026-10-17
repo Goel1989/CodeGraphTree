@@ -131,3 +131,11 @@
 - Links between two folders are flagged (`cross_dir`) and drawn in their own colour ("between folders" box).
 - Files that are not analyzed code are classified (docs, data, configuration, images, archives, binary, unknown type, code without adapter), recorded by the analysis and set apart in a grey grid in Files 3D ("non-code files" box).
 - `GraphQuery.groups`, `graph3d_overview`, `graph3d_group`, `non_code_files`; Code_Aster: 275 function groups (main program 7,538 functions, elementary routines 601, behaviour laws 87) in about 1 s.
+
+## Fixes from the external code review
+- Fortran: a generic interface named like its specific procedure (`interface helper` / `module procedure helper`) now resolves to the procedure (the call and the `implements` link were lost).
+- Fortran: intrinsic subroutines called with `CALL` (`system_clock`, `c_f_pointer`, `cpu_time`, `mvbits`, …) are external intrinsics, no longer unresolved; a routine of the repository with the same name still wins. Fortran adapter 1.5 (cached facts are re-extracted).
+- `CallerReport.unresolved_sites` / `ambiguous_sites`: `cgs callers|callees` and the window summary say which call sites are not counted, instead of a bare "calls 0 routine(s)".
+- `cgs … | head` ends quietly (broken pipe, and EINVAL on Windows).
+- `README.md`; coding rule 16 (coherent changes, no degradation; when in doubt, report before changing).
+

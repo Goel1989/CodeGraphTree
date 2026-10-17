@@ -61,6 +61,14 @@ def _print_report(report: CallerReport, direction: Direction) -> None:
               f"{report.site_count} call site(s)")
     if report.hidden_noise:
         print(f"  (+{report.hidden_noise} utility routine(s) hidden; use --all)")
+    open_sites = []
+    if report.unresolved_sites:
+        open_sites.append(f"{report.unresolved_sites} unresolved call site(s)")
+    if report.ambiguous_sites:
+        open_sites.append(f"{report.ambiguous_sites} ambiguous call site(s)"
+                          + (" listing it as a candidate" if direction is Direction.CALLERS else ""))
+    if open_sites:
+        print(f"  (not counted above: {', '.join(open_sites)}; see `cgs unresolved --ambiguous`)")
     for item in report.items:
         n = item.node
         loc = f"{n.file}:{n.line}" if n.file else n.uid.split(":", 1)[0]

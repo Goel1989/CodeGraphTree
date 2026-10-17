@@ -357,8 +357,11 @@ class Linker:
         uids: list[str] = []
         for s in specifics if isinstance(specifics, list) else []:
             u = self._f_lookup(str(s), scope_chain, modules)
-            if u is not None and self.defs[u][0].kind == "routine":
-                uids.extend(self.variants.get(_base(u), [u]))
+            if u is not None:
+                # ``interface helper`` / ``module procedure helper``: the interface and its specific share the
+                # name, so the specific is a variant (``helper#2``) of the interface uid; keep the routines.
+                uids.extend(v for v in self.variants.get(_base(u), [u])
+                            if v in self.defs and self.defs[v][0].kind == "routine")
         uids = sorted(set(uids))
         if len(uids) == 1:
             return Resolution(uids[0], "resolved", "resolved")

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import json
+import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -244,7 +246,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not getattr(args, "func", None):
         parser.print_help()
         return 2
-    result: int = args.func(args)
+    try:
+        result: int = args.func(args)
+        sys.stdout.flush()
+    except OSError as exc:
+        # The reader went away (``cgs … | head``): stop quietly, and keep the interpreter's final flush silent.
+        # Windows reports a closed pipe as EINVAL rather than EPIPE.
+        if not (isinstance(exc, BrokenPipeError) or (os.name == "nt" and exc.errno == errno.EINVAL)):
+            raise
+        try:
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, sys.stdout.fileno())
+        except (OSError, ValueError, AttributeError):
+            pass
+        return 0
     return result
 
 

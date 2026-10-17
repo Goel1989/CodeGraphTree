@@ -773,13 +773,16 @@ class MainWindow(QMainWindow):
         self.links_tabs.setTabText(0, f"Callers ({n_callers})")
         self.links_tabs.setTabText(1, f"Callees ({n_callees})")
         hidden = f" (+{callers.hidden_noise} utilities hidden)" if callers.hidden_noise else ""
+        open_sites = [f"{n} {what}" for n, what in ((callees.unresolved_sites, "unresolved"),
+                                                    (callees.ambiguous_sites, "ambiguous")) if n]
+        not_counted = f" — not counted: {', '.join(open_sites)} call site(s)" if open_sites else ""
         where = f"{node.file}:{node.line}" if node.file else "outside the repository"
         self.hero.title.setText(node.display_name)
         self.hero.subtitle.setText(f"{node.kind} · {node.lang or '-'} · {node.uid} · {where}")
         self.hero.set_counts(callers.count, callees.count)
         self.summary.setText(f"Called by <b>{callers.count}</b> routine(s) in <b>{callers.file_count}</b> "
                              f"file(s){hidden} — calls {callees.count} routine(s) — "
-                             f"impact: {node.impact_size} transitive caller(s)")
+                             f"impact: {node.impact_size} transitive caller(s){not_counted}")
         if node.file:
             self.show_file(node.file, node.line, node.lang)
         self._rebuild_tree()

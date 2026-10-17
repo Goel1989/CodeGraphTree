@@ -10,7 +10,7 @@ erfc_scaled event_query execute_command_line exp exponent extends_type_of findlo
 get_command get_command_argument get_environment_variable huge hypot iachar iall iand iany ibclr ibits
 ibset ichar ieor image_index index int ior iparity ishft ishftc is_contiguous is_iostat_end is_iostat_eor
 kind lbound lcobound leadz len len_trim lge lgt lle llt log log10 log_gamma logical maskl maskr matmul
-max maxexponent maxloc maxval merge merge_bits min minexponent minloc minval mod modulo move_alloc
+max maxexponent maxloc maxval merge merge_bits mvbits min minexponent minloc minval mod modulo move_alloc
 nearest new_line nint norm2 not null num_images out_of_range pack parity popcnt poppar precision present
 product radix random_init random_number random_seed range rank real reduce repeat reshape rrspacing
 same_type_as scale scan selected_char_kind selected_int_kind selected_real_kind set_exponent shape shifta

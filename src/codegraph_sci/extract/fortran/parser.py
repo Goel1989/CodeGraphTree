@@ -26,7 +26,7 @@ from codegraph_sci.extract.fortran.intrinsics import INTRINSICS
 from codegraph_sci.extract.fortran.source import PreparedSource, Statement, prepare
 
 ADAPTER = "fortran"
-VERSION = "1.4"
+VERSION = "1.5"
 
 
 class HardParseError(Exception):
@@ -951,6 +951,10 @@ class FortranParser:
                     hint = {"bind_c": names[name]}
                     break
                 s = s.parent
+            if kind == "call" and not hint and name in INTRINSICS and (sym is None or sym.role == "intrinsic"):
+                # CALL system_clock(...), CALL c_f_pointer(...): intrinsic subroutines (a routine of the
+                # repository with the same name still wins at link time).
+                hint = {"intrinsic": True}
         self.references.append(Reference(src=owner.uid or self.file_uid, target_text=target, kind=kind, line=line,
                                          col=col, args=args, condition=self._cond(st, line),
                                          hint={**hint, "arg_exprs": arg_exprs} if arg_exprs else hint))

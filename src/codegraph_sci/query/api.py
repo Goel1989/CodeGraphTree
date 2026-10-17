@@ -270,15 +270,22 @@ class GraphQuery:
         node_id = self._id(uid)
         items, hidden = self._links(node_id, Direction.CALLERS, hide_noise)
         files = {s.file for i in items for s in i.sites}
+        ambiguous = self.con.execute(
+            "SELECT count(DISTINCT s.id) FROM call_site_candidates c JOIN call_sites s ON s.id = c.site_id "
+            "WHERE c.dst_node = ? AND s.resolution = 'ambiguous'", (node_id,)).fetchone()[0]
         return CallerReport(self._summary_by_id(node_id), len(items), len(files),
-                            sum(len(i.sites) for i in items), items, hidden)
+                            sum(len(i.sites) for i in items), items, hidden, 0, int(ambiguous))
 
     def callees(self, uid: str, *, hide_noise: bool = True) -> CallerReport:
         node_id = self._id(uid)
         items, hidden = self._links(node_id, Direction.CALLEES, hide_noise)
         files = {i.node.file for i in items if i.node.file}
+        open_sites = dict(self.con.execute(
+            "SELECT resolution, count(*) FROM call_sites WHERE src_node = ? AND resolution IN "
+            "('unresolved', 'ambiguous') GROUP BY resolution", (node_id,)).fetchall())
         return CallerReport(self._summary_by_id(node_id), len(items), len(files),
-                            sum(len(i.sites) for i in items), items, hidden)
+                            sum(len(i.sites) for i in items), items, hidden,
+                            int(open_sites.get("unresolved", 0)), int(open_sites.get("ambiguous", 0)))
 
     def call_sites(self, src_uid: str, dst_uid: str) -> list[CallSite]:
         src, dst = self._id(src_uid), self._id(dst_uid)

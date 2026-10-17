@@ -72,6 +72,10 @@ class CallerReport:
     site_count: int
     items: list[LinkItem]
     hidden_noise: int = 0
+    # Sites not counted above: callees, sites of the routine left unresolved or ambiguous; callers, ambiguous
+    # sites for which this routine is one of the candidates.
+    unresolved_sites: int = 0
+    ambiguous_sites: int = 0
 
 
 @dataclass

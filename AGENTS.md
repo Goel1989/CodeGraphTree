@@ -17,6 +17,7 @@
 13. The UI accesses data only through `GraphQuery`; no long-running query on the main thread.
 14. Every AI feature must be testable with the mock model.
 15. Typed Python 3.12 (`mypy` strict), formatted with `ruff`; identifiers, code, UI, comments, and documentation in English.
+16. Every change must be coherent with the existing code, contracts and decisions, and must not degrade it (behaviour, precision, performance, determinism, readability): a fix comes with a non-regression test, and the whole check (`tools/check.py`) passes before and after. **When in doubt** (business or licensing choice, contract change, deletion of user material, effect on precision not measured), change nothing: report the point and the options to the user, and wait for their decision before modifying.
 
 ## Environment
 
