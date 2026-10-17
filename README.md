@@ -25,7 +25,7 @@ On Linux use `.venv/bin/python`. The optional standalone 3D window (`cgs view3d`
 
 ## Use
 
-Desktop application (Windows: `Lancer_CodeGraph-Sci.bat`):
+Desktop application (Windows: `Start_CodeGraph-Sci.bat`):
 
 ```bash
 .venv/Scripts/python -m codegraph_sci.ui.app

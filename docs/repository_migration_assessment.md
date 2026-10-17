@@ -71,7 +71,7 @@ Details:
 | `docs/strategie_licence.md`, `strategie_licence.md` | French file names | 2 (superseded by `LICENSING.md`; owner decides on the originals) |
 | `tests/corpus/code_aster_full/manifest.yaml`, `expectations.yaml` | French placeholders and comments | 1 |
 | `tests/corpus/code_aster_start/review/*.yaml` | French text inside quoted Code_Aster code | none (external source exception, §0.4) |
-| `tests/fixtures/robustness/src/dir with spaces/élément.f90` | Accented file name | none (intentional robustness fixture, §0.4) |
+| Fortran file in `tests/fixtures/robustness/src/dir with spaces/` | Accented file name | none (intentional robustness fixture, §0.4) |
 
 All other project-owned code, identifiers, comments, UI and documentation were already translated to English.
 

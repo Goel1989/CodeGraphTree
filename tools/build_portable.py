@@ -57,7 +57,7 @@ def main() -> int:
         (target / sub).mkdir(exist_ok=True)
     shutil.copytree(ROOT / "packs", target / "packs", dirs_exist_ok=True)  # domain packs shipped with the product
     shutil.copytree(ROOT / "packaging" / "licenses", target / "licenses", dirs_exist_ok=True)
-    shutil.copy(ROOT / "packaging" / "LISEZ-MOI.txt", target / "LISEZ-MOI.txt")
+    shutil.copy(ROOT / "packaging" / "README.txt", target / "README.txt")
     archive = shutil.make_archive(str(target), "zip" if sys.platform == "win32" else "gztar",
                                   root_dir=DIST, base_dir=name)
     digest = sha256(Path(archive))
