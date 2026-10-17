@@ -72,6 +72,7 @@ class AnalysisProfile:
     file_overrides: list[FileOverride] = field(default_factory=list)
     ignored: list[IgnoredGroup] = field(default_factory=list)
     exclude_dirs: list[str] = field(default_factory=list)
+    all_subfolders: bool = False  # walk .gitignore'd and default-excluded folders too
     packs: list[str] = field(default_factory=list)
     rules: list[RuleRef] = field(default_factory=list)
     history: list[HistoryEntry] = field(default_factory=list)
@@ -104,6 +105,7 @@ class AnalysisProfile:
             "file_overrides": [override(o) for o in self.file_overrides],
             "ignored": [{"ext": g.ext, "files": g.files, "reason": g.reason} for g in self.ignored],
             "exclude_dirs": list(self.exclude_dirs),
+            **({"all_subfolders": True} if self.all_subfolders else {}),  # absent when off: same hash as before
             "packs": list(self.packs),
             "rules": [{"id": r.id, "kind": r.kind, "source": r.source, "status": r.status, "file": r.file}
                       for r in self.rules],
@@ -133,6 +135,7 @@ class AnalysisProfile:
             ignored=[IgnoredGroup(ext=g["ext"], files=int(g.get("files", 0)), reason=g.get("reason", ""))
                      for g in data.get("ignored", [])],
             exclude_dirs=list(data.get("exclude_dirs", [])),
+            all_subfolders=bool(data.get("all_subfolders", False)),
             packs=list(data.get("packs", [])),
             rules=[RuleRef(**r) for r in data.get("rules", [])],
             history=[HistoryEntry(**h) for h in data.get("history", [])],

@@ -194,3 +194,18 @@ def test_opening_a_project_stops_the_running_command(window, qtbot) -> None:  # 
     window.open_project_folder(window.repo, window.project.folder)
     assert not window.process.running() and not window.pending_scan
     qtbot.waitUntil(lambda: window.btn_scan.isEnabled(), timeout=5000)
+
+
+def test_inventory_shows_skipped_folders_and_all_subfolders_option(window, qtbot) -> None:  # type: ignore[no-untyped-def]
+    gen = window.repo / "build" / "gen.f90"
+    gen.parent.mkdir()
+    gen.write_text("subroutine gen\nend subroutine gen\n", encoding="utf-8")
+    window.start_scan()
+    qtbot.waitUntil(lambda: not window.process.running(), timeout=60000)
+    qtbot.waitUntil(lambda: "build" in window.skipped_label.text(), timeout=5000)
+    assert not window.all_subfolders.isChecked()
+    window.all_subfolders.setChecked(True)  # profile change, then a new analysis
+    qtbot.waitUntil(lambda: window.process.running() or window.pending_scan, timeout=5000)
+    qtbot.waitUntil(lambda: not window.process.running() and not window.pending_scan, timeout=60000)
+    qtbot.waitUntil(lambda: "No folder skipped" in window.skipped_label.text(), timeout=5000)
+    assert window.all_subfolders.isChecked()

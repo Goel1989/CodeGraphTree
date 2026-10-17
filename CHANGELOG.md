@@ -121,3 +121,7 @@
 - Header band with the view title in capitals; hero card of the selected routine with 48 × 48 badges (callers, callees) and buttons opening popovers (Show in, Filters, Analysis).
 - Dark theme everywhere: style sheet and Fusion palette (`ui/theme.py`), code colours and site highlights for a dark editor, 3D page in the same colours.
 - Opening a project now stops the inventory or analysis still running for the previous one.
+
+## Every sub-folder, and what is left out
+- The inventory reports each folder (or `.gitignore`d file) it leaves out, with its reason (default exclusion, .gitignore, profile) and file count: `cgs inventory`, `skipped_dirs` in the JSON output and the scan statistics, Inventory view.
+- New profile option `all_subfolders` (`cgs profile all-subfolders <folder> on|off`, "Analyze all subfolders" box in the Inventory view): analyze every sub-folder, ignoring `.gitignore` and the default exclusions; `.git`, `.hg`, `.svn` and the profile's `exclude_dirs` still apply.

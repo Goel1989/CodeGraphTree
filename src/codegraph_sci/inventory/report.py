@@ -19,7 +19,16 @@ def inventory_dict(result: InventoryResult) -> dict[str, Any]:
         "ignored": result.ignored_count,
         "binary": result.binary_count,
         "problems": [{"path": p.path, "message": p.message} for p in result.problems],
+        "skipped_dirs": skipped_list(result),
     }
+
+
+def skipped_list(result: InventoryResult, limit: int | None = None) -> list[dict[str, Any]]:
+    """Skipped folders, largest first (then by path); ``limit`` keeps the first ones."""
+    items = sorted(result.skipped_dirs, key=lambda s: (-s.files, s.path))
+    if limit is not None:
+        items = items[:limit]
+    return [{"path": s.path, "reason": s.reason, "files": s.files} for s in items]
 
 
 def inventory_table(result: InventoryResult) -> str:
@@ -39,6 +48,12 @@ def inventory_table(result: InventoryResult) -> str:
     lines.append(f"Ignored: {result.ignored_count} non-source files, {result.binary_count} binary files")
     if result.include_paths:
         lines.append(f"Include paths: {', '.join(result.include_paths)}")
+    for s in skipped_list(result, 20):
+        lines.append(f"Skipped: {s['path']} ({s['reason']}, {s['files']} file{'s' if s['files'] != 1 else ''})")
+    if len(result.skipped_dirs) > 20:
+        lines.append(f"Skipped: … {len(result.skipped_dirs) - 20} more (see --json)")
+    if result.skipped_dirs:
+        lines.append("To analyze every sub-folder: cgs profile all-subfolders <folder> on")
     for problem in result.problems:
         lines.append(f"warning: {problem.path}: {problem.message}")
     return "\n".join(lines) + "\n"

@@ -211,6 +211,15 @@ class MainWindow(QMainWindow):
         il.setContentsMargins(0, 0, 0, 0)
         il.addWidget(self.inventory_table)
         il.addWidget(self.unknown_label)
+        self.all_subfolders = QCheckBox("Analyze all subfolders (ignore .gitignore and default exclusions such as "
+                                        "build, .venv, node_modules)")
+        self.all_subfolders.setToolTip("Version-control folders (.git, .hg, .svn) are never analyzed")
+        self.all_subfolders.toggled.connect(self._on_all_subfolders)
+        il.addWidget(self.all_subfolders)
+        self.skipped_label = QLabel("")
+        self.skipped_label.setWordWrap(True)
+        self.skipped_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        il.addWidget(self.skipped_label)
         actions = QHBoxLayout()
         btn_force = QPushButton("Force language…")
         btn_force.clicked.connect(self.force_language)
@@ -599,6 +608,29 @@ class MainWindow(QMainWindow):
         self._run_cgs(["profile", *args, "--project", str(self.project.folder)])
 
     # ------------------------------------------------------------- display
+    def _on_all_subfolders(self, checked: bool) -> None:
+        if self.project is None:
+            return
+        self.status_label.setText("Analyzing every sub-folder…" if checked else "Applying folder exclusions…")
+        self._profile_change(["all-subfolders", str(self.project.root), "on" if checked else "off"])
+
+    def _show_skipped(self, skipped: list[dict[str, Any]], all_subfolders: bool,
+                      total: dict[str, Any] | None = None) -> None:
+        """Folders left out of the analysis (largest first) and the state of the option."""
+        self.all_subfolders.blockSignals(True)
+        self.all_subfolders.setChecked(all_subfolders)
+        self.all_subfolders.blockSignals(False)
+        if not skipped:
+            self.skipped_label.setText("No folder skipped: every sub-folder is analyzed.")
+            return
+        entries = int(total["entries"]) if total else len(skipped)
+        files = int(total["files"]) if total else sum(int(s["files"]) for s in skipped)
+        lines = [f"Skipped: {entries} folder(s) or file(s), {files} file(s) in all —"]
+        lines += [f"{s['path']} ({s['reason']}, {s['files']} file(s))" for s in skipped[:12]]
+        if entries > 12:
+            lines.append(f"… and {entries - 12} more")
+        self.skipped_label.setText("  ".join(lines[:1]) + " " + " · ".join(lines[1:]))
+
     def _show_raw_inventory(self, data: dict[str, Any]) -> None:
         cov = data.get("coverage", {})
         self.inventory_table.setRowCount(len(cov))
@@ -608,6 +640,7 @@ class MainWindow(QMainWindow):
         unknown = data.get("unknown_groups", {})
         self.unknown_label.setText("Unrecognized files: " + (", ".join(
             f"{k} ({v['files']})" for k, v in unknown.items()) or "none"))
+        self._show_skipped(list(data.get("skipped_dirs", [])), self.all_subfolders.isChecked())
 
     def _show_inventory(self, report: Any) -> None:
         self.inventory_table.setRowCount(len(report.languages))
@@ -637,6 +670,9 @@ class MainWindow(QMainWindow):
         if last:
             lines.append(f"Last analysis: {last['finished_at']} — profile v{last['profile_version']} — "
                          f"{last['stats'].get('seconds', '?')} s")
+            stats = last["stats"]
+            self._show_skipped(list(stats.get("skipped_dirs", [])), bool(stats.get("all_subfolders", False)),
+                               stats.get("skipped_total"))
         lines += ["", "Unresolved or ambiguous sites, by pattern:"]
         lines += [f"  {g.count:>6}  {g.lang:<8} {g.resolution:<10} {g.pattern}" for g in groups]
         if health.failures:

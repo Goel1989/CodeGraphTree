@@ -1,4 +1,8 @@
-"""Repository walk: .gitignore, excluded directories, symlink loops, unreadable entries."""
+"""Repository walk: every sub-folder, minus .gitignore, excluded directories, symlink loops, unreadable entries.
+
+Skipped folders (and files ignored by ``.gitignore``) are reported with their reason and file count, so that the
+user sees what is left out; ``all_subfolders`` walks everything except version-control metadata.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +12,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from codegraph_sci.inventory.gitignore import GitIgnore
+
+VCS_DIRS = frozenset({".git", ".hg", ".svn"})  # never walked, never reported
+COUNT_LIMIT = 100_000  # files counted in one skipped folder (bounded work on huge trees)
 
 
 @dataclass
@@ -24,13 +31,48 @@ class WalkedFile:
     mtime_ns: int
 
 
+@dataclass
+class SkippedDir:
+    """A folder (or a file ignored by ``.gitignore``) left out of the walk."""
+
+    path: str
+    reason: str  # "default exclusion", ".gitignore" or "profile"
+    files: int  # files below it (at most COUNT_LIMIT)
+
+
+def count_files(directory: Path, limit: int = COUNT_LIMIT) -> int:
+    count = 0
+    stack = [directory]
+    while stack and count < limit:
+        current = stack.pop()
+        try:
+            with os.scandir(current) as it:
+                for entry in it:
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            stack.append(Path(entry.path))
+                        else:
+                            count += 1
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return min(count, limit)
+
+
 def walk_repo(root: Path, excluded_dirs: set[str], extra_excluded: list[str] | None = None,
-              problems: list[WalkProblem] | None = None) -> Iterator[WalkedFile]:
-    """Yield files in a deterministic order (sorted names, depth first)."""
+              problems: list[WalkProblem] | None = None, *, all_subfolders: bool = False,
+              skipped: list[SkippedDir] | None = None) -> Iterator[WalkedFile]:
+    """Yield files in a deterministic order (sorted names, depth first).
+
+    ``all_subfolders``: ignore ``.gitignore`` and the default excluded directory names (version-control metadata and
+    the profile's own exclusions still apply). ``skipped`` receives what was left out, sorted by path.
+    """
     root = root.resolve()
     gitignore = GitIgnore()
     extra = [p.strip("/") for p in (extra_excluded or [])]
     problems = problems if problems is not None else []
+    out: list[SkippedDir] = []
     visited: set[str] = set()
 
     def visit(directory: Path, rel_dir: str) -> Iterator[WalkedFile]:
@@ -44,7 +86,7 @@ def walk_repo(root: Path, excluded_dirs: set[str], extra_excluded: list[str] | N
             return
         visited.add(real)
         gi = directory / ".gitignore"
-        if gi.is_file():
+        if not all_subfolders and gi.is_file():
             try:
                 gitignore.add_file(rel_dir, gi.read_text(encoding="utf-8", errors="replace"))
             except OSError as exc:
@@ -63,13 +105,22 @@ def walk_repo(root: Path, excluded_dirs: set[str], extra_excluded: list[str] | N
                 problems.append(WalkProblem(rel, f"unreadable: {exc}"))
                 continue
             if is_dir:
-                if entry.name in excluded_dirs or any(rel == e or rel.startswith(e + "/") for e in extra):
+                if entry.name in VCS_DIRS:
                     continue
-                if gitignore.ignored(rel, True):
+                reason = None
+                if any(rel == e or rel.startswith(e + "/") for e in extra):
+                    reason = "profile"
+                elif not all_subfolders and entry.name in excluded_dirs:
+                    reason = "default exclusion"
+                elif not all_subfolders and gitignore.ignored(rel, True):
+                    reason = ".gitignore"
+                if reason is not None:
+                    out.append(SkippedDir(rel, reason, count_files(Path(entry.path))))
                     continue
                 yield from visit(Path(entry.path), rel)
             elif is_file:
-                if gitignore.ignored(rel, False):
+                if not all_subfolders and gitignore.ignored(rel, False):
+                    out.append(SkippedDir(rel, ".gitignore", 1))
                     continue
                 try:
                     st = entry.stat(follow_symlinks=True)
@@ -81,3 +132,5 @@ def walk_repo(root: Path, excluded_dirs: set[str], extra_excluded: list[str] | N
                 problems.append(WalkProblem(rel, "broken or looping symbolic link"))
 
     yield from visit(root, "")
+    if skipped is not None:
+        skipped.extend(sorted(out, key=lambda s: s.path))

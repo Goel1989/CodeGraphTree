@@ -153,6 +153,12 @@ def _cmd_profile(args: argparse.Namespace) -> int:
         profile.ignored = [g for g in profile.ignored if g.ext != ext]
         profile.ignored.append(IgnoredGroup(ext, 0, args.reason or "ignored by the user"))
         change = f"extension {ext} ignored"
+    elif args.action == "all-subfolders":
+        if args.glob not in ("on", "off"):
+            raise SystemExit("error: all-subfolders takes 'on' or 'off'")
+        profile.all_subfolders = args.glob == "on"
+        change = ("every sub-folder analyzed (.gitignore and default exclusions ignored)" if profile.all_subfolders
+                  else ".gitignore and default folder exclusions applied")
     else:
         print(json.dumps(profile.to_dict(), indent=1, ensure_ascii=False))
         return 0
@@ -188,9 +194,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=_cmd_scan)
 
     p = sub.add_parser("profile", help="show or change the analysis profile")
-    p.add_argument("action", choices=["show", "set-language", "ignore"])
+    p.add_argument("action", choices=["show", "set-language", "ignore", "all-subfolders"])
     p.add_argument("root", help="repository folder")
-    p.add_argument("glob", nargs="?", default="", help="file glob (set-language) or extension (ignore)")
+    p.add_argument("glob", nargs="?", default="", help="file glob (set-language), extension (ignore) or on/off (all-subfolders)")
     p.add_argument("language", nargs="?", default="", help="language (set-language)")
     p.add_argument("--project", help="project folder")
     p.add_argument("--reason", help="reason recorded in the profile")

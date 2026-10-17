@@ -247,7 +247,7 @@ subprocesses, and pipes. cgs scan never calls AI.
 
 **Deterministic step: `cgs inventory <folder>`**
 
-1. **Repository traversal:** obeys `.gitignore` and configured exclusions (build dirs, `.git`); binary files (null bytes) are ignored; symlink loops and unreadable files are logged without blocking traversal.
+1. **Repository traversal:** walks **every sub-folder** of the selected folder (depth first, sorted names); by default it obeys `.gitignore` and the default excluded directory names (`build`, `.venv`, `node_modules`, caches…), plus the profile's `exclude_dirs`. Every folder (or `.gitignore`d file) left out is **reported** with its reason (`default exclusion`, `.gitignore`, `profile`) and file count: `cgs inventory`, `skipped_dirs` in the inventory JSON and in the scan statistics, and the Inventory view. The profile option `all_subfolders: true` (`cgs profile all-subfolders <folder> on`, or the "Analyze all subfolders" box of the Inventory view) ignores `.gitignore` and the default exclusions; version-control metadata (`.git`, `.hg`, `.svn`) and `exclude_dirs` still apply. The key is written only when true, so existing profiles keep their hash. Binary files (null bytes) are ignored; symlink loops and unreadable files are logged without blocking traversal.
 2. **Extensions table** (configurable):
 
 | Extensions | Language | Note |

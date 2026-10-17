@@ -19,7 +19,7 @@ from codegraph_sci.inventory.detect import (
     python_variant,
 )
 from codegraph_sci.inventory.table import ExtensionTable, load_table
-from codegraph_sci.inventory.walk import WalkProblem, walk_repo
+from codegraph_sci.inventory.walk import SkippedDir, WalkProblem, walk_repo
 
 _C_INCLUDE = re.compile(r'(?m)^[ \t]*#[ \t]*include[ \t]*"([^"\n]+)"')
 _F_INCLUDE = re.compile(r"""(?im)^[ \t]*include[ \t]*['"]([^'"\n]+)['"]""")
@@ -58,6 +58,7 @@ class InventoryResult:
     ignored_count: int
     binary_count: int
     problems: list[WalkProblem]
+    skipped_dirs: list[SkippedDir] = field(default_factory=list)  # left out of the walk, with the reason
     coverage: dict[str, CoverageLine] = field(default_factory=dict)
     includes: dict[str, list[str]] = field(default_factory=dict)  # file -> included files (resolved)
 
@@ -97,6 +98,7 @@ def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
     table = table or load_table()
     profile = profile or AnalysisProfile()
     problems: list[WalkProblem] = []
+    skipped: list[SkippedDir] = []
     overrides = profile.file_overrides
     ignored_exts = {g.ext.lower(): g.reason for g in profile.ignored}
     keyword_langs = {lang: e.adapter for lang, e in profile.languages.items() if e.adapter.startswith("keywords:")}
@@ -106,7 +108,8 @@ def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
     texts: dict[str, str] = {}
     pending: dict[str, list[str]] = {}  # ambiguous path -> candidates
 
-    for wf in walk_repo(root, table.excluded_dirs, profile.exclude_dirs, problems):
+    for wf in walk_repo(root, table.excluded_dirs, profile.exclude_dirs, problems,
+                        all_subfolders=profile.all_subfolders, skipped=skipped):
         rel, name = wf.rel, wf.rel.rsplit("/", 1)[-1]
         ext = file_ext(name)
         lext = ext.lower()
@@ -273,5 +276,5 @@ def run_inventory(root: Path | str, profile: AnalysisProfile | None = None,
         unknown_groups={k: v for k, v in sorted(unknown.items())},
         ignored_count=sum(1 for e in ordered if e.status == "ignored"),
         binary_count=sum(1 for e in ordered if e.status == "binary"),
-        problems=problems, coverage=dict(sorted(coverage.items())), includes=includes,
+        problems=problems, skipped_dirs=skipped, coverage=dict(sorted(coverage.items())), includes=includes,
     )

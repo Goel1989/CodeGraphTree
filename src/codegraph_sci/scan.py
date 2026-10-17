@@ -47,6 +47,7 @@ from codegraph_sci.inventory.profile_io import (
     profile_sha256,
     save_profile,
 )
+from codegraph_sci.inventory.report import skipped_list
 from codegraph_sci.inventory.run import InventoryResult, run_inventory
 from codegraph_sci.link.linker import Linker
 from codegraph_sci.store.cache import cache_key, get_facts, load_cache, previous_files
@@ -433,6 +434,9 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
         "files_source": len(sources), "files_extracted": total, "files_cached": reused,
         "files_failed": len(errors), "files_fallback": sum(1 for f in facts_by_path.values() if f.used_fallback),
         **link.stats, "edges": len(edges), "seconds": round(time.perf_counter() - t0, 2),
+        "all_subfolders": profile.all_subfolders, "skipped_dirs": skipped_list(inventory, 200),
+        "skipped_total": {"entries": len(inventory.skipped_dirs),
+                          "files": sum(s.files for s in inventory.skipped_dirs)},
         "timings": {**timings, "index": round(time.perf_counter() - t0 - sum(timings.values()), 2)},
     }
     bundle.scan_run = ScanRunRecord(started, datetime.now(UTC).isoformat(timespec="seconds"), str(root),
