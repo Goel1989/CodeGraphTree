@@ -1,6 +1,6 @@
 """Build the portable folder (PyInstaller onedir), its archive and SHA-256.
 
-Usage: python tools/build_portable.py [--edition core|ai]
+Usage: python tools/build_portable.py [--with-model]
 Network is only used to install build dependencies; the produced folder never accesses it.
 """
 
@@ -38,7 +38,8 @@ def folder_size(path: Path) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--edition", choices=["core", "ai"], default="core")
+    parser.add_argument("--with-model", action="store_true",
+                        help="name the folder for the variant with a bundled model (same software, same features)")
     args = parser.parse_args()
     sys.path.insert(0, str(ROOT / "src"))
     from codegraph_sci.core.versions import APP_VERSION
@@ -47,7 +48,7 @@ def main() -> int:
                            "--distpath", str(DIST / "build"), "--workpath", str(DIST / "work"),
                            str(ROOT / "packaging" / "codegraph_sci.spec")])
     built = DIST / "build" / "CodeGraph-Sci"
-    name = f"CodeGraph-Sci-{APP_VERSION}-{platform_tag()}" + ("-ai" if args.edition == "ai" else "")
+    name = f"CodeGraph-Sci-{APP_VERSION}-{platform_tag()}" + ("-with-model" if args.with_model else "")
     target = DIST / name
     if target.exists():
         shutil.rmtree(target)

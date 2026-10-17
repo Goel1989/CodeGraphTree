@@ -1,7 +1,7 @@
 # Test Case #1 — Code_Aster (Domain Pack `code_aster`)
 
 **Repository location:** `docs/packs/code_aster.md`  
-**Pack:** `code_aster` (Pro extension, `src/codegraph_sci_pro/packs/code_aster/`)  
+**Pack:** `code_aster` (domain pack shipped with the product, `packs/code_aster/`)  
 **Document version:** 0.2 (October 16, 2026) — incorporates two external reviews  
 **Reference codebase version:** 17.5.7 (validated in §10)  
 **Status:** verified on starter corpus 17.5.7.

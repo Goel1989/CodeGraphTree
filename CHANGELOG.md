@@ -139,3 +139,9 @@
 - `cgs … | head` ends quietly (broken pipe, and EINVAL on Windows).
 - `README.md`; coding rule 16 (coherent changes, no degradation; when in doubt, report before changing).
 
+## One product (decision D24, corrective audit phase 1)
+- `codegraph_sci_pro` is merged into the product: the local AI moves to `codegraph_sci.ai`, its commands (`ai-worker`, `complete`, `ai-approve`) to `codegraph_sci/cli_ai.py`, registered directly by `cgs`; the `pro` entry point is removed.
+- The `code_aster` domain pack moves to `packs/code_aster/` at the repository root (data outside the core, rule 7); pack discovery uses the installation's `packs/` folder, and the portable build now copies it.
+- New import contract: `scan` and `audit` never import the AI (rule 8).
+- `tools/build_portable.py --with-model` replaces `--edition ai`: two portable variants of the same software, not editions.
+

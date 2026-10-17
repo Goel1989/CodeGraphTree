@@ -57,7 +57,7 @@
 | 13 | AI: language identification and keyword completion | 12 |
 | 14 | Test case #1 Pack | 13 |
 | 15 | AI: explanations | 13 |
-| 16 | Pro Edition, license compliance, and final release | 14, 15 |
+| 16 | Dual licensing, license compliance, and final release | 14, 15 |
 
 ---
 
@@ -131,7 +131,7 @@ Local AI has three roles, in order of priority:
 - Its proposals are **automatically checked** (§3.13). These checks measure plausibility, not truth: a target that exists is not necessarily the right one. This is why, by default, the user **validates in one click** after seeing a preview of added and removed links. An automatic adoption mode exists, configurable per project (§3.13).
 - An adopted proposal is **written to the project's analysis profile**, a frozen, versioned file. Analysis only reads this profile: it never calls AI.
 - Links stemming from an AI-proposed rule remain **marked as such** (`origin`, `heuristic` confidence) and can be hidden in one click.
-- **Without a model** (edition without AI), everything works: unknown languages are reported, and keyword profiles can be written manually.
+- **Without a model** (no model installed or bundled), everything works: unknown languages are reported, and keyword profiles can be written manually.
 
 ---
 
@@ -218,13 +218,13 @@ The interface never manipulates the entire graph. Strategies are detailed in §3
 ┌────────────────────────────────────────────────────────────────┐
 │ DESKTOP APPLICATION (PySide6) — main process                   │
 │ Inventory · Search · Callers · 3D graphs                       │
-│ Code inspector · Analysis health · AI (Pro)                    │
+│ Code inspector · Analysis health · AI                          │
 └──────┬────────────────────────┬────────────────────────┬───────┘
        │ threads                │ subprocesses           │ pipes
        │ (read)                 │ (progress)             │ (JSON)
 ┌──────▼──────┐   ┌─────────────▼─────────────┐   ┌──────▼───────┐
 │ Query       │   │ cgs inventory             │   │ AI Worker    │
-│ API         │   │ cgs scan (deterministic)  │   │ (Pro)        │
+│ API         │   │ cgs scan (deterministic)  │   │              │
 │ query/      │   │ reads profile             │   │ GGUF model   │
 └──────┬──────┘   └─────────────┬─────────────┘   └──────┬───────┘
        │ reads                  │ writes                 │ proposes
@@ -240,7 +240,7 @@ subprocesses, and pipes. cgs scan never calls AI.
 - **Main process:** Qt interface. Never reads source files for analysis and never executes long queries itself.
 - **Query threads:** each query (callers, expand, search) runs in a Qt threadpool thread, with its own read-only SQLite connection, returning results via signals.
 - **Analysis process:** interface spawns `cgs inventory` then `cgs scan` (same CLI executable) as subprocesses, reads progress (one JSON line per event), and can cancel them. A parser crash cannot crash the UI; a file exceeding its timeout is flagged as failed, and analysis proceeds.
-- **AI process (Pro):** dedicated subprocess loading the model; communicates via stdin/stdout (one JSON message per line). **No network ports**, even internally. Never called by `cgs scan`.
+- **AI process:** dedicated subprocess loading the model; communicates via stdin/stdout (one JSON message per line). **No network ports**, even internally. Never called by `cgs scan`.
 - **Project files:** analysis profile (`analysis_profile.yaml`, adopted rules) and SQLite database.
 
 ### 3.2. Language inventory and analysis profile
@@ -338,7 +338,7 @@ history:
 | `scan` | Pipeline orchestration | `core`, `algo`, `inventory`, `extract`, `link`, `enrich`, `store` |
 | `cli` | `cgs` command | `inventory`, `scan`, `query`, `audit` |
 | `ui` | Desktop application | `core`, `query`, `layout` — **never** `extract`, `link`, `enrich`, or `store` directly |
-| `codegraph_sci_pro` | AI, codebase packs, licensing | all of core; core never imports it |
+| `ai` | Local AI (§3.13): models, worker process, completion of the profile; commands in `cli_ai.py` | core, inventory, extract, link, enrich, store, query, scan; never imported by `scan`, `audit`, `query`, `ui` or the leaf packages (import contract) |
 
 These rules are enforced by `import-linter` starting in Lot 0.
 
@@ -728,7 +728,7 @@ class GraphQuery:
 10. **Unobtrusive analysis:** analysis process at low priority, worker count = cores − 1, facts streamed to database.
 11. **Partial analysis:** ability to restrict detailed analysis to specific directories (§3.3).
 
-### 3.13. Local AI (Pro extension)
+### 3.13. Local AI
 
 **Execution:** `cgs ai-worker` subprocess loading a GGUF model with `llama-cpp-python`, on CPU (threads = cores − 1), with 4 to 8k token context. JSON communication over stdin/stdout; streamed responses; zero temperature and fixed seed. Inference library selects CPU instruction set dynamically at startup (§2.2).
 
@@ -784,17 +784,17 @@ CodeGraph-Sci-1.0-linux-x86_64/          (or -windows-x64)
 ├── cgs                                   CLI (cgs.exe on Windows)
 ├── _internal/                            embedded Python, Qt, libraries
 ├── packs/                                installed packs (rules.yaml)
-├── models/                               AI edition: .gguf model + license + provenance.json
+├── models/                               optional bundled .gguf model + license + provenance.json
 ├── licenses/                             licenses & notices of all components, LGPL source offer
 ├── data/                                 projects and settings (portable mode)
 └── README.txt
 ```
 
-- **Two editions:** without AI (~300 MB, measured in Lot 0) and with AI (1 to 3 GB additional depending on model).
+- **Two portable variants of the same software** (same features, D24): without a bundled model (~300 MB, measured in Lot 0; a model can be added later) and with a bundled model (1 to 3 GB additional depending on model), built with `tools/build_portable.py --with-model`.
 - **Two executables** sharing the same `_internal/` directory, produced by a single PyInstaller spec: desktop app and CLI.
 - **Data location:** default on local disk (`~/.codegraph-sci/` on Linux, `%LOCALAPPDATA%\CodeGraph-Sci\` on Windows) because SQLite is slow on USB drives. "Portable mode" option writes to `data/` next to the app.
 - **Build:** `tools/build_portable.py` (PyInstaller) produces the directory, archive, and SHA-256 hash. Linux: glibc 2.28 container (§2.2); Windows: CI Windows runner. Network is only used at build time; finished folder makes zero network access.
-- **Bundled model:** AI edition contains model file and license text, as required by Apache 2.0 and MIT (§7).
+- **Bundled model:** the variant with a bundled model contains model file and license text, as required by Apache 2.0 and MIT (§7).
 
 ### 3.15. Technical choices and dependencies
 
@@ -848,10 +848,9 @@ codegraph-sci/                         development repo (private until release)
 │   │   ├── scan.py
 │   │   ├── cli.py
 │   │   └── ui/                        app.py, main_window.py, models/, views/, workers.py
-│   └── codegraph_sci_pro/             Pro extensions (eventually private repo)
-│       ├── packs/<code>/
-│       ├── ai/                        worker.py, identify.py, complete.py, explain.py, prompts/
-│       └── license/
+│       ├── ai/                        models.py, worker.py, complete.py (local AI, §3.13)
+│       └── cli_ai.py                  cgs ai-worker, complete, ai-approve
+├── packs/<code>/                      domain packs shipped with the product (data, outside the core, rule 7)
 ├── tests/
 │   ├── unit/
 │   ├── fixtures/<name>/               src/ + expected_inventory.json + expected_graph.json
@@ -1010,13 +1009,13 @@ Do not start the next lot.
 - **Validation tests:** 100% of cited identifiers verified; initial tokens in < 15 s, complete response in < 60 s on reference machine; benchmark scores recorded for candidate models.
 - **Depends on:** Lot 13.
 
-### Lot 16 — Pro Edition, license compliance, and final release
+### Lot 16 — Dual licensing, license compliance, and final release
 
 - **Deliverables:**
-  - separation of `codegraph_sci_pro` package (private repo, compiled distribution); Ed25519 license key (see `docs/strategie_licence.md`);
+  - one product package and one feature set (D24): licensing documents (`LICENSE`, `LICENSING.md`, `COMMERCIAL_LICENSE.md`, `NOTICE`, `THIRD_PARTY_NOTICES.md`); no license key, no activation, no feature gate;
   - **compliance as explicit task**: automated dependency license audit; Software Bill of Materials (SBOM); comprehensive `licenses/` directory (license texts and notices for every embedded component, Apache 2.0 `NOTICE` files, model license); Qt/PySide6 LGPL obligations (§7); verification that no GPL tool is bundled by default; review of analyzed code snippets in demos;
-  - portable editions with and without AI; Windows binary code signing.
-- **Validation tests:** installation on clean networkless machines (Ubuntu 22.04 & 24.04, Windows 10 & 11, Rocky Linux 8 if available); zero network traffic or listening ports during analysis, UI navigation, and model inference, verified on distributed package; missing or expired license never blocks core functionality; compliance checklist fully verified.
+  - portable variants with and without a bundled model; Windows binary code signing.
+- **Validation tests:** installation on clean networkless machines (Ubuntu 22.04 & 24.04, Windows 10 & 11, Rocky Linux 8 if available); zero network traffic or listening ports during analysis, UI navigation, and model inference, verified on distributed package; no license mechanism affects any functionality; compliance checklist fully verified.
 - **Depends on:** Lots 14 and 15.
 
 ---
@@ -1173,10 +1172,10 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 
 ## 7. Licensing constraints affecting code
 
-- **Public code under PolyForm Noncommercial 1.0.0**, described as "source-available under a noncommercial license, with commercial licensing available separately", never as "open source". Pro extensions reside in `codegraph_sci_pro`, which core never imports.
+- **Public code under PolyForm Noncommercial 1.0.0**, described as "source-available under a noncommercial license, with commercial licensing available separately", never as "open source". One product, one feature set: the commercial license grants rights, it does not unlock a different implementation (D24).
 - **Dependencies:** strictly those in §3.15 or equivalent licenses (MIT, BSD, Apache 2.0, ISC, PSF, MPL-2.0 for test tools, LGPL with dynamically linked libraries); never GPL or AGPL imported by code or bundled by default. fxtran (GPL-3.0) can only be used as a separately installed external tool after license review.
 - **PySide6 and Qt (LGPL-3.0):** keep Qt libraries as separate, replaceable files in `_internal/` (no static linking); provide LGPL text and Qt notices in `licenses/`; provide Qt and PySide6 sources used or written offer to provide them; do not restrict user replacement. This modularity is necessary but not sufficient: full checklist is audited in Lot 16.
-- **AI models:** strictly Apache 2.0 or MIT. AI edition bundles model file **and license text** (along with `NOTICE` file if present): redistribution requirement of these licenses.
+- **AI models:** strictly Apache 2.0 or MIT. The variant with a bundled model includes the model file **and license text** (along with `NOTICE` file if present): redistribution requirement of these licenses.
 - **Analyzed codebases:** exact revision and origin of any snippet in demos are recorded, with code license notice; no source code from analyzed codebases is bundled into commercial distribution without prior review.
 - **User-supplied technical documents:** read locally, never copied into rules beyond brief rationale snippets.
 - **External contributions:** Contributor License Agreement (CLA) signed prior to integration.
@@ -1200,7 +1199,7 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 | D7 | Two graph views: files and functions (3D since D21) |
 | D8 | No compiler: validation without compilation, via verified samples (§2.1) |
 | D9 | Dual license: PolyForm NC + commercial license |
-| D10 | AI edition of portable version includes model and its license — *hypothesis to confirm* |
+| D10 | Portable variant with a bundled model includes the model and its license — *hypothesis to confirm* |
 | D11 | First test case mixes Fortran, Python, and C/C++: language inventory and four adapters starting in Lots 2–5 |
 | D12 | *(updated in v7, to confirm)* AI identifies unrecognized languages and defines missing keywords; by default, user validates in one click after link preview; automatic adoption mode enabled per project |
 | D13 | Plan contains only lots and dependencies, without milestones or calendar durations |
@@ -1209,6 +1208,7 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 | D16 | Graph algorithms written in-house (iterative Tarjan, bitsets); NetworkX removed |
 | D17 | Fortran parser chosen via comparative benchmark on real files, among permissive candidates; fxtran (GPL-3.0) excluded from default distribution |
 | D18 | *(Lot 4)* Main Fortran parser: **in-house logical statement analyzer** (fixed and free form, continuations, preprocessor branches preserved, exact positions). Benchmark on fixtures (`docs/bench/fortran_parsers.md`): only candidate with 100% recall and precision; tree-sitter-fortran fails on fixed form (text past col 72, `C`/`*` comments) and loses `#ifdef` branches; fparser fails on 4/23 files and is 25x slower; LFortran not evaluated (binary missing). Fallback and dual extraction: independent pattern extractor. **To confirm on real sample files from test case #1** (`python tools/bench_fortran.py <folder>`) |
+| D24 | *(Single product)* CodeGraph-Sci is **one product, one source tree, one feature set**. The former `codegraph_sci_pro` package is merged: the local AI is `codegraph_sci.ai` (commands in `cli_ai.py`), domain packs are data in `packs/` at the root of the repository or of the portable folder (outside the core, rule 7). Free versus commercial use is a **licensing** distinction (community non-commercial license and separate commercial license), never a technical feature gate: no license key, no activation, no telemetry. Supersedes the Pro separation of Lot 16 |
 | D23 | *(Whole-project view)* The 3D graphs open on an overview of everything: all nodes and links when they fit under the node ceiling, otherwise one sphere per connected group (separate or parallel programs), so that C4 still holds on large codes. Groups are computed at query time (fast enough, no schema change); non-code files come from the inventory and are stored in the scan statistics; links between folders are flagged |
 | D22 | *(UI look)* Dark & orange theme (`ui/theme.py`: palette, style sheet, icons painted with QPainter, no image file) and a frameless shell (`ui/shell.py`: title bar, resize margins, popovers, hero card) replacing the toolbar, menu and docks. Window move and resize go through the platform (`startSystemMove` / `startSystemResize`) |
 | D21 | *(3D in the main window)* The two 2D TreeGraphs (`QGraphicsView`) are **replaced** by two embedded 3D graphs (functions, files) drawn by the vendored 3d-force-graph page in a **`QWebEngineView`**: the user prefers the 3D display, and it fits in the current Qt UI, so **no web UI** is needed (C1 kept). Offline guarantees: CSP, off-the-record profile, request interceptor, no server, no port (C2). Cost: Qt WebEngine is now shipped in the portable build (about +300 MB). The PyWebView window of D20 remains as the optional `cgs view3d` command |
@@ -1219,8 +1219,8 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 
 1. Confirm D10, or prefer that customer places model in `models/` themselves.
 2. Confirm D12 (one-click validation by default, automatic adoption as option).
-3. `generic_fortran` pack: in core (adoption appeal) or in Pro (commercial value)?
-4. AI identification and completion: Pro only (current choice), or basic version in core?
+3. ~~`generic_fortran` pack: in core or in Pro?~~ Resolved by D24: one product, every pack ships with it.
+4. ~~AI identification and completion: Pro only, or basic version in core?~~ Resolved by D24: part of the product.
 5. Official support for RHEL/Rocky 8, or Ubuntu only (build supports both)?
 6. Test case #2: which codebase, and what new challenge should it exercise?
 7. Is a Windows runner available for Lot 0 tests, or is a virtual machine required?
