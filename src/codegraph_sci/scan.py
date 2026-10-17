@@ -100,6 +100,9 @@ class ScanOptions:
     native_bridges: bool = True
     # Extraction function run in the workers (tests inject a blocking one); default: _extract_job.
     extract_job: Callable[[str, str, str | None, str], tuple[str, bytes | None, str | None]] | None = None
+    # Files re-extracted even if their cached facts are valid (``cgs benchmark`` simulates changed files with it;
+    # the sources are never modified).
+    force_paths: frozenset[str] = frozenset()
     bridge_rules: list[dict[str, Any]] = field(default_factory=list)
     keyword_profiles: list[Path] = field(default_factory=list)
     packs: list[str] = field(default_factory=list)
@@ -212,6 +215,15 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
     say = progress or (lambda _e: None)
     started = datetime.now(UTC).isoformat(timespec="seconds")
     t0 = time.perf_counter()
+    phases: dict[str, float] = {}
+    clock = [t0]
+
+    def lap(name: str) -> None:
+        """Adds the time since the previous lap to phase ``name`` (milliseconds)."""
+        now = time.perf_counter()
+        phases[name] = phases.get(name, 0.0) + (now - clock[0]) * 1000
+        clock[0] = now
+
     root = project.root
     say({"event": "start", "root": str(root)})
 
@@ -247,6 +259,7 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
                          module_name=python_module_namer(py_paths))
     params = ctx.params()
 
+    lap("inventory_ms")  # profile, adapters, inventory, packs
     # Cache from the previous analysis.
     old_cache = {} if options.full else load_cache(project.db_path)
     old_files = {} if options.full else previous_files(project.db_path)
@@ -283,7 +296,7 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
             continue
         shas[e.path] = sha
         prev = old_files.get(e.path)
-        if prev and prev[0] == sha and prev[1]:
+        if prev and prev[0] == sha and prev[1] and e.path not in options.force_paths:
             cached = get_facts(old_cache, prev[1])
             if cached is not None and cached.extraction_mode == mode_of(e.path) and \
                     key_for(cached, sha, e.lang) == prev[1]:
@@ -296,6 +309,8 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
     errors: dict[str, str] = {}
     total = len(to_extract)
     done_count = 0
+    lap("cache_lookup_ms")
+    task_ms = {"full": 0.0, "outline": 0.0}  # time spent extracting, summed over the files of each mode
 
     def on_done(path: str, blob: bytes | None, err: str | None) -> None:
         nonlocal done_count
@@ -315,19 +330,26 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
                  kw_paths, profile.preprocessor.keep_all_branches)
     if options.timeout_s > 0:
         # Worker processes, one deadline per file: a stuck file never blocks or fails the others.
-        run_tasks(to_extract, workers=options.jobs, timeout_s=options.timeout_s, on_done=on_done,
-                  job=options.extract_job or _extract_job, init=_worker_init, init_args=init_args, check=check_cancel)
+        tasks = run_tasks(to_extract, workers=options.jobs, timeout_s=options.timeout_s, on_done=on_done,
+                          job=options.extract_job or _extract_job, init=_worker_init, init_args=init_args,
+                          check=check_cancel)
+        for task in tasks:
+            if task.finished_at:
+                task_ms[str(task.args[3])] += (task.finished_at - task.started_at) * 1000
     else:  # explicit opt-out (debugging): in-process, no deadline
         _WORKER.clear()
         _worker_init(*init_args)
         for path, lang, variant, mode in to_extract:
             check_cancel()
+            start = time.perf_counter()
             on_done(*(options.extract_job or _extract_job)(path, lang, variant, mode))
+            task_ms[mode] += (time.perf_counter() - start) * 1000
     for path, _lang, _variant, _mode in to_extract:
         if path not in errors and path in facts_by_path:
             keys[path] = key_for(facts_by_path[path], shas[path], lang_of[path])
     check_cancel()
 
+    lap("extract_wall_ms")
     # Link (in-scope files fully, the others as a light definitions index).
     timings = {"extract": round(time.perf_counter() - t0, 2)}
     say({"event": "link"})
@@ -347,6 +369,7 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
                   read_text=read_text).run()
     check_cancel()
 
+    lap("link_ms")
     # Index.
     timings["link"] = round(time.perf_counter() - t0 - sum(timings.values()), 2)
     say({"event": "index"})
@@ -358,8 +381,10 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
     if not data_on:
         link.nodes = [n for n in link.nodes if n.kind != "data"]
     # Declarative pack rules: memory manager, dispatch, catalogs, entry points, tests.
+    lap("index_ms")
     enrichment = PackEngine(packs, full, {n.uid: n for n in link.nodes}, [e.path for e in inventory.entries],
                             read_text, outline).run()
+    lap("enrich_ms")
     link.nodes = sorted(link.nodes + enrichment.nodes, key=lambda n: n.uid)
     data_records += enrichment.data
     merged: dict[tuple[str, str, str], EdgeRecord] = {}
@@ -408,6 +433,15 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
     bundle.plugins = [PluginRecord(a.name, "adapter", a.version) for a in adapters.values()]
     bundle.plugins += [PluginRecord(pk.name, "pack", pk.version) for pk in packs]
     bundle.facts_cache = {keys[p]: encode_facts(facts_by_path[p]) for p in keys if p in facts_by_path}
+    lap("index_ms")
+    modes = {path: mode for path, _lang, _variant, mode in to_extract}
+    timeouts = sum(1 for err in errors.values() if err.startswith(TIMEOUT_PREFIX))
+    phases_ms = {**{k: round(v, 1) for k, v in phases.items()},
+                 "extract_full_ms": round(task_ms["full"], 1), "extract_outline_ms": round(task_ms["outline"], 1)}
+    files = {"reused": reused,
+             "full_parsed": sum(1 for p, m in modes.items() if m == "full" and p not in errors),
+             "outline_parsed": sum(1 for p, m in modes.items() if m == "outline" and p not in errors),
+             "failed": len(errors) - timeouts, "timeout": timeouts}
     stats: dict[str, Any] = {
         "files_source": len(sources), "files_extracted": total, "files_cached": reused,
         "files_failed": len(errors), "files_fallback": sum(1 for f in facts_by_path.values() if f.used_fallback),
@@ -417,6 +451,7 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
         "skipped_total": {"entries": len(inventory.skipped_dirs),
                           "files": sum(s.files for s in inventory.skipped_dirs)},
         "timings": {**timings, "index": round(time.perf_counter() - t0 - sum(timings.values()), 2)},
+        "phases_ms": phases_ms, "files": files, "jobs": options.jobs,
     }
     bundle.scan_run = ScanRunRecord(started, datetime.now(UTC).isoformat(timespec="seconds"), str(root),
                                     git_revision(root), profile.profile_version, profile_sha256(profile),
@@ -428,6 +463,9 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
         write_incremental(project.db_path, bundle)
     else:
         write_full(project.db_path, bundle)
+    lap("sqlite_write_ms")  # after the database is written: in the result and the progress, not in scan_runs
+    stats["phases_ms"] = {**phases_ms, "sqlite_write_ms": round(phases["sqlite_write_ms"], 1),
+                          "total_ms": round((time.perf_counter() - t0) * 1000, 1)}
     stats["seconds"] = round(time.perf_counter() - t0, 2)
     say({"event": "done", **{k: v for k, v in stats.items() if k not in ("skipped_dirs", "non_code")}})
     return ScanResult(project.db_path, stats)

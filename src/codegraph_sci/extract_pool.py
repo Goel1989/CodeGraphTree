@@ -35,6 +35,7 @@ class Task:
     deadline: float = 0.0
     pid: int | None = None
     status: str = "pending"  # pending, running, done, timeout, crashed
+    finished_at: float = 0.0
 
 
 class WorkerStartError(RuntimeError):
@@ -124,23 +125,23 @@ def run_tasks(jobs: Sequence[tuple[Any, ...]], *, workers: int, timeout_s: float
                     if tag == "ready":
                         worker.ready = True
                     elif task is not None and tag == task.task_id:
-                        task.status = "done"
+                        task.status, task.finished_at = "done", time.monotonic()
                         worker.task = None
                         on_done(*payload)
                     elif tag is None:  # the worker died while answering
                         if task is not None:
-                            task.status = "crashed"
+                            task.status, task.finished_at = "crashed", time.monotonic()
                             on_done(task.path, None, "worker process ended unexpectedly")
                         replace(worker)
                         continue
                     assign(worker)
                 elif not worker.process.is_alive():
                     if task is not None:
-                        task.status = "crashed"
+                        task.status, task.finished_at = "crashed", time.monotonic()
                         on_done(task.path, None, "worker process ended unexpectedly")
                     replace(worker)
                 elif task is not None and time.monotonic() >= task.deadline:
-                    task.status = "timeout"
+                    task.status, task.finished_at = "timeout", time.monotonic()
                     on_done(task.path, None, f"{TIMEOUT_PREFIX} {timeout_s:g} s")
                     replace(worker)  # only this worker: the other tasks continue
                 elif not worker.ready and time.monotonic() >= worker.spawned_at + STARTUP_TIMEOUT_S:

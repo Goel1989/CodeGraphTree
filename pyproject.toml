@@ -126,5 +126,6 @@ forbidden_modules = [
 [[tool.importlinter.contracts]]
 name = "the analysis never uses the AI (rule 8)"
 type = "forbidden"
-source_modules = ["codegraph_sci.scan", "codegraph_sci.audit", "codegraph_sci.corpus_audit"]
+source_modules = ["codegraph_sci.scan", "codegraph_sci.audit", "codegraph_sci.corpus_audit",
+                  "codegraph_sci.benchmark"]
 forbidden_modules = ["codegraph_sci.ai", "codegraph_sci.cli_ai"]

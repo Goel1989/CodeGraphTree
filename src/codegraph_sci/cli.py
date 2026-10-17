@@ -124,6 +124,24 @@ def _cmd_audit_corpus(args: argparse.Namespace) -> int:
     return int(report["exit_code"])
 
 
+def _cmd_benchmark(args: argparse.Namespace) -> int:
+    from codegraph_sci.benchmark import print_report, run_benchmark
+
+    source = Path(args.root)
+    if not source.is_dir():
+        print(f"error: {source} is not a directory", file=sys.stderr)
+        return 2
+    report = run_benchmark(source, project=Path(args.project) if args.project else None, changed=args.changed,
+                           jobs=args.jobs)
+    if args.output:
+        Path(args.output).write_text(json.dumps(report, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    if args.json:
+        print(json.dumps(report, indent=1, ensure_ascii=False))
+    else:
+        print_report(report)
+    return 0
+
+
 def _cmd_profile(args: argparse.Namespace) -> int:
     """Changes of the analysis profile made by the user (each one creates a new profile version)."""
     from codegraph_sci.core.profile import FileOverride, HistoryEntry, IgnoredGroup
@@ -183,6 +201,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--progress", choices=["text", "json"], default="text", help="progress format")
     p.set_defaults(func=_cmd_scan)
 
+    p = sub.add_parser("benchmark", help="measure the analysis phases: cold, unchanged and changed rescans")
+    p.add_argument("root", help="source folder (never modified)")
+    p.add_argument("--project", help="project folder to use (default: a temporary one, removed afterwards)")
+    p.add_argument("--changed", type=int, default=0, help="also rescan with N files re-extracted (simulated)")
+    p.add_argument("--jobs", type=int, help="worker processes (default: CPU count - 1)")
+    p.add_argument("--json", action="store_true", help="JSON report")
+    p.add_argument("--output", help="also write the JSON report to this file")
+    p.set_defaults(func=_cmd_benchmark)
     p = sub.add_parser("profile", help="show or change the analysis profile")
     p.add_argument("action", choices=["show", "set-language", "ignore", "all-subfolders"])
     p.add_argument("root", help="repository folder")
