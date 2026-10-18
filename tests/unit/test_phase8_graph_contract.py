@@ -36,16 +36,25 @@ def test_nodes_and_links_carry_the_contract(tmp_path: Path) -> None:
 
 
 def test_link_statuses(tmp_path: Path) -> None:
+    from codegraph_sci.core.project import open_project
+    from codegraph_sci.scan import ScanOptions, scan
+
     db = scan_fixture("partial_scope", tmp_path / "scope").db_path
-    with GraphQuery(db) as q:
-        graph = q.graph3d_overview(mode="functions", max_nodes=1000)
-        statuses = {lk.status for lk in graph.links}
-        assert "out_of_scope" in statuses
+    with GraphQuery(db) as q:  # symbol level (``cgs view3d``): a target outside the analysis scope
+        graph = q.graph3d("f:core_main", mode="functions", depth=2)
+        assert "out_of_scope" in {lk.status for lk in graph.links}
         assert any(not n.in_scope for n in graph.nodes)
-    db = scan_fixture("cpp_overloads", tmp_path / "amb").db_path
+    repo = tmp_path / "amb"  # file level: candidates in other files are possible dependencies
+    for rel, text in {"a.py": "class A:\n    def area(self):\n        return 1\n",
+                      "b.py": "class B:\n    def area(self):\n        return 2\n",
+                      "use.py": "def measure(obj):\n    return obj.area()\n"}.items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(text, encoding="utf-8")
+    db = scan(open_project(repo, tmp_path / "amb_proj"), ScanOptions(jobs=1)).db_path
     with GraphQuery(db) as q:
-        graph = q.graph3d_overview(mode="functions", max_nodes=1000)
-        assert "ambiguous" in {lk.status for lk in graph.links}
+        graph = q.graph3d_overview(mode="files", max_nodes=1000)
+        assert {(lk.source, lk.target, lk.status) for lk in graph.links} >= {
+            ("file:use.py", "file:a.py", "ambiguous"), ("file:use.py", "file:b.py", "ambiguous")}
 
 
 def test_directory_level(tmp_path: Path) -> None:
@@ -73,6 +82,7 @@ def test_library_without_main_is_navigable(tmp_path: Path) -> None:
     db = scan(open_project(repo, tmp_path / "proj"), ScanOptions(jobs=1)).db_path
     with GraphQuery(db) as q:
         assert q.default_roots().main_routine is None or q.default_roots().main_routine.uid != "py:pkg.core.main"
-        graph = q.graph3d_overview(mode="functions")
-        assert {"py:pkg.core.a", "py:pkg.core.b", "py:pkg.core.c"} <= {n.id for n in graph.nodes}
-        assert q.graph3d("py:pkg.core.b", depth=1).nodes
+        graph = q.graph3d_overview(mode="files")
+        assert "file:pkg/core.py" in {n.id for n in graph.nodes}
+        assert q.file_relations("pkg/core.py", incoming=True) == [] and q.file_cycles() == []
+        assert q.graph3d("py:pkg.core.b", depth=1).nodes  # symbol level, for checking (``cgs view3d``)

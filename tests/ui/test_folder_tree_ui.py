@@ -83,6 +83,6 @@ def test_explorer_folder_opens_its_tree(window, qtbot) -> None:  # type: ignore[
 def test_dependencies_are_an_optional_layer(window, qtbot) -> None:  # type: ignore[no-untyped-def]
     dirs = window.graph_dirs
     dirs.with_dependencies.setChecked(True)
-    qtbot.waitUntil(lambda: ("dir:src/a", "dir:src/b", "calls") in dirs.link_keys, timeout=5000)
+    qtbot.waitUntil(lambda: ("dir:src/a", "dir:src/b", "call") in dirs.link_keys, timeout=5000)
     dirs.handle_event({"event": "link", "source": "dir:.", "target": "dir:src", "kind": "contains"})
     assert window.deps_view.filters.caller_dir is None  # a parent-child link has no dependency rows

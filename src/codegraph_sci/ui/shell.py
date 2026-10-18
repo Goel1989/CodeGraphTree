@@ -158,7 +158,7 @@ class Popover(QFrame):
 
 
 class HeroCard(QFrame):
-    """Rounded orange banner showing the selected entity, with 48 x 48 dark badges and buttons."""
+    """Rounded orange banner showing the selected file, with 48 x 48 dark badges and buttons."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -166,7 +166,7 @@ class HeroCard(QFrame):
         self.title = elastic(QLabel("CodeGraph-Sci"), wrap=False)
         self.title.setObjectName("HeroTitle")
         self.title.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.subtitle = elastic(QLabel("Select a routine: search, file explorer or a click in a graph."))
+        self.subtitle = elastic(QLabel("Select a file: file explorer, search or a click in a graph."))
         self.subtitle.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.summary = elastic(QLabel(""))
         text = QVBoxLayout()
@@ -174,16 +174,19 @@ class HeroCard(QFrame):
         text.addWidget(self.title)
         text.addWidget(self.subtitle)
         text.addWidget(self.summary)
-        self.badge_callers = self._square("—\ncallers", "Callers of the selection (show the list)")
-        self.badge_callees = self._square("—\ncallees", "Callees of the selection (show the list)")
+        self.badge_dependents = self._square("—\ndependents", "Files depending on the selected file (show the list)")
+        self.badge_dependencies = self._square("—\ndependencies",
+                                               "Files the selected file depends on (show the list)")
         self.btn_view = self._square("", "Show the selection in a view", "cube")
-        self.btn_filters = self._square("", "Filters of the Callers / Callees panel (Ctrl+Shift+F)", "filter")
+        self.btn_filters = self._square("", "Filters of the Dependents / Dependencies panel (Ctrl+Shift+F)",
+                                        "filter")
         self.btn_analysis = self._square("", "Analysis and analysis profile", "play")
         layout = QHBoxLayout(self)
         layout.setContentsMargins(18, 12, 14, 12)
         layout.setSpacing(8)
         layout.addLayout(text, 1)
-        for b in (self.badge_callers, self.badge_callees, self.btn_view, self.btn_filters, self.btn_analysis):
+        for b in (self.badge_dependents, self.badge_dependencies, self.btn_view, self.btn_filters,
+                  self.btn_analysis):
             layout.addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
 
     def _square(self, text: str, tip: str, icon_name: str | None = None) -> QToolButton:
@@ -199,6 +202,6 @@ class HeroCard(QFrame):
             b.setText(text)
         return b
 
-    def set_counts(self, callers: int | None, callees: int | None) -> None:
-        self.badge_callers.setText(f"{'—' if callers is None else callers}\ncallers")
-        self.badge_callees.setText(f"{'—' if callees is None else callees}\ncallees")
+    def set_counts(self, dependents: int | None, dependencies: int | None) -> None:
+        self.badge_dependents.setText(f"{'—' if dependents is None else dependents}\ndependents")
+        self.badge_dependencies.setText(f"{'—' if dependencies is None else dependencies}\ndependencies")

@@ -1,4 +1,5 @@
-"""Query commands of ``cgs`` (lot 9): callers, callees, file-links, path, impact, find, data, unresolved, health."""
+"""Query commands of ``cgs``: file dependencies (``files``, D41), dependency table (``deps``), search, health, and the
+symbol-level checking tools (callers, callees, path, impact, data, unresolved; lot 9)."""
 
 from __future__ import annotations
 
@@ -241,6 +242,68 @@ def cmd_view3d(args: argparse.Namespace) -> int:
                       hide_noise=not args.all)
 
 
+def _file_relation(rel: Any) -> dict[str, Any]:
+    return {"path": rel.path, "lang": rel.lang, "relationships": dict(sorted(rel.relationships.items())),
+            "confirmed": rel.confirmed,
+            "details": [{"relationship": d.relationship, "resolution": d.resolution, "count": d.count}
+                        for d in rel.details]}
+
+
+def cmd_files(args: argparse.Namespace) -> int:
+    """File dependencies (D39-D41): what a file depends on, what depends on it, what a change may affect, cycles."""
+    wanted = set(args.relationship or ())
+    resolution = args.resolution
+    with GraphQuery(_db(args)) as q:
+        try:
+            if args.action == "cycles":
+                cycles = q.file_cycles(confirmed_only=args.confirmed_only)
+                if args.json:
+                    _json(cycles)
+                    return 0
+                print(f"{len(cycles)} file cycle(s)" + (" (confirmed dependencies only)" if args.confirmed_only
+                                                        else " (possible dependencies included)"))
+                for c in cycles:
+                    print(f"  {len(c):>4} files  {', '.join(c)}")
+                return 0
+            if not args.file:
+                raise SystemExit(f"error: `cgs files {args.action}` needs a file (repository-relative path)")
+            if args.action == "impact":
+                impact = q.file_impact(args.file, max_depth=args.max_depth)
+                if args.json:
+                    _json(impact)
+                    return 0
+                print(f"Changing {args.file} may affect {len(impact.confirmed) + len(impact.possible)} file(s): "
+                      f"{len(impact.confirmed)} confirmed, {len(impact.possible)} possible")
+                rows = sorted([(impact.depth[f], f, "confirmed") for f in impact.confirmed]
+                              + [(impact.depth[f], f, "possible") for f in impact.possible])
+                for depth, path, certainty in rows:
+                    print(f"  [{depth}] {path}  {certainty}")
+                return 0
+            relations = q.file_relations(args.file, incoming=args.action == "dependents")
+        except QueryError as exc:
+            raise SystemExit(f"error: {exc}") from exc
+    out = []
+    for rel in relations:
+        details = [d for d in rel.details if (not wanted or d.relationship in wanted)
+                   and (resolution is None or d.confirmed == (resolution == "confirmed"))]
+        if details:
+            out.append(dataclasses.replace(rel, details=details,
+                                           relationships={r: sum(d.count for d in details if d.relationship == r)
+                                                          for r in sorted({d.relationship for d in details})},
+                                           confirmed=any(d.confirmed for d in details)))
+    if args.json:
+        _json([_file_relation(r) for r in out])
+        return 0
+    if args.action == "dependents":
+        print(f"{len(out)} file(s) depend on {args.file}")
+    else:
+        print(f"{args.file} depends on {len(out)} file(s)")
+    for rel in out:
+        kinds = ", ".join(f"{k} {v}" for k, v in rel.relationships.items())
+        print(f"  {rel.path:<60} {kinds:<30} {'confirmed' if rel.confirmed else 'possible'}")
+    return 0
+
+
 DEP_COLUMNS = ("caller", "caller_file", "caller_lang", "target_text", "target", "candidates", "target_file",
                "target_lang", "relationship", "line", "col", "resolution", "confidence", "rule", "condition")
 GROUP_COLUMNS = ("source", "target", "relationship", "count", "statuses")
@@ -311,8 +374,17 @@ def register(sub: Any) -> None:
         p.add_argument("--db", help="project database")
         p.add_argument("--json", action="store_true", help="JSON output")
 
-    for name, helptext in (("callers", "how many routines call X, and which (default question)"),
-                           ("callees", "what X calls")):
+    p = sub.add_parser("files", help="file dependencies: dependencies, dependents, impact or cycles of files")
+    p.add_argument("action", choices=["dependencies", "dependents", "impact", "cycles"])
+    p.add_argument("file", nargs="?", help="repository-relative path (not for cycles)")
+    p.add_argument("--relationship", action="append", choices=list(RELATIONSHIPS), help="repeatable")
+    p.add_argument("--resolution", choices=["confirmed", "possible"], help="keep confirmed or possible links only")
+    p.add_argument("--max-depth", type=int, default=None, help="impact: levels of dependents")
+    p.add_argument("--confirmed-only", action="store_true", help="cycles: ignore possible dependencies")
+    common(p)
+    p.set_defaults(func=cmd_files)
+    for name, helptext in (("callers", "symbol level: which routines call X (checking tool)"),
+                           ("callees", "symbol level: what X calls (checking tool)")):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("routine", help="name or identifier")
         p.add_argument("--all", action="store_true", help="also show utility routines (noise)")
@@ -324,11 +396,11 @@ def register(sub: Any) -> None:
     p.add_argument("--limit", type=int, default=30)
     common(p)
     p.set_defaults(func=cmd_find)
-    p = sub.add_parser("file-links", help="files linked to a file")
+    p = sub.add_parser("file-links", help="files linked to a file (calls and uses; see `cgs files`)")
     p.add_argument("file", help="repository-relative path")
     common(p)
     p.set_defaults(func=cmd_file_links)
-    p = sub.add_parser("path", help="how A reaches B")
+    p = sub.add_parser("path", help="symbol level: how routine A reaches routine B (checking tool)")
     p.add_argument("source")
     p.add_argument("target")
     p.add_argument("-k", type=int, default=5, help="number of paths")
@@ -336,7 +408,7 @@ def register(sub: Any) -> None:
     p.add_argument("--edge-kinds", choices=["call_path", "file_dependency"], default="call_path")
     common(p)
     p.set_defaults(func=cmd_path)
-    p = sub.add_parser("impact", help="what is concerned if X changes")
+    p = sub.add_parser("impact", help="symbol level: routines concerned if X changes (files: `cgs files impact`)")
     p.add_argument("routine")
     p.add_argument("--max-depth", type=int, default=None)
     p.add_argument("--limit", type=int, default=200)

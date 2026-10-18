@@ -442,7 +442,7 @@ def scan(project: Project, options: ScanOptions | None = None, progress: Progres
     edges = sorted(edges + list(merged.values()), key=lambda e: (e.src, e.dst, e.kind))
     reasons = {**noise_map(link.nodes, edges, packs), **enrichment.noise}
     stats_records = node_statistics(link.nodes, edges, hidden(reasons), reasons)
-    file_edges, dir_edges = file_and_dir_edges(link.nodes, link.call_sites)
+    file_edges, dir_edges = file_and_dir_edges(link.nodes, link.call_sites, edges, data_records)
 
     bundle = GraphBundle()
     for e in inventory.entries:

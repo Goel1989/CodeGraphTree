@@ -144,12 +144,15 @@ class NodeStatRecord:
 
 @dataclass(slots=True)
 class AggregateEdge:
-    """File-level or directory-level link (``file_edges`` / ``dir_edges``)."""
+    """File-level or directory-level dependency (``file_edges`` / ``dir_edges``, D39): ``src`` depends on ``dst``
+    through ``kind`` (a relationship of ``model.FILE_RELATIONSHIPS``) with this ``resolution``; ``count``
+    occurrences (a site counts once per candidate file)."""
 
     src: str
     dst: str
     kind: str
     count: int
+    resolution: str = "resolved"
 
 
 @dataclass(slots=True)
@@ -205,7 +208,7 @@ class GraphBundle:
             edge.conditions.sort()
         self.edges.sort(key=lambda e: (e.src, e.dst, e.kind))
         self.node_stats.sort(key=lambda s: s.uid)
-        self.file_edges.sort(key=lambda e: (e.src, e.dst, e.kind))
-        self.dir_edges.sort(key=lambda e: (e.src, e.dst, e.kind))
+        self.file_edges.sort(key=lambda e: (e.src, e.dst, e.kind, e.resolution))
+        self.dir_edges.sort(key=lambda e: (e.src, e.dst, e.kind, e.resolution))
         self.plugins.sort(key=lambda p: (p.type, p.name))
         return self

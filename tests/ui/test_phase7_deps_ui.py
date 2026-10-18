@@ -30,7 +30,10 @@ def window(qtbot, tmp_path: Path):  # type: ignore[no-untyped-def]
 def test_table_filters_sorts_pages_and_drills_down(window, qtbot) -> None:  # type: ignore[no-untyped-def]
     view = window.deps_view
     window.show_view(view)
-    assert view.page.total == 9 and view.model.rowCount() == 9
+    assert view.level == "file"  # the table opens on the file dependencies (D40)
+    view.level_box.setCurrentText("Occurrences")
+    qtbot.waitUntil(lambda: view.level == "site" and view.page.total == 9 and view.model.rowCount() == 9,
+                    timeout=5000)
     view.relationship.setCurrentText("include")
     qtbot.waitUntil(lambda: view.page.total == 2, timeout=5000)
     assert {r.relationship for r in view.model.rows} == {"include"}
@@ -49,6 +52,8 @@ def test_table_filters_sorts_pages_and_drills_down(window, qtbot) -> None:  # ty
 
 def test_row_opens_source_and_evidence_then_export(window, qtbot, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
     view = window.deps_view
+    view.level_box.setCurrentText("Occurrences")
+    qtbot.waitUntil(lambda: view.level == "site" and view.page is not None and view.page.total == 9, timeout=5000)
     row = next(i for i, r in enumerate(view.model.rows) if r.rule == "bridge:fortran_c")
     view.activate(view.model.index(row, 0))
     qtbot.waitUntil(lambda: window.inspector.path == "csrc/solver.c", timeout=5000)

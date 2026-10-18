@@ -171,21 +171,10 @@ def test_query_times_on_synthetic(tmp_path: Path) -> None:
     assert t_callers < 0.1 and t_children < 0.2
 
 
-def test_default_roots_and_initial_subgraph(basic: GraphQuery, tmp_path: Path) -> None:
+def test_default_roots(basic: GraphQuery, tmp_path: Path) -> None:
     roots = basic.default_roots()
     assert roots.main_routine is not None and roots.main_routine.uid == "f:main"
     assert roots.main_file is not None and roots.main_file.uid == "file:main.f90"
-
-    sub_fn = basic.initial_subgraph(level=Level.ROUTINE, max_nodes=3)
-    assert sub_fn.root.uid == "f:main"
-    assert len(sub_fn.nodes) == 3
-    assert sub_fn.truncated
-    assert all(e.src in sub_fn.nodes and e.dst in sub_fn.nodes for e in sub_fn.edges)
-
-    sub_file = basic.initial_subgraph(level=Level.FILE, max_nodes=10)
-    assert sub_file.root.uid == "file:main.f90"
-    assert {"file:main.f90", "file:mesh_mod.f90", "file:solve.f90"} <= set(sub_file.nodes)
-    assert ("file:main.f90", "file:solve.f90") in {(e.src, e.dst) for e in sub_file.edges}
 
     res = scan_fixture("mini_hybrid", tmp_path / "mh", expected_file="expected_graph_bridges.json")
     with GraphQuery(res.db_path) as q:
@@ -194,67 +183,36 @@ def test_default_roots_and_initial_subgraph(basic: GraphQuery, tmp_path: Path) -
         assert mh_roots.main_file is not None and mh_roots.main_file.uid == "file:app/run.py"
 
 
-def test_connected_neighbors(basic: GraphQuery) -> None:
-    nb = basic.connected_neighbors("f:solve", level=Level.ROUTINE)
-    assert nb.center.uid == "f:solve"
-    assert [c.uid for c in nb.callers] == ["f:main"]
-    assert sorted(c.uid for c in nb.callees) == ["f:norm2v", "f:report"]
-
-    nb_file = basic.connected_neighbors("file:main.f90", level=Level.FILE)
-    assert nb_file.center.uid == "file:main.f90"
-    assert nb_file.callers == []
-    assert sorted(c.uid for c in nb_file.callees) == ["file:mesh_mod.f90", "file:solve.f90"]
-
-
 def test_paths_from_main_single_and_multiple(basic: GraphQuery, tmp_path: Path) -> None:
-    mp = basic.paths_from_main("f:mesh_mod::refine", level=Level.ROUTINE)
-    assert mp.root_uid == "f:main"
-    assert mp.total_found == 1 and not mp.multiple_possible and not mp.showing_shortest_only
-    assert [[s.uid for s in p.steps] for p in mp.paths] == [
-        ["f:main", "f:mesh_mod::build_mesh", "f:mesh_mod::refine"]
-    ]
+    from codegraph_sci.core.graph import AggregateEdge
 
-    mp_file = basic.paths_from_main("file:solve.f90", level=Level.FILE)
+    with pytest.raises(QueryError, match="files"):  # routine paths: ``paths`` (``cgs path``)
+        basic.paths_from_main("f:mesh_mod::refine", level=Level.ROUTINE)
+    mp_file = basic.paths_from_main("file:solve.f90")
     assert mp_file.root_uid == "file:main.f90"
-    assert [[s.uid for s in p.steps] for p in mp_file.paths] == [
-        ["file:main.f90", "file:solve.f90"]
-    ]
+    assert mp_file.total_found == 1 and not mp_file.multiple_possible and not mp_file.showing_shortest_only
+    assert [[s.uid for s in p.steps] for p in mp_file.paths] == [["file:main.f90", "file:solve.f90"]]
 
-    # Build a graph with 4 distinct paths from f:main to f:leaf, where one is strictly shortest (len 3).
+    # 4 distinct file paths from main.f90 to leaf.f90, one strictly shortest (2 steps).
     b = GraphBundle()
-    b.files = [FileRecord("main.f90", "fortran")]
-    uids = ("f:main", "f:fast", "f:mid1", "f:mid2", "f:slow1", "f:slow2", "f:leaf")
-    b.nodes = [
-        NodeRecord(u, u.split(":")[1], "routine", "f_program" if u == "f:main" else None, "fortran", "main.f90", 1, 1)
-        for u in uids
-    ]
+    names = ("main", "fast", "mid1", "mid2", "slow1", "slow2", "leaf")
+    b.files = [FileRecord(f"{n}.f90", "fortran") for n in names]
     pairs = [
-        ("f:main", "f:fast"), ("f:fast", "f:leaf"),
-        ("f:main", "f:mid1"), ("f:mid1", "f:mid2"), ("f:mid2", "f:leaf"),
-        ("f:main", "f:slow1"), ("f:slow1", "f:mid2"),
-        ("f:main", "f:slow2"), ("f:slow2", "f:slow1"),
+        ("main", "fast"), ("fast", "leaf"),
+        ("main", "mid1"), ("mid1", "mid2"), ("mid2", "leaf"),
+        ("main", "slow1"), ("slow1", "mid2"),
+        ("main", "slow2"), ("slow2", "slow1"),
     ]
-    b.edges = [EdgeRecord(s, d, "calls", 1, "exact", ["native:fortran"], []) for s, d in pairs]
-    b.node_stats = [
-        NodeStatRecord(
-            u,
-            fan_in=sum(1 for _s, d in pairs if d == u),
-            fan_out=sum(1 for s, _d in pairs if s == u),
-            fan_in_filtered=sum(1 for _s, d in pairs if d == u),
-            fan_out_filtered=sum(1 for s, _d in pairs if s == u),
-        )
-        for u in uids
-    ]
+    b.file_edges = [AggregateEdge(f"{s}.f90", f"{d}.f90", "call", 1) for s, d in pairs]
     db_path = tmp_path / "multi.sqlite"
     write_full(db_path, b)
     with GraphQuery(db_path) as q:
-        all_paths = q.paths_from_main("f:leaf", max_paths=5)
+        all_paths = q.paths_from_main("file:leaf.f90", root_uid="file:main.f90", max_paths=5)
         assert all_paths.total_found == 4
         assert all_paths.multiple_possible and not all_paths.showing_shortest_only
         assert len(all_paths.paths) == 4
 
-        short_only = q.paths_from_main("f:leaf", max_paths=2)
+        short_only = q.paths_from_main("file:leaf.f90", root_uid="file:main.f90", max_paths=2)
         assert short_only.multiple_possible and short_only.showing_shortest_only
         assert len(short_only.paths) == 1
-        assert [s.uid for s in short_only.paths[0].steps] == ["f:main", "f:fast", "f:leaf"]
-
+        assert [s.uid for s in short_only.paths[0].steps] == ["file:main.f90", "file:fast.f90", "file:leaf.f90"]

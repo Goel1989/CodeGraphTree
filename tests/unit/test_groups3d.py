@@ -1,4 +1,7 @@
-"""Groups of the 3D view: separate programs, isolated nodes, links between folders, non-code files."""
+"""Groups of the Files 3D view: separate programs, isolated files, links between folders, non-code files.
+
+The routine level of the groups and of the overview served the retired Functions 3D view (D41).
+"""
 
 from __future__ import annotations
 
@@ -51,16 +54,9 @@ def _uid(q: GraphQuery, name: str) -> str:
     return q.resolve(name)[0].uid
 
 
-def test_function_groups_and_isolated(db: Path) -> None:
-    with GraphQuery(db) as q:
-        report = q.groups(Level.ROUTINE)
-        a, b, alone = _uid(q, "a1"), _uid(q, "b1"), _uid(q, "alone")
-    assert [g.size for g in report.groups] == [3, 3]
-    members = [set(g.members) for g in report.groups]
-    assert any(a in m for m in members) and any(b in m for m in members)
-    assert report.isolated == [alone]
-    group_b = next(g for g in report.groups if b in g.members)
-    assert dict(group_b.top_dirs) == {"progB": 2, "lib": 1} and group_b.langs == {"fortran": 3}
+def test_routine_groups_are_retired(db: Path) -> None:
+    with GraphQuery(db) as q, pytest.raises(QueryError, match="files"):
+        q.groups(Level.ROUTINE)
 
 
 def test_file_groups(db: Path) -> None:
@@ -75,38 +71,38 @@ def test_file_groups(db: Path) -> None:
 
 def test_overview_shows_everything_when_it_fits(db: Path) -> None:
     with GraphQuery(db) as q:
-        graph = q.graph3d_overview(mode="functions", max_nodes=300)
-        ids = {n.id for n in graph.nodes}
-        assert {_uid(q, n) for n in ("main_a", "a1", "a2", "main_b", "b1", "b2", "alone")} == ids
-        assert (_uid(q, "b1"), _uid(q, "b2")) in {(lk.source, lk.target) for lk in graph.links}
+        graph = q.graph3d_overview(mode="files", max_nodes=300, include_noncode=False)
+    assert {n.id for n in graph.nodes} == {"file:progA/main_a.f90", "file:progA/a1.f90", "file:progA/a2.f90",
+                                           "file:progB/main_b.f90", "file:progB/b1.f90", "file:lib/b2.f90",
+                                           "file:lonely/alone.f90"}
+    assert ("file:progB/b1.f90", "file:lib/b2.f90") in {(lk.source, lk.target) for lk in graph.links}
     assert not graph.truncated
 
 
 def test_overview_draws_one_sphere_per_group_when_too_big(db: Path) -> None:
     with GraphQuery(db) as q:
-        graph = q.graph3d_overview(mode="functions", max_nodes=4)
+        graph = q.graph3d_overview(mode="files", max_nodes=4, include_noncode=False)
         assert graph.links == []
-        kinds = sorted(n.kind for n in graph.nodes)
-        assert kinds == ["group", "group", "isolated"]
+        assert sorted(n.kind for n in graph.nodes) == ["group", "group", "isolated"]
         spheres = [n for n in graph.nodes if n.kind == "group"]
         assert all(n.size == 3 and n.id.startswith("group:") for n in spheres)
         isolated = next(n for n in graph.nodes if n.kind == "isolated")
-        assert isolated.size == 1 and isolated.id == "isolated:functions"
-        more = q.graph3d_overview(mode="functions", max_nodes=2)  # 1 sphere, "more" and "isolated" buckets
+        assert isolated.size == 1 and isolated.id == "isolated:files"
+        more = q.graph3d_overview(mode="files", max_nodes=2, include_noncode=False)  # 1 sphere, "more", "isolated"
         assert sorted(n.kind for n in more.nodes) == ["group", "isolated", "more"]
 
 
 def test_group_detail_and_links_between_folders(db: Path) -> None:
+    b1, b2, main_b = "file:progB/b1.f90", "file:lib/b2.f90", "file:progB/main_b.f90"
     with GraphQuery(db) as q:
-        b1, b2, main_b = _uid(q, "b1"), _uid(q, "b2"), _uid(q, "main_b")
-        group = q.graph3d_group(f"group:{b1}", mode="functions", max_nodes=300)
-        alone = q.graph3d_group("isolated:functions", mode="functions", max_nodes=300)
+        group = q.graph3d_group(f"group:{b1}", mode="files", max_nodes=300)
+        alone = q.graph3d_group("isolated:files", mode="files", max_nodes=300)
         with pytest.raises(QueryError):
-            q.graph3d_group("nonsense", mode="functions")
+            q.graph3d_group("nonsense", mode="files")
     assert {n.id for n in group.nodes} == {b1, b2, main_b}
     crossing = {(lk.source, lk.target): lk.cross_dir for lk in group.links}
     assert crossing == {(main_b, b1): False, (b1, b2): True}
-    assert [n.label for n in alone.nodes] == ["alone"] and alone.links == []
+    assert [n.label for n in alone.nodes] == ["alone.f90"] and alone.links == []
 
 
 def test_non_code_files_are_kept_apart(db: Path) -> None:

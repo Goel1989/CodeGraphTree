@@ -9,7 +9,11 @@
   const LANG_COLORS = { fortran: "#a371f7", python: "#58a6ff", c: "#8b949e", cpp: "#f0883e" };
   const LINK_COLORS = { calls: "#6e7681", bridges: "#f0883e", binds: "#d2a8ff", dispatches: "#3fb950",
                         implements: "#56d364", uses: "#388bfd", defines: "#30363d", inherits: "#db61a2",
-                        includes: "#8b949e", imports: "#58a6ff", contains: "#5c6670" };
+                        includes: "#8b949e", imports: "#58a6ff", contains: "#5c6670",
+                        // file and folder dependencies, one colour per relationship (D40)
+                        call: "#6e7681", dynamic_call: "#a371f7", import: "#58a6ff", include: "#8b949e",
+                        inherit: "#db61a2", bridge: "#f0883e", binding: "#d2a8ff", binding_declaration: "#bc8cff",
+                        data_read: "#3fb950", data_write: "#e3b341" };
   const CROSS_DIR = "#39c5cf";  // links between two folders
   const BUCKET_KINDS = new Set(["group", "isolated", "more"]);
   const state = { nodes: new Map(), links: new Map(), hover: null, neighbours: new Set(), hoverLinks: new Set(),
@@ -239,6 +243,7 @@
     checkboxes("kindfilter", "Links", kinds, state.hidden.kinds);
     checkboxes("langfilter", "Languages", langs, state.hidden.langs);
     checkboxes("statusfilter", "Status", statuses, state.hidden.statuses);
+    legend();
   }
 
   // ------------------------------------------------------------------ style
@@ -375,8 +380,12 @@
 
   function legend() {
     const langs = Object.entries(LANG_COLORS).map(([k, c]) => `<div><i style="background:${c}"></i>${k}</div>`).join("");
-    const kinds = ["calls", "bridges", "binds", "dispatches", "uses", "defines"]
-      .map((k) => `<div><b class="line" style="background:${LINK_COLORS[k]}"></b>${k}</div>`).join("");
+    // The link types drawn now (relationships for files and folders), and the colour of possible links.
+    const present = [...new Set([...state.links.values()].map((l) => l.kind))]
+      .filter((k) => k !== "contains" && k !== "defines").sort();
+    const kinds = (present.length ? present : ["calls", "uses"])
+      .map((k) => `<div><b class="line" style="background:${LINK_COLORS[k] || "#6e7681"}"></b>${k}</div>`).join("")
+      + `<div><b class="line" style="background:${STATUS_COLORS.ambiguous}"></b>possible (ambiguous)</div>`;
     document.getElementById("legend").innerHTML =
       `${langs}<div><i style="background:#c9d1d9"></i>file</div><div><i style="background:#f2c94c"></i>root</div>`
       + `<div><i style="background:#9e9e9e"></i>isolated</div><div><i style="background:#6b6b6b"></i>non-code (apart)</div>`

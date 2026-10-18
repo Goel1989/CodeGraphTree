@@ -73,7 +73,7 @@ def test_dependencies_between_folders_are_an_optional_layer(db: Path) -> None:
         layered = q.graph3d_folder_tree(include_dependencies=True)
     assert {lk.kind for lk in plain.links} == {"contains"}
     extra = {(lk.source, lk.target, lk.kind) for lk in layered.links if lk.kind != "contains"}
-    assert ("dir:src/a", "dir:src/b", "calls") in extra
+    assert ("dir:src/a", "dir:src/b", "call") in extra  # one link per relationship (D40)
 
 
 def test_node_limit_keeps_the_upper_levels(db: Path) -> None:

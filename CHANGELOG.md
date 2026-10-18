@@ -262,3 +262,23 @@
 - Folders 3D shows the folder tree under the selected folder, every level, one sphere per folder linked to its parent in a radial tree: project root by default, a folder double-clicked in the file explorer or right-clicked in the view, Parent folder and Project root buttons.
 - Folders holding only sub-folders, folders without code and excluded folders (greyed) are shown; version-control metadata never is. Sphere size: files below; colour: main language.
 - Dependencies between folders are an optional layer ("Dependencies between folders", off at opening). `GraphQuery.graph3d_folder_tree()`.
+
+## File dependencies, lot 1 (decision D39)
+- File dependencies are the public contract: "A -> B" means file A depends on file B. Each keeps its relationship (call, dynamic call, import, include, inheritance, bridge, binding, binding declaration, data read, data write) and its resolution, instead of the former `calls` and `uses`.
+- Calls at script, module or program level count like calls inside functions; module data read or written in another file is a dependency on the module's file.
+- Ambiguous references are possible dependencies of each candidate file, counted once per file; unresolved, external and intra-file occurrences stay in the dependency table only.
+- New queries: `file_dependencies`, `folder_dependencies`, `file_relations` (dependents and dependencies), `file_impact` (confirmed and possible), `file_cycles`. The dependency table's file and folder groups use the same counts.
+- Database schema 4: an existing project is rebuilt by its next analysis, reusing the facts cache. The JSON export replaces `file_edges` and `dir_edges` with `file_dependencies` and `folder_dependencies`.
+
+## File-centred interface, lot 2 (decision D40)
+- Files is the opening view; the Explore group holds Files, Folders and Dependencies. Functions 3D, the function tree list and the Callers / Callees panel are removed; search results, the file explorer, graph clicks and source references open files.
+- The side panel shows the Dependents, Dependencies and Impact (confirmed or possible) of the selected file, filtered by path, language, relationship and resolution; double-clicking a relationship lists its occurrences and source locations.
+- The Files and Folders graphs draw one link per relationship, possible links in their own colour; clicking a link opens its occurrences filtered by that relationship. The legend lists the relationships drawn.
+- The dependency table opens on the file dependencies (levels Files, Folders, Occurrences) and gains source path and language filters.
+- File cycles are listed in Analysis health and named in the summary of a selected file; no main entry point is required.
+
+## Function APIs, lot 3 (decision D41)
+- New command `cgs files dependencies|dependents|impact|cycles` (table or `--json`; `--relationship`, `--resolution`, `--max-depth`, `--confirmed-only`): file dependencies from the command line.
+- Removed (served only the retired Functions 3D view): `GraphQuery.initial_subgraph`, `connected_neighbors`, `call_sites` and the types `SubgraphReport`, `SubgraphEdge`, `NeighborsReport`; the functions mode of the embedded 3D view.
+- Compatibility: `groups`, `graph3d_overview`, `graph3d_group`, `graph3d_main_paths` and `paths_from_main` answer for files only (defaults `Level.FILE` / `mode="files"`) and raise `QueryError` for routines. Use `paths` and `impact` (or `cgs path`, `cgs impact`) for routines.
+- Kept as symbol-level checking tools: `cgs callers`, `callees`, `path`, `impact`, `data`, `file-links`, `view3d` and `deps --level entity`, with their query functions; the corpus audit and pack validation claims rely on them.

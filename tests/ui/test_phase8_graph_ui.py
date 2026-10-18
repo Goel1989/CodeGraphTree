@@ -27,7 +27,7 @@ def _open(qtbot: Any, repo: Path, proj: Path) -> Any:
     win = MainWindow()
     qtbot.addWidget(win)
     win.open_project_folder(repo, proj)
-    graph = win.graph_functions
+    graph = win.graph_files
     qtbot.waitUntil(lambda: graph.page_ready and bool(graph.node_ids) and graph.js_nodes == len(graph.node_ids),
                     timeout=20000)
     return win
@@ -42,7 +42,7 @@ def hybrid(qtbot, tmp_path: Path):  # type: ignore[no-untyped-def]
 
 
 def test_dimensions_filters_and_grouping(hybrid, qtbot) -> None:  # type: ignore[no-untyped-def]
-    graph = hybrid.graph_functions
+    graph = hybrid.graph_files
     hybrid.show_view(graph)
     full = _stats(qtbot, graph)
     assert full["dims"] == 3 and full["nodes"] == len(graph.node_ids) and full["links"] > 0
@@ -68,22 +68,20 @@ def test_dimensions_filters_and_grouping(hybrid, qtbot) -> None:  # type: ignore
 def test_link_click_opens_the_same_evidence_as_the_table(hybrid, qtbot) -> None:  # type: ignore[no-untyped-def]
     from codegraph_sci.query.api import GraphQuery
 
-    graph = hybrid.graph_functions
-    src, dst, kind = next(k for k in sorted(graph.link_keys) if k[2] != "defines")
-    graph.handle_event({"event": "link", "source": src, "target": dst, "kind": kind})
-    view = hybrid.deps_view
-    qtbot.waitUntil(lambda: view.filters.caller == src and view.page is not None and bool(view.page.rows)
-                    and all(r.caller == src and r.target == dst for r in view.model.rows), timeout=5000)
-    with GraphQuery(hybrid.db) as q:
-        expected = q.dependencies(q.link_evidence(src, dst, kind), limit=100)
-    assert [r.site_id for r in view.model.rows] == [r.site_id for r in expected.rows]
     files = hybrid.graph_files
+    view = hybrid.deps_view
     qtbot.waitUntil(lambda: files.page_ready and bool(files.link_keys), timeout=20000)
-    fsrc, fdst, fkind = sorted(files.link_keys)[0]
-    files.handle_event({"event": "link", "source": fsrc, "target": fdst, "kind": fkind})
-    qtbot.waitUntil(lambda: view.filters.caller_file == fsrc[5:] and bool(view.page.rows)
-                    and all(r.caller_file == fsrc[5:] and r.target_file == fdst[5:] for r in view.model.rows),
-                    timeout=5000)
+    for fsrc, fdst, fkind in sorted(files.link_keys):
+        files.handle_event({"event": "link", "source": fsrc, "target": fdst, "kind": fkind})
+        qtbot.waitUntil(lambda fsrc=fsrc, fdst=fdst, fkind=fkind: view.filters.caller_file == fsrc[5:]
+                        and view.filters.relationships == (fkind,) and view.page is not None and bool(view.model.rows)
+                        and all(hasattr(r, "site_id") and (r.caller_file, r.target_file, r.relationship)
+                                == (fsrc[5:], fdst[5:], fkind) for r in view.model.rows), timeout=5000)
+        with GraphQuery(hybrid.db) as q:
+            expected = q.dependencies(q.link_evidence(fsrc, fdst, fkind), limit=100)
+        assert [(r.site_id, r.line) for r in view.model.rows] == [(r.site_id, r.line) for r in expected.rows]
+        assert all(r.caller_file == fsrc[5:] and r.target_file == fdst[5:] and r.relationship == fkind
+                   for r in view.model.rows)
 
 
 def test_directory_level_view(hybrid, qtbot) -> None:  # type: ignore[no-untyped-def]
@@ -101,14 +99,16 @@ def test_cycles_and_entry_points_without_main(qtbot, tmp_path: Path) -> None:  #
 
     repo = tmp_path / "lib"
     (repo / "pkg").mkdir(parents=True)
-    (repo / "pkg" / "__init__.py").write_text("", encoding="utf-8")
-    (repo / "pkg" / "core.py").write_text(
-        "def ping():\n    pong()\n\n\ndef pong():\n    ping()\n\n\ndef start():\n    ping()\n\n\n"
-        "def other():\n    helper()\n\n\ndef helper():\n    pass\n", encoding="utf-8")
+    for name, text in {"__init__.py": "", "ping.py": "from pkg import pong\n\n\ndef ping():\n    pong.pong()\n",
+                       "pong.py": "from pkg import ping\n\n\ndef pong():\n    ping.ping()\n",
+                       "start.py": "from pkg import ping\n\n\ndef start():\n    ping.ping()\n",
+                       "other.py": "from pkg import helper\n\n\ndef other():\n    helper.helper()\n",
+                       "helper.py": "def helper():\n    pass\n"}.items():
+        (repo / "pkg" / name).write_text(text, encoding="utf-8")
     scan(open_project(repo, tmp_path / "proj"), ScanOptions(jobs=1))
     win = _open(qtbot, repo, tmp_path / "proj")
-    graph = win.graph_functions
+    graph = win.graph_files
     win.show_view(graph)
     stats = _stats(qtbot, graph)
-    assert stats["cycleNodes"] == ["py:pkg.core.ping", "py:pkg.core.pong"]
-    assert {"py:pkg.core.start", "py:pkg.core.other"} <= set(stats["entries"])  # several entry points, no main
+    assert stats["cycleNodes"] == ["file:pkg/ping.py", "file:pkg/pong.py"]
+    assert {"file:pkg/start.py", "file:pkg/other.py"} <= set(stats["entries"])  # several entry points, no main

@@ -1,8 +1,11 @@
-"""Main window (§3.11): inventory, search, callers/callees, code inspector, file explorer, health."""
+"""Main window (§3.11): files and their dependencies, folders, dependency table, inventory, code inspector, health.
+
+Files are the units of navigation (D40): the side panel shows the files depending on the selected file (Dependents),
+the files it depends on (Dependencies) and the files a change may affect (Impact).
+"""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -44,36 +47,41 @@ from PySide6.QtWidgets import (
 from codegraph_sci.core.paths import data_dir
 from codegraph_sci.core.project import Project, open_project
 from codegraph_sci.core.versions import APP_VERSION
-from codegraph_sci.query.types import CallerReport, Direction, NodeSummary, ScanHealth, SourceExcerpt
+from codegraph_sci.query.types import (
+    RELATIONSHIPS,
+    FileDependency,
+    FileImpact,
+    FileRelation,
+    NodeSummary,
+    ScanHealth,
+    SourceExcerpt,
+)
 from codegraph_sci.ui import theme
 from codegraph_sci.ui.deps_view import DependencyView
 from codegraph_sci.ui.graph3d_view import Graph3DView
 from codegraph_sci.ui.highlighter import CodeHighlighter
-from codegraph_sci.ui.models import CallTreeModel, FileTreeModel
+from codegraph_sci.ui.models import FileTreeModel
 from codegraph_sci.ui.shell import HeroCard, Popover, ResizeFrame, TitleBar, elastic
 from codegraph_sci.ui.workers import CgsProcess, QueryRunner
 
 ABOUT_TEXT = (
     f"<h3>CodeGraph-Sci {APP_VERSION}</h3>"
-    "<p>Call-graph explorer for multi-language scientific code "
-    "(Fortran, Python, C, C++).</p>"
+    "<p>Dependency explorer for multi-language scientific code "
+    "(Fortran, Python, C, C++): which files depend on which, and why.</p>"
     "<p>Offline desktop application: no cloud service is needed and analysed source code is never sent to a "
     "remote service.</p>"
     "<p>Open source software under the GNU GPL, version 3 or later (no warranty); "
     "a commercial license is also available.</p>"
 )
-SITE_ROLE = Qt.ItemDataRole.UserRole + 1
-CONFIDENCE_RANK = {"exact": 3, "resolved": 2, "heuristic": 1, "ambiguous": 0}  # unknown values count as the weakest
-
-
-def weakest_confidence(confidences: list[str]) -> str:
-    """The confidence of a routine is that of its least certain call site (never overestimated)."""
-    return min(confidences, key=lambda c: CONFIDENCE_RANK.get(c, -1))
-UID_ROLE = Qt.ItemDataRole.UserRole + 2
+PATH_ROLE = Qt.ItemDataRole.UserRole + 1  # a file of the panel: double click selects it
+FILTER_ROLE = Qt.ItemDataRole.UserRole + 2  # a relationship of the panel: double click lists its occurrences
+LINE_ROLE = Qt.ItemDataRole.UserRole + 3
+RESOLUTION_FILTERS = ["All resolutions", "confirmed", "possible"]
+MAX_CYCLES_SHOWN = 50
 
 
 class Inspector(QWidget):
-    """Read-only source, coloured, call lines highlighted; banner when the file changed."""
+    """Read-only source, coloured, reference lines highlighted; banner when the file changed."""
 
     def __init__(self, window: MainWindow) -> None:
         super().__init__()
@@ -159,10 +167,11 @@ class Inspector(QWidget):
         return best
 
     def _double_click(self, event: Any) -> None:
+        """A reference in the source: open the file that defines its target."""
         cursor = self.editor.cursorForPosition(event.position().toPoint())
         site = self.site_at(cursor.blockNumber() + 1, cursor.positionInBlock() + 1)
         if site is not None and site.dst:
-            self.window.select_symbol(site.dst)
+            self.window.open_target(site.dst)
 
 
 class MainWindow(QMainWindow):
@@ -179,8 +188,11 @@ class MainWindow(QMainWindow):
         self.pending_scan = False
         self._cancelled = False
         self._running = ""  # what the running command does (for its failure message)
-        self.current: NodeSummary | None = None
-        self.tree_model: CallTreeModel | None = None
+        self.current_file: str | None = None
+        self.relations: tuple[list[FileRelation], list[FileRelation], FileImpact] | None = None
+        self.relations_loaded = False
+        self.file_cycles: list[list[str]] | None = None
+        self.file_langs: dict[str, str | None] = {}
         self._from_graph = False
         self._build_ui()
         last = self.settings.value("last_project")
@@ -209,7 +221,7 @@ class MainWindow(QMainWindow):
 
         # Widgets shared by several places (filters and analysis live in the hero card popovers).
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Search for a routine, file, module…")
+        self.search.setPlaceholderText("Search for a file, routine, module…")
         self.search.setClearButtonEnabled(True)
         self.search.setAccessibleName("Search (Ctrl+F)")
         self.search.returnPressed.connect(self.run_search)
@@ -218,16 +230,24 @@ class MainWindow(QMainWindow):
         self.btn_cancel = QPushButton("Cancel")
         self.btn_cancel.clicked.connect(self.cancel_scan)
         self.btn_cancel.setEnabled(False)
-        self.hide_noise = QCheckBox("Hide utilities")
-        self.hide_noise.setChecked(True)
-        self.hide_noise.toggled.connect(self.refresh_symbol)
-        self.min_conf = QComboBox()
-        self.min_conf.addItems(["All confidences", "≥ heuristic", "≥ resolved", "exact"])
-        self.min_conf.currentIndexChanged.connect(self.refresh_symbol)
-        self.hide_ai = QCheckBox("Hide AI links")
-        self.hide_ai.toggled.connect(self.refresh_symbol)
-        self.hide_amb = QCheckBox("Hide ambiguous sites")
-        self.hide_amb.toggled.connect(self.refresh_symbol)
+        # Filters of the Dependents / Dependencies / Impact panel: path, language, relationship, resolution.
+        self.filter_path = QLineEdit()
+        self.filter_path.setPlaceholderText("Path starts with…")
+        self.filter_path.setAccessibleName("Path filter of the panel")
+        self.filter_path.textChanged.connect(lambda _t: self._fill_relations())
+        self.filter_language = QComboBox()
+        self.filter_language.addItems(["All languages"])
+        self.filter_language.setAccessibleName("Language filter of the panel")
+        self.filter_relationship = QComboBox()
+        self.filter_relationship.addItems(["All relationships", *RELATIONSHIPS])
+        self.filter_relationship.setAccessibleName("Relationship filter of the panel")
+        self.filter_resolution = QComboBox()
+        self.filter_resolution.addItems(RESOLUTION_FILTERS)
+        self.filter_resolution.setAccessibleName("Resolution filter of the panel: confirmed or possible")
+        for box in (self.filter_language, self.filter_relationship, self.filter_resolution):
+            box.currentIndexChanged.connect(lambda _i: self._fill_relations())
+            box.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            box.setMinimumContentsLength(9)
 
         # Views of the details panel.
         self.inventory_table = QTableWidget(0, 5)
@@ -258,39 +278,19 @@ class MainWindow(QMainWindow):
         actions.addStretch()
         il.addLayout(actions)
         self.inventory_view = inv
-        self.tree_box = QWidget()
-        tl = QVBoxLayout(self.tree_box)
-        tl.setContentsMargins(0, 0, 0, 0)
-        row = QHBoxLayout()
-        self.tree_direction = QComboBox()
-        self.tree_direction.addItems(["Callees", "Callers"])
-        self.tree_direction.currentIndexChanged.connect(self._rebuild_tree)
-        row.addWidget(QLabel("Direction:"))
-        row.addWidget(self.tree_direction)
-        row.addStretch()
-        tl.addLayout(row)
-        self.tree_view = QTreeView()
-        self.tree_view.setUniformRowHeights(True)
-        self.tree_view.doubleClicked.connect(self._tree_activated)
-        tl.addWidget(self.tree_view)
-        self.graph_functions = Graph3DView(self.runner, files=False)
-        self.graph_functions.node_selected.connect(self._graph_node_selected)
-        self.graph_functions.sites_requested.connect(self.show_link_sites)
-        self.graph_files = Graph3DView(self.runner, files=True)
+        self.graph_files = Graph3DView(self.runner)
         self.graph_files.node_selected.connect(self._graph_node_selected)
-        self.graph_files.sites_requested.connect(self.show_link_sites)
-        self.graph_dirs = Graph3DView(self.runner, files=True, directories=True)
+        self.graph_dirs = Graph3DView(self.runner, directories=True)
         self.health_view = QPlainTextEdit()
         self.health_view.setReadOnly(True)
         self.deps_view = DependencyView(self.runner)
         self.deps_view.source_requested.connect(lambda path, line: self.show_file(path, line))
         self._evidence_from: QWidget | None = None
-        for graph in (self.graph_functions, self.graph_files, self.graph_dirs):
+        for graph in (self.graph_files, self.graph_dirs):
             graph.evidence_requested.connect(self._show_link_evidence)
         self.deps_view.back_requested.connect(self._back_from_evidence)
         self.groups: dict[str, tuple[str, str, list[tuple[str, QWidget]]]] = {
-            "explore": ("Explore", "graph", [("Functions 3D", self.graph_functions), ("Files 3D", self.graph_files),
-                                             ("Folders 3D", self.graph_dirs), ("Tree list", self.tree_box),
+            "explore": ("Explore", "graph", [("Files", self.graph_files), ("Folders", self.graph_dirs),
                                              ("Dependencies", self.deps_view)]),
             "project": ("Project", "project", [("Inventory", inv), ("Analysis health", self.health_view)]),
         }
@@ -404,10 +404,20 @@ class MainWindow(QMainWindow):
         self.inspector = Inspector(self)
         self.inspector.reanalyse.clicked.connect(self.start_scan)
         self.links_tabs = QTabWidget()
-        self.callers_tree = self._links_tree()
-        self.callees_tree = self._links_tree()
-        self.links_tabs.addTab(self.callers_tree, "Callers")
-        self.links_tabs.addTab(self.callees_tree, "Callees")
+        self.links_tabs.setUsesScrollButtons(True)  # the tab titles never widen the window (UI audit)
+        self.links_tabs.tabBar().setExpanding(False)
+        self.dependents_tree = self._relations_tree(["File", "Relationships", "Status"])
+        self.dependencies_tree = self._relations_tree(["File", "Relationships", "Status"])
+        self.impact_tree = self._relations_tree(["File", "Distance", "Certainty"])
+        self.links_tabs.addTab(self.dependents_tree, "Dependents")
+        self.links_tabs.addTab(self.dependencies_tree, "Dependencies")
+        self.links_tabs.addTab(self.impact_tree, "Impact")
+        self.links_tabs.setTabToolTip(0, "Files depending on the selected file. Double-click a file to select it, "
+                                         "a relationship to list its occurrences.")
+        self.links_tabs.setTabToolTip(1, "Files the selected file depends on. Double-click a file to select it, "
+                                         "a relationship to list its occurrences.")
+        self.links_tabs.setTabToolTip(2, "Files a change of the selected file may affect (its dependents, directly "
+                                         "or not); possible when reached through a possible dependency.")
         right = QSplitter(Qt.Orientation.Vertical)
         right.addWidget(self.inspector)
         right.addWidget(self.links_tabs)
@@ -425,8 +435,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(frame)
 
         self._build_popovers()
-        self.hero.badge_callers.clicked.connect(lambda: self.links_tabs.setCurrentIndex(0))
-        self.hero.badge_callees.clicked.connect(lambda: self.links_tabs.setCurrentIndex(1))
+        self.hero.badge_dependents.clicked.connect(lambda: self.links_tabs.setCurrentIndex(0))
+        self.hero.badge_dependencies.clicked.connect(lambda: self.links_tabs.setCurrentIndex(1))
         self.hero.btn_filters.clicked.connect(lambda: self.filters_popover.show_under(self.hero.btn_filters))
         self.hero.btn_analysis.clicked.connect(lambda: self.analysis_popover.show_under(self.hero.btn_analysis))
         self.hero.btn_view.clicked.connect(lambda: self.view_popover.show_under(self.hero.btn_view))
@@ -437,7 +447,7 @@ class MainWindow(QMainWindow):
         self.status_label = elastic(QLabel("No project open."), wrap=False)
         self.statusBar().addWidget(self.status_label, 1)
         self.statusBar().addPermanentWidget(self.progress)
-        self.show_view(self.graph_functions)
+        self.show_view(self.graph_files)  # Files is the opening view (D40)
 
     def _focus_search(self) -> None:
         self.search.setFocus(Qt.FocusReason.ShortcutFocusReason)
@@ -454,8 +464,8 @@ class MainWindow(QMainWindow):
         return b
 
     def _build_popovers(self) -> None:
-        self.filters_popover = Popover(self, "Filters of the Callers / Callees panel", columns=2)
-        for w in (self.hide_noise, self.hide_ai, self.hide_amb, self.min_conf):
+        self.filters_popover = Popover(self, "Filters of the Dependents / Dependencies panel", columns=2)
+        for w in (self.filter_path, self.filter_language, self.filter_relationship, self.filter_resolution):
             self.filters_popover.add(w)
         self.analysis_popover = Popover(self, "Analysis", columns=2)
         btn_force = QPushButton("Force language…")
@@ -517,12 +527,11 @@ class MainWindow(QMainWindow):
             self.title_bar.btn_max.setText("❐" if self.isMaximized() else "□")
         super().changeEvent(event)
 
-    def _links_tree(self) -> QTreeWidget:
+    def _relations_tree(self, headers: list[str]) -> QTreeWidget:
         tree = QTreeWidget()
-        tree.setHeaderLabels(["Routine / site", "Location", "Confidence"])
+        tree.setHeaderLabels(headers)
         tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        tree.itemDoubleClicked.connect(self._link_activated)
-        tree.setSortingEnabled(True)
+        tree.itemDoubleClicked.connect(self._relation_activated)
         return tree
 
     # ------------------------------------------------------------ project
@@ -552,7 +561,7 @@ class MainWindow(QMainWindow):
         self.title_bar.title.setText(f"CodeGraph-Sci — {root}")
         self.header_info.setText(str(root))
         self.hero.title.setText(root.name or str(root))
-        self.hero.subtitle.setText("Select a routine: search, file explorer or a click in a graph.")
+        self.hero.subtitle.setText("Select a file: file explorer, search or a click in a graph.")
         self.hero.summary.setText("")
         self.hero.set_counts(None, None)
         if self.db is not None:
@@ -565,19 +574,21 @@ class MainWindow(QMainWindow):
     def _clear_project_state(self) -> None:
         """Forget everything shown for the previous project; late answers of its queries are dropped."""
         self.runner.cancel_all()
-        self.current = None
+        self.current_file = None
+        self.relations = None
+        self.relations_loaded = False
+        self.file_cycles = None
+        self.file_langs = {}
         self.inspector.clear()
-        for tree in (self.callers_tree, self.callees_tree):
+        for tree in (self.dependents_tree, self.dependencies_tree, self.impact_tree):
             tree.clear()
-        self.links_tabs.setTabText(0, "Callers")
-        self.links_tabs.setTabText(1, "Callees")
+        for i, name in enumerate(("Dependents", "Dependencies", "Impact")):
+            self.links_tabs.setTabText(i, name)
         self.hero.set_counts(None, None)
         self.summary.setText("")
         self.results.clear()
         self.files_view.setModel(None)
-        self.tree_model = None
-        self.tree_view.setModel(None)
-        for graph in (self.graph_functions, self.graph_files, self.graph_dirs):
+        for graph in (self.graph_files, self.graph_dirs):
             graph.clear()
         self.deps_view.set_db(None)
         self.inventory_table.setRowCount(0)
@@ -591,11 +602,9 @@ class MainWindow(QMainWindow):
             return
         self.runner.submit(db, "inventory", lambda q: q.inventory(), self._show_inventory, self._error)
         self.runner.submit(db, "files", lambda q: q.files(), self._show_files, self._error)
-        self.runner.submit(db, "health", lambda q: (q.scan_health(), q.unresolved(include_ambiguous=True, limit=30)),
+        self.runner.submit(db, "health", lambda q: (q.scan_health(), q.unresolved(include_ambiguous=True, limit=30),
+                                                    q.file_cycles()),
                            self._show_health, self._error)
-        self.graph_functions.hide_noise = self.hide_noise.isChecked()
-        self.graph_functions.load_overview(db)
-        self.graph_files.hide_noise = self.hide_noise.isChecked()
         self.graph_files.load_overview(db)
         self.graph_dirs.load_overview(db)
         self.deps_view.set_db(db)
@@ -656,8 +665,9 @@ class MainWindow(QMainWindow):
             self.pending_scan = False
             self.start_scan()
             return
+        self.file_cycles = None  # computed again from the new analysis
         self.load_project()
-        self.refresh_symbol()
+        self.refresh_file()
 
     def force_language(self) -> None:
         if self.project is None:
@@ -729,6 +739,15 @@ class MainWindow(QMainWindow):
             f"{k} ({v})" for k, v in report.unknown_groups.items()) or "none"))
 
     def _show_files(self, files: list[dict[str, Any]]) -> None:
+        self.file_langs = {str(f["path"]): f["lang"] for f in files}
+        languages = sorted({str(lang) for lang in self.file_langs.values() if lang})
+        current = self.filter_language.currentText()
+        self.filter_language.blockSignals(True)
+        self.filter_language.clear()
+        self.filter_language.addItems(["All languages", *languages])
+        self.filter_language.setCurrentText(current if current in languages else "All languages")
+        self.filter_language.blockSignals(False)
+        self.deps_view.set_languages(languages)
         self.files_model = FileTreeModel(files)
         self.files_view.setModel(self.files_model)
         header = self.files_view.header()
@@ -738,8 +757,9 @@ class MainWindow(QMainWindow):
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
         self.files_view.setColumnHidden(1, True)  # the language is the colour of the name (narrow column)
 
-    def _show_health(self, data: tuple[ScanHealth, list[Any]]) -> None:
-        health, groups = data
+    def _show_health(self, data: tuple[ScanHealth, list[Any], list[list[str]]]) -> None:
+        health, groups, cycles = data
+        self.file_cycles = cycles
         lines = ["Files: " + ", ".join(f"{k} {v}" for k, v in health.files_by_status.items()),
                  "Call sites: " + ", ".join(f"{k} {v}" for k, v in health.sites_by_resolution.items()),
                  f"Unresolved rate: {health.unresolved_rate:.2%}    ambiguous sites: {health.ambiguous}", ""]
@@ -750,6 +770,10 @@ class MainWindow(QMainWindow):
             stats = last["stats"]
             self._show_skipped(list(stats.get("skipped_dirs", [])), bool(stats.get("all_subfolders", False)),
                                stats.get("skipped_total"))
+        lines += ["", f"File cycles: {len(cycles)} (files depending on each other, possible dependencies included)"]
+        lines += [f"  {len(c):>4} files  {', '.join(c)}" for c in cycles[:MAX_CYCLES_SHOWN]]
+        if len(cycles) > MAX_CYCLES_SHOWN:
+            lines.append(f"  … and {len(cycles) - MAX_CYCLES_SHOWN} more")
         lines += ["", "Unresolved or ambiguous sites, by pattern:"]
         lines += [f"  {g.count:>6}  {g.lang:<8} {g.resolution:<10} {g.pattern}" for g in groups]
         if health.failures:
@@ -757,7 +781,10 @@ class MainWindow(QMainWindow):
             lines += [f"  {f['status']:<9} {f['path']}" for f in health.failures[:50]]
         self.health_view.setPlainText("\n".join(lines))
         self.status_label.setText(f"Project: {self.project.root if self.project else ''} — "
-                                  f"unresolved {health.unresolved_rate:.1%}, ambiguous {health.ambiguous}")
+                                  f"unresolved {health.unresolved_rate:.1%}, ambiguous {health.ambiguous}, "
+                                  f"{len(cycles)} file cycle(s)")
+        if self.relations is not None:
+            self._fill_relations()  # the summary names the cycle of the selected file
 
     # -------------------------------------------------------------- search
     def run_search(self) -> None:
@@ -768,111 +795,159 @@ class MainWindow(QMainWindow):
         self.runner.submit(db, "search", lambda q: q.find(text, limit=100), self._show_results)
 
     def _show_results(self, results: list[NodeSummary]) -> None:
+        """Files and the symbols they define; activating one opens its file (at the definition line)."""
         self.results.clear()
         for r in results:
-            item = QListWidgetItem(f"{r.display_name}   [{r.kind}, {r.lang or '-'}]   {r.file or ''}:{r.line or ''}")
-            item.setData(UID_ROLE, r.uid)
+            if not r.file:
+                continue
+            item = QListWidgetItem(f"{r.file}   [{r.display_name}, {r.kind}, {r.lang or '-'}]")
+            item.setData(PATH_ROLE, r.file)
+            item.setData(LINE_ROLE, r.line or 0)
             item.setToolTip(r.uid)
             self.results.addItem(item)
-        if len(results) == 1 or (results and results[0].display_name.lower() == self.search.text().strip().lower()):
-            self.select_symbol(results[0].uid)
+        text = self.search.text().strip().lower()
+        exact = [r for r in results if r.file and (r.display_name.lower() == text or r.file.lower() == text)]
+        if exact or len([r for r in results if r.file]) == 1:
+            r = exact[0] if exact else next(r for r in results if r.file)
+            assert r.file is not None
+            self.select_file(r.file, r.line if r.kind != "file" else None)
 
     def _result_activated(self, item: QListWidgetItem) -> None:
-        uid = item.data(UID_ROLE)
-        if isinstance(uid, str) and uid.startswith("site:"):
-            path, line = uid[5:].rsplit(":", 1)
-            self.show_file(path, int(line))
-        elif uid:
-            self.select_symbol(str(uid))
+        path = item.data(PATH_ROLE)
+        if isinstance(path, str):
+            line = item.data(LINE_ROLE)
+            self.select_file(path, int(line) if line else None)
 
     # -------------------------------------------------------- selection
-    def select_symbol(self, uid: str) -> None:
+    def select_file(self, path: str, line: int | None = None) -> None:
+        """Select a file: its source, its dependents, dependencies and impact; the Files graph centres on it."""
         db = self.db
         if db is None:
             return
-        if uid.startswith("file:"):
-            path = uid[5:]
-            self.show_file(path, None)
-            if not self._from_graph:
-                self.graph_files.set_root(db, uid)
-            self._from_graph = False
+        self.current_file = path
+        self.relations_loaded = False
+        self.show_file(path, line)
+        if not self._from_graph:
+            self.graph_files.set_root(db, f"file:{path}")
+        self._from_graph = False
+
+        def work(q: Any) -> tuple[list[FileRelation], list[FileRelation], FileImpact]:
+            return q.file_relations(path, incoming=True), q.file_relations(path, incoming=False), q.file_impact(path)
+
+        self.runner.submit(db, "file", work, lambda data: self._show_relations(path, data), self._error)
+
+    def open_target(self, uid: str) -> None:
+        """The file defining ``uid`` (a reference target), at its definition line."""
+        db = self.db
+        if db is None:
             return
-        hide = self.hide_noise.isChecked()
 
-        def work(q: Any) -> tuple[Any, CallerReport, CallerReport]:
-            return q.node(uid), q.callers(uid, hide_noise=hide), q.callees(uid, hide_noise=hide)
+        def opened(node: Any) -> None:
+            if node.file:
+                self.select_file(node.file, node.line)
+            else:
+                self.status_label.setText(f"{uid} is defined outside the analysed files")
 
-        self.runner.submit(db, "symbol", work, self._show_symbol, self._error)
+        self.runner.submit(db, "target", lambda q: q.node(uid), opened, self._error)
 
-    def refresh_symbol(self) -> None:
-        if self.current is not None:
-            self.select_symbol(self.current.uid)
+    def refresh_file(self) -> None:
+        if self.current_file is not None:
+            self.select_file(self.current_file)
 
-    def _keep_site(self, site: Any) -> bool:
-        level = self.min_conf.currentIndex()
-        rank = CONFIDENCE_RANK.get(site.confidence, 0)
-        if rank < level:
+    def _show_relations(self, path: str, data: tuple[list[FileRelation], list[FileRelation], FileImpact]) -> None:
+        if path != self.current_file:
+            return  # an earlier selection
+        self.relations = data
+        self.relations_loaded = True
+        lang = self.file_langs.get(path)
+        self.hero.title.setText(path.rsplit("/", 1)[-1])
+        self.hero.subtitle.setText(f"file · {lang or '-'} · {path}")
+        self._fill_relations()
+
+    def _keep(self, path: str, dep: FileDependency | None) -> bool:
+        """The panel filters: path prefix and language of the other file, relationship and resolution."""
+        prefix = self.filter_path.text().strip()
+        if prefix and not path.startswith(prefix):
             return False
-        if self.hide_ai.isChecked() and ("@r-" in site.origin or site.origin.startswith("ai")):
+        if self.filter_language.currentIndex() > 0 and self.file_langs.get(path) != self.filter_language.currentText():
             return False
-        return not (self.hide_amb.isChecked() and site.resolution == "ambiguous")
+        if dep is None:
+            return True
+        if self.filter_relationship.currentIndex() > 0 and dep.relationship != self.filter_relationship.currentText():
+            return False
+        wanted = self.filter_resolution.currentText()
+        return wanted not in ("confirmed", "possible") or dep.confirmed == (wanted == "confirmed")
 
-    def _fill_links(self, tree: QTreeWidget, report: CallerReport) -> int:
+    def _fill_relation_tree(self, tree: QTreeWidget, relations: list[FileRelation]) -> int:
         tree.clear()
-        tree.setSortingEnabled(False)
-        count = 0
-        for item in report.items:
-            sites = [s for s in item.sites if self._keep_site(s)]
-            if not sites:
+        shown = 0
+        for rel in relations:
+            details = [d for d in rel.details if self._keep(rel.path, d)]
+            if not details:
                 continue
-            count += 1
-            n = item.node
-            top = QTreeWidgetItem([f"{n.display_name}  ({len(sites)})", f"{n.file or n.uid}:{n.line or ''}",
-                                   weakest_confidence([s.confidence for s in sites])])
-            top.setData(0, UID_ROLE, n.uid)
-            top.setToolTip(0, n.uid)
-            for s in sites:
-                label = s.target_text + (f"   if {s.condition}" if s.condition else "")
-                child = QTreeWidgetItem([label, f"{s.file}:{s.line}:{s.col}", f"{s.confidence} · {s.origin}"])
-                child.setData(0, SITE_ROLE, json.dumps({"file": s.file, "line": s.line}))
+            shown += 1
+            counts: dict[str, int] = {}
+            for d in details:
+                counts[d.relationship] = counts.get(d.relationship, 0) + d.count
+            confirmed = any(d.confirmed for d in details)
+            top = QTreeWidgetItem([rel.path, ", ".join(f"{k} {v}" for k, v in sorted(counts.items())),
+                                   "confirmed" if confirmed else "possible"])
+            top.setData(0, PATH_ROLE, rel.path)
+            top.setToolTip(0, f"{rel.path} — double-click to select this file")
+            for d in details:
+                child = QTreeWidgetItem([d.relationship, str(d.count), d.resolution])
+                child.setData(0, FILTER_ROLE, d.occurrences)
+                child.setToolTip(0, "Double-click to list the occurrences and their source locations")
                 top.addChild(child)
             tree.addTopLevelItem(top)
-        tree.setSortingEnabled(True)
-        tree.sortItems(0, Qt.SortOrder.AscendingOrder)
-        return count
+        return shown
 
-    def _show_symbol(self, data: tuple[Any, CallerReport, CallerReport]) -> None:
-        node, callers, callees = data
-        self.current = node
-        n_callers = self._fill_links(self.callers_tree, callers)
-        n_callees = self._fill_links(self.callees_tree, callees)
-        self.links_tabs.setTabText(0, f"Callers ({n_callers})")
-        self.links_tabs.setTabText(1, f"Callees ({n_callees})")
-        hidden = f" (+{callers.hidden_noise} utilities hidden)" if callers.hidden_noise else ""
-        open_sites = [f"{n} {what}" for n, what in ((callees.unresolved_sites, "unresolved"),
-                                                    (callees.ambiguous_sites, "ambiguous")) if n]
-        not_counted = f" — not counted: {', '.join(open_sites)} call site(s)" if open_sites else ""
-        where = f"{node.file}:{node.line}" if node.file else "outside the repository"
-        self.hero.title.setText(node.display_name)
-        self.hero.subtitle.setText(f"{node.kind} · {node.lang or '-'} · {node.uid} · {where}")
-        # Badges, tabs and summary count the same thing: the routines the lists show, after the panel filters.
-        self.hero.set_counts(n_callers, n_callees)
+    def _fill_impact(self, impact: FileImpact) -> int:
+        self.impact_tree.clear()
+        wanted = self.filter_resolution.currentText()
+        rows = [(impact.depth[f], f, "confirmed") for f in impact.confirmed]
+        rows += [(impact.depth[f], f, "possible") for f in impact.possible]
+        shown = 0
+        for depth, path, certainty in sorted(rows):
+            if not self._keep(path, None) or (wanted in ("confirmed", "possible") and certainty != wanted):
+                continue
+            item = QTreeWidgetItem([path, str(depth), certainty])
+            item.setData(0, PATH_ROLE, path)
+            item.setToolTip(0, f"{path} — double-click to select this file")
+            self.impact_tree.addTopLevelItem(item)
+            shown += 1
+        return shown
+
+    def _fill_relations(self) -> None:
+        """Fill the panel from the loaded relations through the filters; badges, tabs and summary agree."""
+        if self.relations is None or self.current_file is None:
+            return
+        dependents, dependencies, impact = self.relations
+        n_in = self._fill_relation_tree(self.dependents_tree, dependents)
+        n_out = self._fill_relation_tree(self.dependencies_tree, dependencies)
+        n_impact = self._fill_impact(impact)
+        self.links_tabs.setTabText(0, f"Dependents ({n_in})")
+        self.links_tabs.setTabText(1, f"Dependencies ({n_out})")
+        self.links_tabs.setTabText(2, f"Impact ({n_impact})")
+        self.hero.set_counts(n_in, n_out)
 
         def counted(shown: int, total: int) -> str:
             return f"<b>{shown}</b>" + (f" (of {total} before the filters)" if shown != total else "")
 
-        self.summary.setText(f"Called by {counted(n_callers, callers.count)} routine(s) in <b>{callers.file_count}</b> "
-                             f"file(s){hidden} — calls {counted(n_callees, callees.count)} routine(s) — "
-                             f"impact: {node.impact_size} transitive caller(s){not_counted}")
-        if node.file:
-            self.show_file(node.file, node.line, node.lang)
-        self._rebuild_tree()
-        if self.db is not None and not self._from_graph:
-            self.graph_functions.hide_noise = self.hide_noise.isChecked()
-            self.graph_functions.set_root(self.db, node.uid)
-            if node.file:
-                self.graph_files.set_root(self.db, f"file:{node.file}")
-        self._from_graph = False
+        cycle = next((c for c in self.file_cycles or [] if self.current_file in c), None)
+        in_cycle = f" — in a cycle with {len(cycle) - 1} other file(s)" if cycle else ""
+        self.summary.setText(f"Used by {counted(n_in, len(dependents))} file(s) — depends on "
+                             f"{counted(n_out, len(dependencies))} file(s) — impact: {len(impact.confirmed)} "
+                             f"confirmed, {len(impact.possible)} possible file(s){in_cycle}")
+
+    def _relation_activated(self, item: QTreeWidgetItem, _col: int) -> None:
+        occurrences = item.data(0, FILTER_ROLE)
+        if occurrences is not None:  # a relationship: its occurrences and source locations
+            self._show_link_evidence(occurrences)
+            return
+        path = item.data(0, PATH_ROLE)
+        if isinstance(path, str):
+            self.select_file(path)
 
     def show_file(self, path: str, line: int | None, lang: str | None = None) -> None:
         db = self.db
@@ -887,55 +962,23 @@ class MainWindow(QMainWindow):
         self.runner.submit(db, "source", work,
                            lambda d: self.inspector.show_source(d[0], d[2], line, d[1]), self._error)
 
-    def _rebuild_tree(self) -> None:
-        if self.current is None or self.db is None or self.current.kind == "file":
-            return
-        if self.tree_model is not None:
-            self.tree_model.close()
-        direction = Direction.CALLEES if self.tree_direction.currentIndex() == 0 else Direction.CALLERS
-        self.tree_model = CallTreeModel(self.runner, self.db, self.current.uid, self.current.display_name, direction,
-                                        hide_noise=self.hide_noise.isChecked())
-        self.tree_view.setModel(self.tree_model)
-        self.tree_view.expand(self.tree_model.index(0, 0))
-        self.tree_view.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-
-    def _tree_activated(self, index: Any) -> None:
-        if self.tree_model is None:
-            return
-        uid = self.tree_model.node_uid(index)
-        if uid is None:
-            self.tree_model.expand_more(index)
-        elif uid != (self.current.uid if self.current else None):
-            self.select_symbol(uid)
-
-    def _link_activated(self, item: QTreeWidgetItem, _col: int) -> None:
-        site = item.data(0, SITE_ROLE)
-        if site:
-            s = json.loads(site)
-            self.show_file(s["file"], s["line"])
-            return
-        uid = item.data(0, UID_ROLE)
-        if uid:
-            self.select_symbol(str(uid))
-
     def _file_activated(self, index: Any) -> None:
         path = index.siblingAtColumn(0).data(FileTreeModel.PATH_ROLE)
         if isinstance(path, str) and path.startswith("dir:"):  # a folder: the folder tree from it
             self.graph_dirs.set_folder_root(path[4:])
             self.show_view(self.graph_dirs)
             return
-        if isinstance(path, str) and not path.startswith("dir:"):
-            self.show_file(path, None)
-            if self.db is not None:
-                self.graph_files.set_root(self.db, f"file:{path}")
+        if isinstance(path, str):
+            self.select_file(path)
 
     # ------------------------------------------------------------ 3D graphs
     def _graph_node_selected(self, uid: str) -> None:
-        self._from_graph = True  # keep the drawn graph: only the panels follow the selection
-        self.select_symbol(uid)
+        if uid.startswith("file:"):
+            self._from_graph = True  # keep the drawn graph: only the panels follow the selection
+            self.select_file(uid[5:])
 
     def _show_link_evidence(self, filters: Any) -> None:
-        """A link clicked in a graph: its rows and evidence in the Dependencies view, shown (UI audit)."""
+        """A link (graph or panel): its occurrences and evidence in the Dependencies view, shown (UI audit)."""
         current = self.views.currentWidget()
         self._evidence_from = current if current is not self.deps_view else self._evidence_from
         self.deps_view.show_occurrences(filters, back=self._evidence_from is not None)
@@ -944,21 +987,6 @@ class MainWindow(QMainWindow):
     def _back_from_evidence(self) -> None:
         if self._evidence_from is not None:
             self.show_view(self._evidence_from)
-
-    def show_link_sites(self, src: str, dst: str) -> None:
-        """Detailed calls behind a drawn link (double-click on an edge: ``src`` calls ``dst``)."""
-        db = self.db
-        if db is None or src.startswith("dir:") or dst.startswith("dir:"):
-            return
-        self.runner.submit(db, "link-sites", lambda q: q.call_sites(src, dst), self._show_link_sites, self._error)
-
-    def _show_link_sites(self, sites: list[Any]) -> None:
-        self.results.clear()
-        for s in sites:
-            item = QListWidgetItem(f"{s.file}:{s.line}:{s.col}   {s.target_text}   [{s.confidence}, {s.origin}]")
-            item.setData(UID_ROLE, f"site:{s.file}:{s.line}")
-            self.results.addItem(item)
-        self.status_label.setText(f"{len(sites)} call(s) behind this link — see 'Search results'")
 
     def _error(self, message: str) -> None:
         self.status_label.setText(message.splitlines()[0])
@@ -970,5 +998,3 @@ class MainWindow(QMainWindow):
             self.process.cancel(wait=True)
         self.runner.cancel_all()
         super().closeEvent(event)
-
-

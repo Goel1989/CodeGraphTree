@@ -66,18 +66,18 @@ def export_dict(db_path: Path | str) -> dict[str, Any]:
                            "FROM node_stats s JOIN nodes n ON n.id = s.node_id ORDER BY n.uid")
         for st in stats:
             st["is_noise"] = bool(st["is_noise"])
-        file_edges = _rows(con, "SELECT a.path AS src, b.path AS dst, e.kind, e.count FROM file_edges e "
-                                "JOIN files a ON a.id = e.src_file JOIN files b ON b.id = e.dst_file "
-                                "ORDER BY a.path, b.path, e.kind")
-        dir_edges = _rows(con, "SELECT src_dir AS src, dst_dir AS dst, kind, count FROM dir_edges "
-                               "ORDER BY src_dir, dst_dir, kind")
+        file_deps = _rows(con, "SELECT a.path AS src, b.path AS dst, e.kind AS relationship, e.resolution, e.count "
+                               "FROM file_edges e JOIN files a ON a.id = e.src_file JOIN files b ON b.id = e.dst_file "
+                               "ORDER BY a.path, b.path, e.kind, e.resolution")
+        folder_deps = _rows(con, "SELECT src_dir AS src, dst_dir AS dst, kind AS relationship, resolution, count "
+                                 "FROM dir_edges ORDER BY src_dir, dst_dir, kind, resolution")
         plugins = _rows(con, "SELECT name, type, version FROM plugins ORDER BY type, name")
     finally:
         con.close()
     return {"files": files, "inventory": inventory, "inventory_entries": inventory_entries,
             "inventory_issues": inventory_issues, "nodes": nodes, "call_sites": sites,
-            "data_accesses": data, "edges": edges, "node_stats": stats, "file_edges": file_edges,
-            "dir_edges": dir_edges, "plugins": plugins}
+            "data_accesses": data, "edges": edges, "node_stats": stats, "file_dependencies": file_deps,
+            "folder_dependencies": folder_deps, "plugins": plugins}
 
 
 def export_json(db_path: Path | str) -> str:

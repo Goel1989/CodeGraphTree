@@ -35,10 +35,13 @@ Command line:
 
 ```bash
 cgs scan path/to/code                 # analyse (deterministic, incremental)
-cgs callers some_routine --root path/to/code
-cgs callees some_routine --root path/to/code
-cgs path a b --root path/to/code      # how A reaches B
-cgs impact some_routine --root path/to/code
+cgs files dependencies src/a.f90 --root path/to/code   # files src/a.f90 depends on
+cgs files dependents src/a.f90 --root path/to/code     # files depending on src/a.f90
+cgs files impact src/a.f90 --root path/to/code         # files a change may affect
+cgs files cycles --root path/to/code                   # files depending on each other
+cgs deps --level file --root path/to/code              # dependency table (occurrences: --level site)
+cgs callers some_routine --root path/to/code           # symbol level, for checking
+cgs path a b --root path/to/code                       # symbol level: how routine A reaches B
 cgs unresolved --ambiguous --root path/to/code
 cgs health --root path/to/code
 cgs selftest                          # check the installation offline

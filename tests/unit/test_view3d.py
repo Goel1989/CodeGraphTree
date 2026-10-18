@@ -102,16 +102,14 @@ def test_cli_view3d_export(hybrid: Path, tmp_path: Path) -> None:
 
 def test_graph3d_main_paths(hybrid: Path) -> None:
     with GraphQuery(hybrid) as q:
-        graph, report = q.graph3d_main_paths("f:kernel", mode="functions")
-        files, _ = q.graph3d_main_paths("f:kernel", mode="files")
-        both, _ = q.graph3d_main_paths("f:kernel", mode="both")
-    assert report.paths and report.paths[0].steps[-1].uid == "f:kernel"
-    ids = {n.id for n in graph.nodes}
-    assert {"py:app.run.run_case", "c:c_solve", "f:kernel"} <= ids
-    assert graph.root == report.root_uid and any(n.is_root for n in graph.nodes)
-    assert ("c:c_solve", "f:kernel") in {(lk.source, lk.target) for lk in graph.links}
+        files, report = q.graph3d_main_paths("f:kernel", mode="files")  # the file of a symbol, or a file
+        again, _ = q.graph3d_main_paths("file:fsrc/kernel.f90")
+        with pytest.raises(QueryError, match="files"):
+            q.graph3d_main_paths("f:kernel", mode="functions")
+    assert report.paths and report.paths[0].steps[-1].uid == "file:fsrc/kernel.f90"
+    assert report.root_uid == "file:app/run.py" and files.root == report.root_uid
     assert all(n.kind == "file" for n in files.nodes) and "file:fsrc/kernel.f90" in {n.id for n in files.nodes}
-    assert "defines" in {lk.kind for lk in both.links}
+    assert {n.id for n in again.nodes} == {n.id for n in files.nodes}
 
 
 def test_html_qt_host_starts_empty(hybrid: Path) -> None:

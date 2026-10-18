@@ -222,30 +222,6 @@ class DefaultRoots:
 
 
 @dataclass
-class SubgraphEdge:
-    src: str
-    dst: str
-    item: TreeItem
-
-
-@dataclass
-class SubgraphReport:
-    root: TreeItem
-    nodes: dict[str, TreeItem]
-    edges: list[SubgraphEdge]
-    truncated: bool = False
-    hidden_noise: int = 0
-
-
-@dataclass
-class NeighborsReport:
-    center: TreeItem
-    callers: list[TreeItem]
-    callees: list[TreeItem]
-    hidden_noise: int = 0
-
-
-@dataclass
 class MainPathReport:
     root_uid: str
     target_uid: str
@@ -352,7 +328,8 @@ class ReferenceCategories:
 
 
 # ---------------------------------------------------------------- dependency tables (requirements plan phase 7)
-RELATIONSHIPS = ("call", "dynamic_call", "import", "include", "inherit", "bridge", "binding", "binding_declaration")
+RELATIONSHIPS = ("call", "dynamic_call", "import", "include", "inherit", "bridge", "binding", "binding_declaration",
+                 "data_read", "data_write")
 DEPENDENCY_LEVELS = ("entity", "file", "directory")
 DEPENDENCY_SORTS = ("path", "line", "caller", "target", "relationship", "status", "language", "rule")
 
@@ -416,6 +393,50 @@ class DependencyPage:
     total: int
     offset: int
     rows: list[Any]  # DependencyRow or DependencyGroup
+
+
+# ---------------------------------------------------------------- file dependencies (D39)
+@dataclass(frozen=True)
+class FileDependency:
+    """``source`` depends on ``target`` (files, or folders at the ``directory`` level) through ``relationship``.
+
+    ``resolution`` is ``resolved`` or ``out_of_scope`` (confirmed) or ``ambiguous`` (possible: a candidate of the
+    occurrence is in ``target``). ``count`` occurrences, a site counted once per candidate file; ``occurrences``
+    lists them in the dependency table."""
+
+    level: str  # file or directory
+    source: str
+    target: str
+    relationship: str
+    resolution: str
+    count: int
+    occurrences: DependencyFilter
+
+    @property
+    def confirmed(self) -> bool:
+        return self.resolution != "ambiguous"
+
+
+@dataclass
+class FileRelation:
+    """A file linked to another one (its dependency or its dependent), every relationship merged."""
+
+    path: str
+    lang: str | None
+    relationships: dict[str, int]  # relationship -> occurrences
+    confirmed: bool  # at least one confirmed occurrence; otherwise a possible dependency only
+    occurrences: DependencyFilter
+    details: list[FileDependency] = field(default_factory=list)  # one per (relationship, resolution), sorted
+
+
+@dataclass
+class FileImpact:
+    """Files that may be affected by a change of ``path``: every file depending on it, directly or not."""
+
+    path: str
+    confirmed: list[str]  # reached through confirmed dependencies only
+    possible: list[str]  # reached only through at least one possible (ambiguous) dependency
+    depth: dict[str, int]  # file -> shortest distance (1 = direct dependent)
 
 
 @dataclass

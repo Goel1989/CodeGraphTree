@@ -81,15 +81,16 @@
 | View | Content | Usage |
 | :--- | :--- | :--- |
 | **Language inventory** | Per language: file and line count, adapter used (native, keyword profile, none); unrecognized files; AI proposals and their status | Know what is analyzed and how |
-| **Search** | Single field: routines, files, modules (fuzzy search) | Starting point for any exploration |
-| **Callers / Callees panel** | Count + sortable list; double-click → code at call line | Answer to the default question |
-| **Functions 3D** | 3D graph (3d-force-graph) of the callers and callees around a routine, starting at `main`; right-click expands a node, "Paths to main" keeps only the chains from `main` | Understand a call chain |
-| **Files 3D** | Same principle at file level: link = at least one call, thickness = call count; click on a link → detailed calls | Understand module architecture |
-| **File explorer** | Repository directory tree with language, routine count, and link count per file | Traditional navigation |
-| **Code inspector** | Read-only syntax-highlighted source, call lines highlighted; click on call → called routine; alert if file changed since analysis | Read code |
-| **Analysis health** | Analyzed, fallback, failed files; grouped ambiguous and unresolved sites; validation metrics | Know if the graph can be trusted |
+| **Search** | Single field: files, and the routines and modules they define (fuzzy search); a result opens its file | Starting point for any exploration |
+| **Dependents / Dependencies / Impact panel** | For the selected file: the files depending on it, the files it depends on (one row per file, a child row per relationship with its count and resolution; double-click a relationship → its occurrences), the files a change may affect (confirmed or possible); filters by path, language, relationship and resolution (D40) | Answer to the default question |
+| **Files** (opening view) | 3D graph (3d-force-graph) of the file dependencies: one link per relationship (call, import, include, inheritance, bridge, binding, data read/write), possible links in their own colour; click on a link → its occurrences, filtered by that relationship; cycles and entry points highlighted, no `main` required | Understand module architecture |
+| **Folders** | Folder tree from a selected folder (D38); dependencies between folders as an optional layer | Understand the layout |
+| **Dependencies** | Table of the file dependencies, folder dependencies and occurrences (with their evidence), filtered and exported (phase 7) | Check and export |
+| **File explorer** | Repository directory tree with language, routine count, and linked-file count per file | Traditional navigation |
+| **Code inspector** | Read-only syntax-highlighted source, reference lines highlighted; double-click on a reference → the file defining its target; alert if file changed since analysis | Read code |
+| **Analysis health** | Analyzed, fallback, failed files; grouped ambiguous and unresolved sites; file cycles; validation metrics | Know if the graph can be trusted |
 
-Both 3D graphs **open on the overview of the whole project** (decision D23): every node and every link — inside a folder or between folders, the latter drawn in their own colour — when the project fits under the node ceiling; otherwise one sphere per **group** (a connected set of routines or files linked to nothing outside it: separate or parallel programs), sized by its member count, plus an "isolated" sphere (members linked to nothing) and a "more groups" sphere. A click opens a group with all its links; "All groups" comes back. In Files 3D, the files that are not analyzed code (docs, data, configuration, images, archives, binary, unknown type, code without adapter) are set apart in a grey grid below the code, never linked. In both 3D graphs a node is drawn once whatever the number of paths reaching it (cycles and shared calls stay legible); the drawn neighbourhood is bounded by a depth and a node ceiling (decision D21, which replaced the 2D TreeGraphs).
+The function-level views (Functions 3D, the function tree list and the Callers / Callees panel) were removed by decision D40; symbol resolution stays internal. The 3D graphs **open on the overview of the whole project** (decision D23): every node and every link — inside a folder or between folders, the latter drawn in their own colour — when the project fits under the node ceiling; otherwise one sphere per **group** (a connected set of routines or files linked to nothing outside it: separate or parallel programs), sized by its member count, plus an "isolated" sphere (members linked to nothing) and a "more groups" sphere. A click opens a group with all its links; "All groups" comes back. In Files 3D, the files that are not analyzed code (docs, data, configuration, images, archives, binary, unknown type, code without adapter) are set apart in a grey grid below the code, never linked. In both 3D graphs a node is drawn once whatever the number of paths reaching it (cycles and shared calls stay legible); the drawn neighbourhood is bounded by a depth and a node ceiling (decision D21, which replaced the 2D TreeGraphs).
 
 ### 1.3. Non-functional requirements
 
@@ -439,8 +440,8 @@ facts_cache(cache_key TEXT PRIMARY KEY, facts BLOB)                -- canonical 
 edges(src, dst, kind, site_count, min_confidence, origins JSON, conditions JSON)
 node_stats(node_id, fan_in, fan_out, fan_in_filtered, fan_out_filtered,
            impact_size, impact_size_filtered, is_noise, noise_reason)
-file_edges(src_file, dst_file, kind, count)       -- Files 3D graph
-dir_edges(src_dir, dst_dir, kind, count)          -- Directory grouping
+file_edges(src_file, dst_file, kind, resolution, count)   -- file dependencies (D39, schema 4)
+dir_edges(src_dir, dst_dir, kind, resolution, count)      -- folder dependencies (D39, schema 4)
 search_fts                                        -- FTS5: names, paths, header comments
 
 -- Traceability
@@ -737,10 +738,9 @@ class GraphQuery:
                  edge_kinds: set[str] = CALL_PATH, offset: int = 0, limit: int = 50,
                  hide_noise: bool = True) -> Page[TreeItem]: ...
         # direction: CALLERS or CALLEES; level: ROUTINE, FILE, or DIRECTORY
-    def file_links(self, file_uid: str, *, direction: Direction) -> list[FileLink]: ...
-    def call_sites(self, src_uid: str, dst_uid: str) -> list[CallSite]: ...
-        # CallSite: file, line, col, condition, origin, confidence, resolution, evidence (D31: extraction,
-        #   resolution_rule, candidate_selection, reason; bridges: rule_version, mechanism, binding, ...)
+    def file_links(self, file_uid: str, *, direction: Direction) -> list[FileLink]: ...   # broad calls / uses
+        # CallSite (sites_in_file, callers, callees): file, line, col, condition, origin, confidence, resolution,
+        #   evidence (D31: extraction, resolution_rule, candidate_selection, reason; bridges: rule_version, ...)
     def paths(self, src_uid: str, dst_uid: str, *, edge_kinds: set[str] = CALL_PATH,
               k: int = 5, max_len: int = 15) -> list[Path]: ...
         # Path = steps (uid, edge kind, confidence, possible: bool); possible=True for dispatch
@@ -763,6 +763,13 @@ class GraphQuery:
         # entity, file or directory level: count and statuses per (source, target, relationship), with the filter
         # of its occurrences
     def dependency_evidence(self, row: DependencyRow) -> DependencyEvidence: ...   # source lines and evidence
+    # File dependencies (D39): "A -> B" = file A depends on file B, one record per (source, target, relationship,
+    # resolution) with its count and the filter of its occurrences
+    def file_dependencies(self, *, level: str = "file") -> list[FileDependency]: ...   # or level="directory"
+    def folder_dependencies(self) -> list[FileDependency]: ...
+    def file_relations(self, path: str, *, incoming: bool) -> list[FileRelation]: ...   # dependents / dependencies
+    def file_impact(self, path: str, *, max_depth: int | None = None) -> FileImpact: ...   # confirmed / possible
+    def file_cycles(self, *, confirmed_only: bool = False) -> list[list[str]]: ...
     def graph3d_directories(self, *, max_nodes: int = 300) -> Graph3D: ...   # D34: directory level
     def graph3d_folder_tree(self, root: str = ".", *, max_nodes: int = 2000,
                             include_dependencies: bool = False) -> Graph3D: ...   # D38: folder tree (Folders 3D)
@@ -770,16 +777,10 @@ class GraphQuery:
     def link_evidence(source: str, target: str) -> DependencyFilter: ...    # rows behind a drawn link
     def default_roots(self, *, hide_noise: bool = True) -> DefaultRoots: ...
         # deterministic detection of primary entry point (main_routine, main_file)
-    def initial_subgraph(self, root_uid: str | None = None, *, level: Level = Level.ROUTINE,
-                         max_nodes: int = 25, hide_noise: bool = True) -> SubgraphReport: ...
-        # breadth-first subgraph of first N nodes from main (or root_uid)
-    def connected_neighbors(self, uid: str, *, level: Level = Level.ROUTINE,
-                            limit: int = 50, hide_noise: bool = True) -> NeighborsReport: ...
-        # direct callers and callees of a clicked node (routine, file, or directory)
     def paths_from_main(self, target_uid: str, *, root_uid: str | None = None,
-                        level: Level = Level.ROUTINE, max_paths: int = 4,
+                        level: Level = Level.FILE, max_paths: int = 4,
                         max_len: int = 15) -> MainPathReport: ...
-        # paths from main to target_uid; fallback to shortest path if > max_paths
+        # file paths from the main file to target_uid; shortest path only if > max_paths (D41: files only)
     def files(self) -> list[dict]: ...                                  # file explorer rows
     def file_symbols(self, path: str) -> list[NodeSummary]: ...
     def sites_in_file(self, path: str) -> list[CallSite]: ...          # inspector highlights
@@ -787,17 +788,18 @@ class GraphQuery:
     # 3D graphs (§3.11, D21, D23)
     def graph3d(self, root_uid: str, *, mode: str = "functions", depth: int = 2,
                 max_nodes: int = 400, hide_noise: bool = True) -> Graph3D: ...
-        # mode: functions, files, or both (routines + defining files); callers and callees, bounded
-    def graph3d_main_paths(self, target_uid: str, *, mode: str = "functions", max_paths: int = 3,
-                           max_len: int = 15) -> tuple[Graph3D, MainPathReport]: ...
-    def groups(self, level: Level = Level.ROUTINE, *, hide_noise: bool = True) -> GroupsReport: ...
-        # connected groups (union-find over CALL_PATH edges or file_edges), isolated members
-    def graph3d_overview(self, *, mode: str = "functions", max_nodes: int = 300,
+        # files mode: the Files view (one link per relationship, D40); functions and both modes: symbol level,
+        # kept for `cgs view3d` (checking tool); dependents and dependencies (callers and callees), bounded
+    def graph3d_main_paths(self, target_uid: str, *, mode: str = "files", max_paths: int = 3,
+                           max_len: int = 15) -> tuple[Graph3D, MainPathReport]: ...   # D41: files only
+    def groups(self, level: Level = Level.FILE, *, hide_noise: bool = True) -> GroupsReport: ...
+        # connected groups of files (union-find over file_edges), isolated files (D41: files only)
+    def graph3d_overview(self, *, mode: str = "files", max_nodes: int = 300,
                          hide_noise: bool = True, include_noncode: bool = True) -> Graph3D: ...
-        # everything when it fits, else one sphere per group (+ isolated, + more groups)
-    def graph3d_group(self, group_id: str, *, mode: str = "functions", max_nodes: int = 300,
+        # every file when it fits, else one sphere per group (+ isolated, + more groups); D41: files only
+    def graph3d_group(self, group_id: str, *, mode: str = "files", max_nodes: int = 300,
                       hide_noise: bool = True) -> Graph3D: ...
-        # group_id: group:<representative>, isolated:<level>, more:<level>:<offset>
+        # group_id: group:<representative>, isolated:files, more:files:<offset>
     def non_code_files(self) -> NonCodeReport: ...                      # from the last scan statistics
         # Graph3DNode: id, label, kind, lang, file, line, fan_in, fan_out, is_root, is_noise, size, note
         # Graph3DLink: source, target, kind, count, confidence, cross_dir (ends in different folders)
@@ -808,8 +810,9 @@ class GraphQuery:
 ```
 
 - All lists are **paginated** (`offset`, `limit`) and stably sorted.
-- Basic queries (`callers`, `callees`, `children`, `file_links`, `default_roots`, `connected_neighbors`) are simple SQL queries indexed on precomputed tables: none load the graph into memory.
-- `paths`, `paths_from_main`, `initial_subgraph`, and `impact` explicitly use an edge kind set (execution path or file dependency); they traverse breadth-first with bounds (depth, node count), stopping cleanly at limit and signaling it.
+- Basic queries (`callers`, `callees`, `children`, `file_links`, `file_relations`, `default_roots`) are simple SQL queries indexed on precomputed tables: none load the graph into memory.
+- **Symbol-level tools (D41):** `callers`, `callees`, `children`, `paths`, `impact`, `node` and `data_accesses` stay public for checking (`cgs callers`, `callees`, `path`, `impact`, `data`) and for the validation claims of the corpus audit and of packs (`path`, `dispatches`, `tests_for`, `callers_count`, `no_call_to`); the interface shows only files (D40).
+- `paths`, `paths_from_main` and `impact` explicitly use an edge kind set (execution path or file dependency); they traverse breadth-first with bounds (depth, node count), stopping cleanly at limit and signaling it.
 - `source` compares on-disk file fingerprint with analysis fingerprint (size and mtime first, then SHA-256 if needed): a displayed line always matches the evidence used to build the link, or UI warns that it has changed.
 - CLI and UI share this exact API: what is tested in CLI is what the UI renders.
 
@@ -821,10 +824,10 @@ class GraphQuery:
 | :--- | :--- |
 | Title bar | Frameless window (D22): 28 px orange gradient bar with the title on the left and minimize / maximize / close on the right; drag moves, double-click maximizes; a 5 px outer margin resizes the window |
 | Left, column 1 | Icon rail (50 px): open folder, view groups **Explore** and **Project** (active group framed in orange), About |
-| Left, column 2 | Views of the active group (Explore: Functions 3D, Files 3D, Tree list; Project: Inventory, Analysis health; active view on an orange gradient), then search box and results, then repository file explorer |
+| Left, column 2 | Views of the active group (Explore: Files, Folders, Dependencies; Project: Inventory, Analysis health; active view on an orange gradient), then search box and results, then repository file explorer |
 | Centre, level 1 | Header band: title of the active view in capitals, project path |
-| Centre, level 2 | Hero card: the selected routine (name, kind, language, identifier, location, callers and impact summary) with 48 × 48 px square badges and buttons: callers, callees, "Show in" (views), Filters (hide utilities, min confidence, hide AI links, hide ambiguous sites), Analysis (Analyze, Cancel, force language, ignore extension, open folder); the buttons open dark popovers |
-| Centre, level 3 | Details panel: the active view; on its right the code inspector and the Callers (N) / Callees (M) panel |
+| Centre, level 2 | Hero card: the selected file (name, language, path; dependents, dependencies, impact and cycle summary) with 48 × 48 px square badges and buttons: dependents, dependencies, "Show in" (views), Filters of the panel (path, language, relationship, resolution), Analysis (Analyze, Cancel, force language, ignore extension, open folder); the buttons open dark popovers |
+| Centre, level 3 | Details panel: the active view; on its right the code inspector and the Dependents (N) / Dependencies (M) / Impact (K) panel |
 | Status bar | Analysis in progress, analysis health, active filters |
 
 - **Inventory view:** languages and coverage, unrecognized files, the folders left out of the analysis with their reason and file count, and the "Analyze all subfolders" box (profile option `all_subfolders`, §3.2), "Force language…" and "Ignore extension…" (written to the profile by `cgs profile`, then re-analysis).
@@ -832,16 +835,16 @@ class GraphQuery:
 
 **Qt components**
 
-- Text lists and trees: lazy `QAbstractItemModel` (`canFetchMore` / `fetchMore`) requesting children in pages of 50 from `GraphQuery.children`.
-- **3D graphs** (`ui/graph3d_view.py`, decision D21): `Graph3DView` = toolbar (All groups, From main, Paths to main, depth, node ceiling, defining files) + `QWebEngineView` showing the vendored 3d-force-graph page (`ui/web/`), written once per process to a private temporary file. Data comes only from `GraphQuery` in a `QueryRunner` thread: `graph3d(root, mode, depth, max_nodes)` for a neighbourhood, `graph3d(uid, depth=1)` merged on right-click, `graph3d_main_paths(target, mode)` for "Paths to main" (shortest path only when there are too many). Python → page: `runJavaScript("cgs.load(…)" / "cgs.merge(…)")`; page → Python: console messages `CGS:{"event": select | expand | link | ready | loaded | error, …}` read by `QWebEnginePage.javaScriptConsoleMessage`. Offline by construction: page CSP without any network source, Qt's off-the-record default profile, a `QWebEngineUrlRequestInterceptor` blocking every scheme other than `file`, `data`, `blob`, navigation refused elsewhere; no server, no port. Without WebGL (offscreen tests, very old GPU) the page still loads and answers, and says that 3D rendering is unavailable. `AA_ShareOpenGLContexts` is set before the `QApplication` is created, and the window is deleted before it.
+- Side panel (D40): `GraphQuery.file_relations(path, incoming=…)` and `file_impact(path)` in a `QueryRunner` thread; the panel filters work on the loaded relations, so badges, tabs and summary count the same rows. File cycles (`file_cycles`) are computed with the analysis health.
+- **3D graphs** (`ui/graph3d_view.py`, decisions D21, D41): `Graph3DView` (files, or the folder tree with `directories=True`) = toolbar (All groups, From main, Paths to main, depth, node ceiling) + `QWebEngineView` showing the vendored 3d-force-graph page (`ui/web/`), written once per process to a private temporary file. Data comes only from `GraphQuery` in a `QueryRunner` thread: `graph3d(root, mode, depth, max_nodes)` for a neighbourhood, `graph3d(uid, depth=1)` merged on right-click, `graph3d_main_paths(target, mode)` for "Paths to main" (shortest path only when there are too many). Python → page: `runJavaScript("cgs.load(…)" / "cgs.merge(…)")`; page → Python: console messages `CGS:{"event": select | expand | link | ready | loaded | error, …}` read by `QWebEnginePage.javaScriptConsoleMessage`. Offline by construction: page CSP without any network source, Qt's off-the-record default profile, a `QWebEngineUrlRequestInterceptor` blocking every scheme other than `file`, `data`, `blob`, navigation refused elsewhere; no server, no port. Without WebGL (offscreen tests, very old GPU) the page still loads and answers, and says that 3D rendering is unavailable. `AA_ShareOpenGLContexts` is set before the `QApplication` is created, and the window is deleted before it.
 - Inspector: read-only `QPlainTextEdit` + per-language `QSyntaxHighlighter` (rules provided by adapter; for keyword profile, keywords highlighted). If `SourceExcerpt.stale` is true: banner "This file has changed since analysis" and "Re-analyze" button.
-- Paths: `cgs path` lists each step with its type (call, bridge, dispatch; dispatch steps flagged "possible"); in the window, "Paths to main" of the 3D graphs shows the paths from `main` to the selection.
-- Background tasks (UI audit: no query on the GUI thread, including the lazy call tree; a project change drops late answers; Cancel kills the process tree and extraction workers exit with their parent): `QThreadPool` for queries; `QProcess` for inventory and analysis (the AI runs from `cgs complete` and `cgs ai-worker`, not from the window yet).
+- Paths: `cgs path` lists each step with its type (call, bridge, dispatch; dispatch steps flagged "possible"); in the window, "Paths to main" of the Files graph shows the file paths from the main file to the selection.
+- Background tasks (UI audit: no query on the GUI thread, including the file panel; a project change drops late answers; Cancel kills the process tree and extraction workers exit with their parent): `QThreadPool` for queries; `QProcess` for inventory and analysis (the AI runs from `cgs complete` and `cgs ai-worker`, not from the window yet).
 - Settings: `QSettings` in INI format, in the data folder (§3.14).
-- **Groups and overview** (D23): `GraphQuery.groups(level)` computes the connected groups at query time (union-find over call edges `CALL_PATH`, or `file_edges`; about 1 s on Code_Aster, so no schema change); utility routines are left out when hidden, since they would glue unrelated programs together. `graph3d_overview(mode, max_nodes)` returns everything or the group spheres, `graph3d_group(id)` the content of a sphere (`group:<representative>`, `isolated:<level>`, `more:<level>:<offset>`), `non_code_files()` the non-code files recorded by the last analysis (scan statistics key `non_code`: exact counts per category, at most 5,000 paths). `Graph3DNode` gains `size` and `note`, `Graph3DLink` gains `cross_dir` (ends in different folders).
+- **Groups and overview** (D23, files only since D41): `GraphQuery.groups()` computes the connected groups of files at query time (union-find over `file_edges`, no schema change). `graph3d_overview(mode, max_nodes)` returns everything or the group spheres, `graph3d_group(id)` the content of a sphere (`group:<representative>`, `isolated:<level>`, `more:<level>:<offset>`), `non_code_files()` the non-code files recorded by the last analysis (scan statistics key `non_code`: exact counts per category, at most 5,000 paths). `Graph3DNode` gains `size` and `note`, `Graph3DLink` gains `cross_dir` (ends in different folders).
 - **Standalone 3D window** (`ui/view3d/`, `cgs view3d`, optional): the same page in a **PyWebView** window running in its **own process** (PyWebView has its own GUI loop), for use outside the main window. Data: `GraphQuery.graph3d(root, mode=functions|files|both, depth, max_nodes)` — a bounded, deterministic neighbourhood (callers and callees) plus, in `both` mode, the files defining the routines (`defines` links) and the links between those files. The page is self-contained (vendored JavaScript, data inline) and carries a Content-Security-Policy forbidding every network access; there is **no HTTP server and no port** (`http_server=False`, file URL, `js_api` bridge). Right-click expands a node on demand (`View3DApi.expand`); a click prints one JSON line `{"event": "select", "uid": …}` on stdout. `--export page.html` writes the same page without a window.
 
-**Workflow when opening a folder:** inventory → display languages, coverage and skipped folders → analysis (`cgs inventory`, then `cgs scan`, subprocesses; opening another project stops a running one) → `Functions 3D` and `Files 3D` open on the **overview of the whole project** (every node and link, or one sphere per group, D23), `main` being detected for "From main" and "Paths to main" → selecting a routine (search, file explorer, graph click) updates the hero card, the inspector and the Callers / Callees panel; a click on a sphere opens its group; right-click adds the neighbours of a node. The "Complete with AI" prompt of Lot 13 is available from the command line (`cgs complete`) and not yet in the window.
+**Workflow when opening a folder:** inventory → display languages, coverage and skipped folders → analysis (`cgs inventory`, then `cgs scan`, subprocesses; opening another project stops a running one) → `Files` opens on the **overview of the whole project** (every file and dependency, or one sphere per group, D23) → selecting a file (file explorer, search, graph click, panel row) updates the hero card, the inspector and the Dependents / Dependencies / Impact panel, and centres the Files graph on it; a link (graph or panel) opens its occurrences in the Dependencies view; a click on a sphere opens its group; right-click adds the neighbours of a node. The "Complete with AI" prompt of Lot 13 is available from the command line (`cgs complete`) and not yet in the window.
 
 ### 3.12. Graphical performance strategies (CPU only)
 
@@ -1101,7 +1104,7 @@ Do not start the next lot.
 ### Lot 9 — Query API and command line
 
 - **Objective:** answer §1.1 questions headlessly.
-- **Deliverables:** `query/` (§3.10, explicit edge kinds, detailed paths, source freshness verification); commands `cgs callers <routine>` (default question: count + list with files and lines), `cgs callees`, `cgs file-links`, `cgs path`, `cgs impact`, `cgs find`, `cgs data`, `cgs unresolved`, `cgs health`; table or JSON output.
+- **Deliverables:** `query/` (§3.10, explicit edge kinds, detailed paths, source freshness verification); commands `cgs callers <routine>` (count + list with files and lines), `cgs callees`, `cgs file-links`, `cgs path`, `cgs impact`, `cgs find`, `cgs data`, `cgs unresolved`, `cgs health`; table or JSON output. Since D41 the default question is answered at the file level by `cgs files dependents|dependencies|impact|cycles`; the routine commands remain as symbol-level checking tools.
 - **Validation tests:** exact answers on all fixtures; path crossing dispatch marks step "possible"; file modified after analysis flagged stale by `source`; execution times comply with §1.3 on starter corpus and synthetic repo; `paths` and `impact` stop cleanly at bounds.
 - **Depends on:** Lots 7 and 8.
 
@@ -1386,6 +1389,9 @@ The core (`src/codegraph_sci/`, excluding generic packs) contains zero identifie
 | D36 | *(Generality, requirements plan phase 10, October 17, 2026)* Code_Aster stays optional: its pack has the structure of any project pack (with a `validation` repository written for it) and no privileged activation; the regular CI runs an independent matrix of miniature fixtures (Python library without main, C, C++, Fortran, mixed-language bindings, keyword DSL) with the shipped packs hidden; `tools/check_wheel.py` builds the wheel offline and runs it outside the checkout. Domain packs remain data outside the wheel (D24) |
 | D37 | *(Open source license, October 18, 2026)* The copyright holder relicenses CodeGraph-Sci under **GPL-3.0-or-later** (`LICENSE`: unmodified FSF text; `pyproject.toml`: SPDX expression), keeping the separate commercial license for uses the GPL does not allow (proprietary integration, redistribution under other terms). Chosen after a dependency audit: every redistributed component is MIT, BSD, PSF, MIT-0 or LGPL-3.0 (Qt, PySide6), all compatible; GPL-2.0-only excluded (Apache 2.0 parts bundled by PyInstaller); AGPL not needed for an offline desktop application. Internal use by companies becomes free; external contributions still require a CLA to keep the commercial path. Versions published before keep PolyForm Noncommercial 1.0.0. Supersedes the license part of D9 and D24 |
 | D38 | *(Folder tree, October 18, 2026)* Folders 3D shows the **folder tree** under a selected folder (project root by default; a folder double-clicked in the file explorer or right-clicked in the view; Parent folder and Project root buttons): every level from the persistent inventory, including folders holding only sub-folders, folders without code and excluded folders (greyed), never version-control metadata; one sphere per folder sized by the files below and coloured by its main language, linked to its parent (`contains`) in a radial tree layout. Dependencies between folders are an optional layer, off at opening (`GraphQuery.graph3d_folder_tree`, `include_dependencies`). `graph3d_directories` stays available for the dependency-only view |
+| D41 | *(Function APIs, October 18, 2026, lot 3 of the file-dependency migration)* The code that only served the removed Functions 3D view is retired: `GraphQuery.initial_subgraph`, `connected_neighbors` and `call_sites` (with `SubgraphReport`, `SubgraphEdge`, `NeighborsReport`), the routine level of `groups`, `graph3d_overview`, `graph3d_group`, `graph3d_main_paths` and `paths_from_main` (they now answer for files only and raise `QueryError` otherwise; their defaults became `Level.FILE` / `mode="files"`), and the functions mode of the embedded `Graph3DView` (its `files` argument, `with_files`, `hide_noise` and `sites_requested` are removed). **Kept on purpose:** the symbol-level tools `callers`, `callees`, `children`, `paths`, `impact`, `node`, `data_accesses`, `file_links`, `graph3d` in functions and both modes and `dependency_groups("entity")`, with their commands (`cgs callers`, `callees`, `path`, `impact`, `data`, `file-links`, `view3d`, `deps --level entity`): they check extraction and resolution precision and back the validation claims of the corpus audit and of packs (the owner chose to keep them). **Added:** `cgs files dependencies|dependents|impact|cycles` (table or `--json`; filters `--relationship`, `--resolution`, `--max-depth`, `--confirmed-only`), the file-level answer to the default question. No stored format changes |
+| D40 | *(File-centred interface, October 18, 2026, lot 2 of the file-dependency migration)* **Files** is the opening view; Explore holds Files, Folders and Dependencies, Project holds Inventory and Analysis health. Functions 3D, the function tree list, the Callers / Callees panel and routine selection are removed (the `CallTreeModel` with them); search results, the explorer, graph clicks and source references all select a **file**. The side panel shows **Dependents**, **Dependencies** (`file_relations`, one row per file, a child per relationship and resolution) and **Impact** (`file_impact`: incoming traversal, confirmed or possible, no `main` needed), filtered by path, language, relationship and resolution; the hero card counts what the panel shows and names the file cycle of the selection; Analysis health lists the file cycles. A relationship row of the panel or a link of the Files or Folders graph opens its **occurrences** in the Dependencies view, filtered by that relationship (Back returns to the graph). File and folder graphs draw **one link per relationship** (`Graph3DLink.kind` is the relationship; possible links keep the `ambiguous` status and colour; `link_evidence` accepts a relationship as kind); the dependency table opens at the file level (levels Files, Folders, Occurrences; filters for source path and language added; the function-level "Entities" level is no longer offered). The public function query APIs remain until lot 3 retires them |
+| D39 | *(File dependencies, October 18, 2026, lot 1 of the file-dependency migration)* Files and folders are the public dependency units; symbol definitions and reference resolution stay internal. `A -> B` means **file A depends on file B** (not an execution order). Every occurrence counts, inside routines and at script, module or program level: call sites, binding declarations and accesses to module data (the target file is the file of the module). Each keeps its relationship type, never collapsed: `call`, `dynamic_call`, `import`, `include`, `inherit`, `bridge`, `binding`, `binding_declaration`, `data_read`, `data_write` (`model.FILE_RELATIONSHIPS`, `site_relationship`). Aggregates are keyed by (source file, target file, relationship, resolution) with occurrence counts; `resolved` and `out_of_scope` are confirmed, `ambiguous` is a possible dependency of each candidate file, and a site counts **once per candidate file** even with several candidates in that file. Occurrences inside one file and those without a target file (external, unresolved) stay in the dependency table but are not file links; COMMON blocks and memory regions have no defining file, so their accesses stay data accesses only; isolated files stay in the inventory. The index (`file_edges`, `dir_edges` with a `resolution` column, **schema 4**), the dependency table and its file and folder groups (candidate files expanded; a target file or folder filter also matches candidates), `GraphQuery.file_dependencies`, `folder_dependencies`, `file_relations`, `file_impact` (incoming traversal, no entry point needed; files reached only through a possible dependency are listed as possible) and `file_cycles`, and the JSON export (`file_dependencies` and `folder_dependencies` with `relationship` and `resolution`, replacing `file_edges` and `dir_edges`) use this one contract; tests check that graph, table and export agree and that cold, cached and parallel scans are equivalent. **Migration:** a database of schema 3 is rebuilt by the next analysis with a full write; the facts cache (format 2, unchanged) is reused, so no file is re-extracted; profiles and user rules are unchanged. Until the interface lot, the 3D views keep drawing file and folder links as `calls` and `uses` (data accesses join `uses`), a link being possible while none of its occurrences is confirmed |
 
 ### 8.2. Open questions
 

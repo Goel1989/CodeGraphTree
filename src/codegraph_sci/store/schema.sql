@@ -32,8 +32,10 @@ CREATE TABLE edges(src INTEGER, dst INTEGER, kind TEXT, site_count INTEGER, min_
 CREATE TABLE node_stats(node_id INTEGER PRIMARY KEY, fan_in INTEGER, fan_out INTEGER,
                         fan_in_filtered INTEGER, fan_out_filtered INTEGER, impact_size INTEGER,
                         impact_size_filtered INTEGER, is_noise INTEGER, noise_reason TEXT);
-CREATE TABLE file_edges(src_file INTEGER, dst_file INTEGER, kind TEXT, count INTEGER);
-CREATE TABLE dir_edges(src_dir TEXT, dst_dir TEXT, kind TEXT, count INTEGER);
+-- File and folder dependencies (D39, schema 4): kind = relationship (call, import, include, inherit, bridge, binding,
+-- binding_declaration, data_read, data_write, ...), resolution = resolved, out_of_scope or ambiguous (possible).
+CREATE TABLE file_edges(src_file INTEGER, dst_file INTEGER, kind TEXT, resolution TEXT, count INTEGER);
+CREATE TABLE dir_edges(src_dir TEXT, dst_dir TEXT, kind TEXT, resolution TEXT, count INTEGER);
 CREATE VIRTUAL TABLE search_fts USING fts5(name, display, path, doc, node_id UNINDEXED,
                                            tokenize = "unicode61 tokenchars '_'");
 

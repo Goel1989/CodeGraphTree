@@ -15,7 +15,7 @@ from codegraph_sci.core.graph import (
     NodeRecord,
     NodeStatRecord,
 )
-from codegraph_sci.core.model import CALL_PATH, CONFIDENCE_RANK
+from codegraph_sci.core.model import CALL_PATH, CONFIDENCE_RANK, DATA_RELATIONSHIP, site_relationship
 
 SITE_EDGE_KIND = {"call": "calls", "maybe_call": "calls", "dynamic_call": "calls", "use": "uses",
                   "include": "uses", "inherit": "inherits", "bind": "binds"}
@@ -85,28 +85,45 @@ def node_statistics(nodes: list[NodeRecord], edges: list[EdgeRecord], noise: dic
             for i, n in enumerate(nodes)]
 
 
-def file_and_dir_edges(nodes: list[NodeRecord], sites: Iterable[CallSiteRecord]
+def file_and_dir_edges(nodes: list[NodeRecord], sites: Iterable[CallSiteRecord],
+                       edges: Iterable[EdgeRecord] = (), accesses: Iterable[DataAccessRecord] = ()
                        ) -> tuple[list[AggregateEdge], list[AggregateEdge]]:
-    """File-level links (one per site; ``calls`` for the call path, ``uses`` for use/include)."""
+    """File and folder dependencies (D39), keyed by (source, target, relationship, resolution).
+
+    Every occurrence counts: call sites (inside routines or at module/script level alike), binding declarations
+    (``binds`` edges without call site) and accesses to module data defined in another file. A site counts once per
+    candidate file, even when several candidate symbols are in that file; ambiguous candidates stay possible
+    dependencies (resolution ``ambiguous``). Occurrences inside one file and targets without a file (external,
+    unresolved) are not links; they stay in the dependency table.
+    """
+    node_by_uid = {n.uid: n for n in nodes}
     file_of = {n.uid: n.file for n in nodes if n.file}
-    fcount: dict[tuple[str, str, str], int] = defaultdict(int)
+    fcount: dict[tuple[str, str, str, str], int] = defaultdict(int)
+
+    def add(src_file: str, dst_files: Iterable[str | None], relationship: str, resolution: str) -> None:
+        for dst_file in sorted({f for f in dst_files if f}):
+            if dst_file != src_file:
+                fcount[(src_file, dst_file, relationship, resolution)] += 1
+
     for s in sites:
         targets = list(s.candidates) if s.candidates else ([s.dst] if s.dst else [])
-        kind = site_edge_kind(s)
-        kind = "uses" if kind in ("uses", "inherits") else "calls"
-        for dst in targets:
-            src_file = s.file
-            dst_file = file_of.get(dst)
-            if dst_file is None or dst_file == src_file:
-                continue
-            fcount[(src_file, dst_file, kind)] += 1
-    file_edges = [AggregateEdge(a, b, k, c) for (a, b, k), c in sorted(fcount.items())]
-    dcount: dict[tuple[str, str, str], int] = defaultdict(int)
+        add(s.file, (file_of.get(t) for t in targets), site_relationship(s.ref_kind, s.origin), s.resolution)
+    for edge in edges:  # binding declarations: a binding node declares its target in another language
+        source = node_by_uid.get(edge.src)
+        if (edge.kind == "binds" and edge.site_count == 0 and source is not None and source.kind == "binding"
+                and source.file):
+            add(source.file, [file_of.get(edge.dst)], "binding_declaration", "resolved")
+    for a in accesses:  # shared data: module variables belong to the file of their module
+        if a.data.startswith("data:module:") and a.mode in DATA_RELATIONSHIP:
+            owner = a.data[len("data:module:"):].split("::", 1)[0]
+            add(a.file, [file_of.get(f"fmod:{owner}")], DATA_RELATIONSHIP[a.mode], "resolved")
+    file_edges = [AggregateEdge(a, b, k, c, r) for (a, b, k, r), c in sorted(fcount.items())]
+    dcount: dict[tuple[str, str, str, str], int] = defaultdict(int)
     for e in file_edges:
         da, db = posixpath.dirname(e.src) or ".", posixpath.dirname(e.dst) or "."
         if da != db:
-            dcount[(da, db, e.kind)] += e.count
-    dir_edges = [AggregateEdge(a, b, k, c) for (a, b, k), c in sorted(dcount.items())]
+            dcount[(da, db, e.kind, e.resolution)] += e.count
+    dir_edges = [AggregateEdge(a, b, k, c, r) for (a, b, k, r), c in sorted(dcount.items())]
     return file_edges, dir_edges
 
 

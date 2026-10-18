@@ -1,7 +1,8 @@
 """Dependency table view (requirements plan phase 7): every relationship, filtered and paged by the database.
 
 The view never queries on the main thread: pages, aggregates, evidence and exports run in the query runner.
-A double click on an occurrence opens its source and evidence; on an aggregated row it lists its occurrences.
+It opens on the file dependencies (D40); folders and the individual occurrences are the other levels. A double
+click on an occurrence opens its source and evidence; on an aggregated row it lists its occurrences.
 """
 
 from __future__ import annotations
@@ -49,7 +50,8 @@ SITE_COLUMNS = [("Caller", "caller", "caller"), ("File", "caller_file", "path"),
 GROUP_COLUMNS = [("Source", "source", "source"), ("Target", "target", "target"),
                  ("Relationship", "relationship", "relationship"), ("Occurrences", "count", "count"),
                  ("Statuses", "statuses", None)]
-LEVELS = [("Occurrences", "site"), ("Entities", "entity"), ("Files", "file"), ("Directories", "directory")]
+LEVELS = [("Files", "file"), ("Folders", "directory"), ("Occurrences", "site")]
+SITE_LEVEL = 2  # index of the occurrences in LEVELS
 STATUSES = ["resolved", "ambiguous", "external", "out_of_scope", "unresolved"]
 EXPORT_COLUMNS = ("caller", "caller_file", "caller_lang", "target_text", "target", "candidates", "target_file",
                   "target_lang", "relationship", "line", "col", "resolution", "confidence", "rule", "condition")
@@ -117,8 +119,8 @@ class DependencyView(QWidget):
         # A scope (the rows behind a graph link or an aggregated row) is kept apart from the widget filters: the
         # widgets refine it, they never silently replace it (UI audit).
         self.scope = DependencyFilter()
-        self.level = "site"
-        self.sort, self.descending, self.offset = "path", False, 0
+        self.level = LEVELS[0][1]
+        self.sort, self.descending, self.offset = "source", False, 0
         self.page: DependencyPage | None = None
         self.evidence: DependencyEvidence | None = None
         self.text = QLineEdit()
@@ -128,9 +130,15 @@ class DependencyView(QWidget):
         self.relationship.addItems(["All relationships", *RELATIONSHIPS])
         self.status = QComboBox()
         self.status.addItems(["All statuses", *STATUSES])
+        self.language = QComboBox()
+        self.language.addItems(["All languages"])
+        self.path = QLineEdit()
+        self.path.setPlaceholderText("Source path starts with…")
+        self.path.returnPressed.connect(self.apply_filters)
+        self.path.setMinimumWidth(90)
         self.level_box = QComboBox()
         self.level_box.addItems([label for label, _k in LEVELS])
-        for box in (self.relationship, self.status, self.level_box):
+        for box in (self.relationship, self.status, self.language, self.level_box):
             box.currentIndexChanged.connect(self.apply_filters)
             # Compact combo boxes: their longest item never sets the width of the window (UI audit).
             box.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
@@ -143,10 +151,11 @@ class DependencyView(QWidget):
         self.info = QLabel("")
         export = QPushButton("Export CSV…")
         export.clicked.connect(self.choose_export)
-        bar = QVBoxLayout()  # two rows: the table never widens the window (UI audit)
+        bar = QVBoxLayout()  # short rows: the table never widens the window (UI audit)
         bar.setSpacing(4)
-        for widgets in ((self.text, self.relationship, self.status),
-                        (self.level_box, self.prev, self.info, self.next, export)):
+        for widgets in ((self.level_box, self.text, self.path),
+                        (self.relationship, self.status, self.language),
+                        (self.prev, self.info, self.next, export)):
             row = QHBoxLayout()
             for w in widgets:
                 row.addWidget(w)
@@ -189,6 +198,8 @@ class DependencyView(QWidget):
         self.text.setAccessibleName("Search the dependency table")
         self.relationship.setAccessibleName("Relationship filter")
         self.status.setAccessibleName("Status filter")
+        self.language.setAccessibleName("Language filter (source files)")
+        self.path.setAccessibleName("Path filter (source files)")
         self.level_box.setAccessibleName("Level")
         layout.addLayout(bar)
         layout.addWidget(self.scope_bar)
@@ -207,13 +218,24 @@ class DependencyView(QWidget):
             return
         self.reload()
 
+    def set_languages(self, languages: list[str]) -> None:
+        """Languages offered by the language filter (those of the project's files)."""
+        current = self.language.currentText()
+        self.language.blockSignals(True)
+        self.language.clear()
+        self.language.addItems(["All languages", *languages])
+        self.language.setCurrentText(current if current in languages else "All languages")
+        self.language.blockSignals(False)
+
     def apply_filters(self) -> None:
-        """The scope refined by the widgets: text, relationship and status (a widget left at "All" keeps the
-        scope's own value)."""
+        """The scope refined by the widgets: text, path, relationship, status and language (a widget left at
+        "All" or empty keeps the scope's own value)."""
         rel = self.relationship.currentText()
         status = self.status.currentText()
         self.filters = dataclasses.replace(
             self.scope, text=self.text.text().strip() or None,
+            path=self.path.text().strip() or self.scope.path,
+            language=self.scope.language if self.language.currentIndex() <= 0 else self.language.currentText(),
             relationships=self.scope.relationships if rel.startswith("All") else (rel,),
             statuses=self.scope.statuses if status.startswith("All") else (status,))
         self.level = LEVELS[self.level_box.currentIndex()][1]
@@ -259,16 +281,19 @@ class DependencyView(QWidget):
         self.reload()
 
     def _reset_widgets(self) -> None:
-        for widget, value in ((self.relationship, 0), (self.status, 0), (self.level_box, 0)):
+        """Every filter back to "All"; the level shows the occurrences."""
+        for widget, value in ((self.relationship, 0), (self.status, 0), (self.language, 0),
+                              (self.level_box, SITE_LEVEL)):
             widget.blockSignals(True)
             widget.setCurrentIndex(value)
             widget.blockSignals(False)
-        self.text.blockSignals(True)
-        self.text.clear()
-        self.text.blockSignals(False)
+        for line in (self.text, self.path):
+            line.blockSignals(True)
+            line.clear()
+            line.blockSignals(False)
 
     def set_scope(self, scope: DependencyFilter, description: str, *, back: bool = False) -> None:
-        """Show the rows of ``scope`` (a graph link, an aggregated row); the widgets start from "All"."""
+        """Show the occurrences of ``scope`` (a graph link, an aggregated row); the widgets start from "All"."""
         self.scope = scope
         self._reset_widgets()
         self.scope_label.setText(description)
@@ -282,8 +307,9 @@ class DependencyView(QWidget):
         self.apply_filters()
 
     def show_occurrences(self, filters: DependencyFilter, *, back: bool = False) -> None:
-        """List the rows behind a graph link (the graph and the table open the same evidence)."""
-        self.set_scope(filters, f"Link: {describe(filters)}", back=back)
+        """List the occurrences behind a link (graph or panel: the same evidence as the table)."""
+        relationships = f" ({', '.join(filters.relationships)})" if filters.relationships else ""
+        self.set_scope(filters, f"Link: {describe(filters)}{relationships}", back=back)
 
     # ------------------------------------------------------- navigation
     def activate(self, index: QModelIndex) -> None:

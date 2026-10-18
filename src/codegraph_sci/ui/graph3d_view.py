@@ -1,4 +1,4 @@
-"""3D graph of functions or files embedded in the main window (§3.11, decision D21).
+"""3D graph of files or folders embedded in the main window (§3.11, decisions D21, D40, D41).
 
 The page is the vendored 3d-force-graph view (``ui/web``) shown in a ``QWebEngineView``. It is written once to a
 temporary file and receives its data from Python (``cgs.load`` / ``cgs.merge``); it talks back through console
@@ -48,7 +48,7 @@ def page_path() -> Path:
         folder = Path(tempfile.mkdtemp(prefix="cgs-3d-"))
         atexit.register(shutil.rmtree, folder, ignore_errors=True)
         _page_file = folder / "view3d.html"
-        _page_file.write_text(build_html(empty_graph("functions"), "3D", host="qt"), encoding="utf-8")
+        _page_file.write_text(build_html(empty_graph("files"), "3D", host="qt"), encoding="utf-8")
     return _page_file
 
 
@@ -103,29 +103,25 @@ class _Page(QWebEnginePage):
 
 
 class Graph3DView(QWidget):
-    """One 3D graph (functions or files).
+    """One 3D graph: the file dependencies, or the folder tree (``directories``).
 
-    Starts with the overview of the whole project (every node and link, or one sphere per group when it does not fit);
-    a click on a sphere opens its group; follows the selection of the other panels; expands on right-click.
+    Starts with the overview of the whole project (every file and dependency, or one sphere per group when it does
+    not fit); a click on a sphere opens its group; follows the selection of the other panels; expands on right-click.
     """
 
     node_selected = Signal(str)
-    sites_requested = Signal(str, str)  # (caller uid, callee uid) for the detailed calls of a link
     evidence_requested = Signal(object)  # DependencyFilter of the rows behind a clicked link (same as the table)
 
-    def __init__(self, runner: QueryRunner, *, files: bool, directories: bool = False,
-                 parent: QWidget | None = None) -> None:
+    def __init__(self, runner: QueryRunner, *, directories: bool = False, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.runner = runner
-        self.files = files or directories
-        self.directories = directories  # directory level (D34): folders and the links between them
+        self.directories = directories  # directory level (D34, D38): the folder tree
         self.db: Path | None = None
         self.root_uid: str | None = None
         self.main_uid: str | None = None
         self.selected_uid: str | None = None
         self.overview = False  # showing the overview of every group
         self.group_id: str | None = None  # showing one group of the overview
-        self.hide_noise = True
         self.node_ids: set[str] = set()
         self.link_keys: set[tuple[str, str, str]] = set()
         self.page_ready = False
@@ -139,27 +135,23 @@ class Graph3DView(QWidget):
         self.btn_groups.setToolTip("Overview of the whole project: separate groups are separate (or parallel) programs")
         self.btn_groups.clicked.connect(self._reset_to_groups)
         self.btn_from_main = QPushButton("From main")
-        self.btn_from_main.setToolTip("Detect the main entry point and show its neighbourhood")
+        self.btn_from_main.setToolTip("Detect the main file and show its neighbourhood")
         self.btn_from_main.clicked.connect(self._reset_to_main)
         self.btn_to_main = QPushButton("Paths to main")
         self.btn_to_main.setCheckable(True)
-        self.btn_to_main.setToolTip("Show only the paths between main and the selected node "
+        self.btn_to_main.setToolTip("Show only the file paths between the main file and the selected file "
                                     "(shortest path if there are too many)")
         self.btn_to_main.toggled.connect(self._on_to_main_toggled)
         self.depth = QSpinBox()
         self.depth.setRange(1, 6)
         self.depth.setValue(2)
-        self.depth.setToolTip("Levels of callers and callees around the root")
+        self.depth.setToolTip("Levels of dependents and dependencies around the root")
         self.depth.valueChanged.connect(lambda _v: self.rebuild())
         self.max_nodes = QSpinBox()
         self.max_nodes.setRange(50, 2000)
         self.max_nodes.setValue(300)
         self.max_nodes.setToolTip("Maximum number of drawn nodes")
         self.max_nodes.valueChanged.connect(lambda _v: self.rebuild())
-        self.with_files = QCheckBox("Defining files")
-        self.with_files.setToolTip("Also show the files that define the routines, and the links between them")
-        self.with_files.toggled.connect(lambda _v: self.rebuild())
-        self.with_files.setVisible(not self.files)
         # Folder tree (directory level): the folder it starts from, how to move in the tree, dependencies optional.
         self.folder_root = "."
         self.btn_parent = QPushButton("Parent folder")
@@ -169,7 +161,7 @@ class Graph3DView(QWidget):
         self.btn_project_root.setToolTip("Show the tree of the whole project")
         self.btn_project_root.clicked.connect(lambda: self.set_folder_root("."))
         self.with_dependencies = QCheckBox("Dependencies between folders")
-        self.with_dependencies.setToolTip("Also draw the calls and uses between the folders (off: the tree alone)")
+        self.with_dependencies.setToolTip("Also draw the dependencies between the folders (off: the tree alone)")
         self.with_dependencies.toggled.connect(lambda _v: self.rebuild())
         for w in (self.btn_parent, self.btn_project_root, self.with_dependencies):
             w.setVisible(directories)
@@ -182,7 +174,7 @@ class Graph3DView(QWidget):
         limit_label.setBuddy(self.max_nodes)
         for w in (self.btn_from_main, self.btn_to_main, self.depth, depth_label):
             w.setVisible(not directories)
-        self.depth.setAccessibleName("Depth of callers and callees")
+        self.depth.setAccessibleName("Depth of dependents and dependencies")
         self.max_nodes.setAccessibleName("Maximum number of drawn nodes")
         self.info = elastic(QLabel(""))
         # Two short rows and a wrapping status line: the graph never widens the window (UI audit).
@@ -191,7 +183,7 @@ class Graph3DView(QWidget):
         for widgets in ((self.btn_groups, self.btn_from_main, self.btn_to_main, self.btn_parent,
                          self.btn_project_root),
                         (depth_label, self.depth, limit_label, self.max_nodes),
-                        (self.with_files, self.with_dependencies)):
+                        (self.with_dependencies,)):
             row = QHBoxLayout()
             for w in widgets:
                 row.addWidget(w)
@@ -212,11 +204,7 @@ class Graph3DView(QWidget):
     # -------------------------------------------------------------- state
     @property
     def mode(self) -> str:
-        if self.directories:
-            return "directories"
-        if self.files:
-            return "files"
-        return "both" if self.with_files.isChecked() else "functions"
+        return "directories" if self.directories else "files"
 
     def _key(self, what: str) -> str:
         return f"graph3d:{id(self)}:{what}"
@@ -237,10 +225,11 @@ class Graph3DView(QWidget):
         self.info.setText("")
 
     def load_overview(self, db: Path) -> None:
-        """The whole project: every node and link if it fits, else one sphere per group (and ``main`` detected)."""
+        """The whole project: every file and dependency if they fit, else one sphere per group (and the main file
+        detected)."""
         self.db = db
         gen = self._next_gen()
-        mode, limit, hide, files = self.mode, self.max_nodes.value(), self.hide_noise, self.files
+        limit = self.max_nodes.value()
         if self.directories:
             root, deps = self.folder_root, self.with_dependencies.isChecked()
 
@@ -256,10 +245,8 @@ class Graph3DView(QWidget):
             return
 
         def work(q: GraphQuery) -> tuple[str | None, Graph3D]:
-            roots = q.default_roots(hide_noise=hide)
-            main = roots.main_file if files else roots.main_routine
-            return (main.uid if main else None,
-                    q.graph3d_overview(mode=mode, max_nodes=limit, hide_noise=hide, include_noncode=files))
+            main = q.default_roots().main_file
+            return main.uid if main else None, q.graph3d_overview(mode="files", max_nodes=limit)
 
         def done(data: tuple[str | None, Graph3D]) -> None:
             if gen != self._gen:
@@ -275,7 +262,7 @@ class Graph3DView(QWidget):
         if self.db is None:
             return
         gen = self._next_gen()
-        mode, limit, hide = self.mode, self.max_nodes.value(), self.hide_noise
+        limit = self.max_nodes.value()
 
         def done(graph: Graph3D) -> None:
             if gen != self._gen:
@@ -284,8 +271,7 @@ class Graph3DView(QWidget):
             self._show(graph)
 
         self.runner.submit(self.db, self._key("load"),
-                           lambda q: q.graph3d_group(group_id, mode=mode, max_nodes=limit, hide_noise=hide),
-                           done, self._error)
+                           lambda q: q.graph3d_group(group_id, mode="files", max_nodes=limit), done, self._error)
 
     def _reset_to_groups(self) -> None:
         if self.btn_to_main.isChecked():
@@ -296,18 +282,16 @@ class Graph3DView(QWidget):
             self.load_overview(self.db)
 
     def load_from_main(self, db: Path) -> None:
-        """Detect ``main`` (routine or file) and show its neighbourhood."""
+        """Detect the main file and show its neighbourhood."""
         self.db = db
         gen = self._next_gen()
-        mode, depth, limit, hide, files = self.mode, self.depth.value(), self.max_nodes.value(), self.hide_noise, \
-            self.files
+        depth, limit = self.depth.value(), self.max_nodes.value()
 
         def work(q: GraphQuery) -> tuple[str, Graph3D]:
-            roots = q.default_roots(hide_noise=hide)
-            main = roots.main_file if files else roots.main_routine
+            main = q.default_roots().main_file
             if main is None:
-                raise ValueError("no main entry point in this analysis")
-            return main.uid, q.graph3d(main.uid, mode=mode, depth=depth, max_nodes=limit, hide_noise=hide)
+                raise ValueError("no file in this analysis")
+            return main.uid, q.graph3d(main.uid, mode="files", depth=depth, max_nodes=limit)
 
         def done(data: tuple[str, Graph3D]) -> None:
             if gen != self._gen:
@@ -347,8 +331,7 @@ class Graph3DView(QWidget):
             self.show_paths_from_main(self.selected_uid)
             return
         gen = self._next_gen()
-        root, mode, depth, limit, hide = self.root_uid, self.mode, self.depth.value(), self.max_nodes.value(), \
-            self.hide_noise
+        root, depth, limit = self.root_uid, self.depth.value(), self.max_nodes.value()
 
         def done(graph: Graph3D) -> None:
             if gen == self._gen:
@@ -356,15 +339,13 @@ class Graph3DView(QWidget):
                 self._show(graph)
 
         self.runner.submit(self.db, self._key("load"),
-                           lambda q: q.graph3d(root, mode=mode, depth=depth, max_nodes=limit, hide_noise=hide),
-                           done, self._error)
+                           lambda q: q.graph3d(root, mode="files", depth=depth, max_nodes=limit), done, self._error)
 
     def show_paths_from_main(self, target_uid: str) -> None:
-        """Only the path(s) from ``main`` to ``target_uid`` (the shortest one when there are too many)."""
+        """Only the file path(s) from the main file to ``target_uid`` (the shortest one when there are too many)."""
         if self.db is None:
             return
         gen = self._next_gen()
-        mode = self.mode
 
         def done(data: tuple[Graph3D, MainPathReport]) -> None:
             if gen != self._gen:
@@ -378,7 +359,7 @@ class Graph3DView(QWidget):
                 note = " — shortest path only, many exist" if report.showing_shortest_only else ""
                 self.info.setText(f"{len(report.paths)} path(s) from main ({report.root_uid}){note}")
 
-        self.runner.submit(self.db, self._key("load"), lambda q: q.graph3d_main_paths(target_uid, mode=mode),
+        self.runner.submit(self.db, self._key("load"), lambda q: q.graph3d_main_paths(target_uid, mode="files"),
                            done, self._error)
 
     def set_folder_root(self, path: str) -> None:
@@ -392,12 +373,10 @@ class Graph3DView(QWidget):
             self.set_folder_root(self.folder_root.rsplit("/", 1)[0] if "/" in self.folder_root else ".")
 
     def expand(self, uid: str) -> None:
-        """Add the direct callers and callees of ``uid`` to the drawn graph."""
-        if self.db is None or uid.startswith("dir:"):
+        """Add the direct dependents and dependencies of the file ``uid`` to the drawn graph."""
+        if self.db is None or not uid.startswith("file:"):
             return
         gen = self._gen
-        mode = "files" if uid.startswith("file:") else self.mode
-        hide = self.hide_noise
 
         def done(graph: Graph3D) -> None:
             if gen != self._gen:
@@ -409,7 +388,7 @@ class Graph3DView(QWidget):
             self._show(graph, merge=True)
 
         self.runner.submit(self.db, self._key(f"expand:{uid}"),
-                           lambda q: q.graph3d(uid, mode=mode, depth=1, max_nodes=EXPAND_MAX_NODES, hide_noise=hide),
+                           lambda q: q.graph3d(uid, mode="files", depth=1, max_nodes=EXPAND_MAX_NODES),
                            done, self._error)
 
     def _show(self, graph: Graph3D, *, merge: bool = False) -> None:
@@ -497,7 +476,5 @@ class Graph3DView(QWidget):
                 return  # a parent-child link of the folder tree has no dependency rows
             kind = event.get("kind") if isinstance(event.get("kind"), str) else None
             self.evidence_requested.emit(GraphQuery.link_evidence(src, dst, kind))  # rows of the dependency table
-            if not src.startswith(("file:", "dir:")) and not dst.startswith(("file:", "dir:")):
-                self.sites_requested.emit(src, dst)
         elif kind == "error" and isinstance(event.get("message"), str):
             self.js_errors.append(event["message"])

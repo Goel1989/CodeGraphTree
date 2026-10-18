@@ -98,10 +98,10 @@ def _fill(con: sqlite3.Connection, bundle: GraphBundle,
     _insert(con, "INSERT INTO node_stats VALUES (?,?,?,?,?,?,?,?,?)",
             ((node_ids[s.uid], s.fan_in, s.fan_out, s.fan_in_filtered, s.fan_out_filtered, s.impact_size,
               s.impact_size_filtered, int(s.is_noise), s.noise_reason) for s in bundle.node_stats))
-    _insert(con, "INSERT INTO file_edges VALUES (?,?,?,?)",
-            ((file_ids[e.src], file_ids[e.dst], e.kind, e.count) for e in bundle.file_edges))
-    _insert(con, "INSERT INTO dir_edges VALUES (?,?,?,?)",
-            ((e.src, e.dst, e.kind, e.count) for e in bundle.dir_edges))
+    _insert(con, "INSERT INTO file_edges VALUES (?,?,?,?,?)",
+            ((file_ids[e.src], file_ids[e.dst], e.kind, e.resolution, e.count) for e in bundle.file_edges))
+    _insert(con, "INSERT INTO dir_edges VALUES (?,?,?,?,?)",
+            ((e.src, e.dst, e.kind, e.resolution, e.count) for e in bundle.dir_edges))
     say("search")
     _insert(con, "INSERT INTO search_fts(name, display, path, doc, node_id) VALUES (?,?,?,?,?)",
             ((_search_name(n.uid), n.display_name, n.file or "", str(n.attrs.get("doc") or ""),
