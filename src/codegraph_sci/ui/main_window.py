@@ -920,6 +920,10 @@ class MainWindow(QMainWindow):
 
     def _file_activated(self, index: Any) -> None:
         path = index.siblingAtColumn(0).data(FileTreeModel.PATH_ROLE)
+        if isinstance(path, str) and path.startswith("dir:"):  # a folder: the folder tree from it
+            self.graph_dirs.set_folder_root(path[4:])
+            self.show_view(self.graph_dirs)
+            return
         if isinstance(path, str) and not path.startswith("dir:"):
             self.show_file(path, None)
             if self.db is not None:

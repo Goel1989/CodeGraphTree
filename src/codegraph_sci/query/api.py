@@ -1385,6 +1385,78 @@ class GraphQuery:
         graph.level = "directory"
         return graph
 
+    def graph3d_folder_tree(self, root: str = ".", *, max_nodes: int = 2000,
+                            include_dependencies: bool = False) -> Graph3D:
+        """The folder tree under ``root`` (every level): one sphere per folder, linked to its parent (``contains``).
+
+        Folders come from the persistent inventory, so folders holding only sub-folders, folders without code and
+        excluded folders (greyed: ``in_scope`` false) are shown; version-control metadata is not. ``size`` is the
+        number of files below, ``lang`` the main language of the analyzed files below. ``include_dependencies``
+        adds the dependencies between the drawn folders (off when the view opens). Beyond ``max_nodes``, the upper
+        levels are kept (breadth first) and ``truncated`` is set.
+        """
+        root = root.strip("/") or "."
+        folders: dict[str, tuple[int | None, str, str | None]] = {}  # path -> (files below, eligibility, reason)
+        for path, files, eligibility, reason in self.con.execute(
+                "SELECT path, files, eligibility, reason FROM inventory_entries WHERE kind = 'directory'"):
+            if reason != "version-control metadata":
+                folders[path] = (files, eligibility, reason)
+        langs: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        for path, lang in self.con.execute("SELECT path, lang FROM files"):
+            folder = posixpath.dirname(path) or "."
+            while True:
+                folders.setdefault(folder, (None, "not_applicable", None))  # databases without inventory entries
+                if lang:
+                    langs[folder][lang] += 1
+                if folder == ".":
+                    break
+                folder = posixpath.dirname(folder) or "."
+        if root not in folders:
+            raise QueryError(f"unknown folder: {root}")
+
+        def parent(path: str) -> str | None:
+            return None if path == "." else posixpath.dirname(path) or "."
+
+        def below(path: str) -> bool:
+            return root == "." or path == root or path.startswith(root + "/")
+
+        chosen = sorted((p for p in folders if below(p)), key=lambda p: (0 if p == "." else p.count("/") + 1, p))
+        truncated = len(chosen) > max_nodes
+        kept = chosen[:max_nodes]
+        nodes: dict[str, Graph3DNode] = {}
+        for path in kept:
+            files, eligibility, reason = folders[path]
+            count = langs.get(path, {})
+            lang = max(sorted(count), key=lambda k: count[k]) if count else None
+            excluded = eligibility in ("excluded", "unreadable")
+            label = path if root == "." else (root if path == root else path[len(root) + 1:])
+            note = f"{files if files is not None else sum(count.values())} file(s)"
+            if count:
+                note += " — " + ", ".join(f"{k} {v}" for k, v in sorted(count.items()))
+            if excluded:
+                note += f" — {eligibility}: {reason}"
+            nodes[f"dir:{path}"] = Graph3DNode(
+                f"dir:{path}", label, "directory", lang, None, None, 0, 0, is_root=path == root,
+                size=files if files is not None else sum(count.values()), note=note, group=parent(path) or "",
+                in_scope=not excluded)
+        links: dict[tuple[str, str, str], Graph3DLink] = {}
+        for path in kept:
+            up = parent(path)
+            if path != root and up is not None and f"dir:{up}" in nodes:
+                links[(f"dir:{up}", f"dir:{path}", "contains")] = Graph3DLink(f"dir:{up}", f"dir:{path}", "contains",
+                                                                             1, "exact")
+                nodes[f"dir:{up}"].fan_out += 1
+                nodes[f"dir:{path}"].fan_in += 1
+        if include_dependencies:
+            for a, b, kind, count in self.con.execute("SELECT src_dir, dst_dir, kind, count FROM dir_edges"):
+                src, dst = f"dir:{a}", f"dir:{b}"
+                if src in nodes and dst in nodes and src != dst:
+                    links[(src, dst, kind)] = Graph3DLink(src, dst, kind, int(count), "exact", cross_dir=True)
+        graph = _finish3d(f"dir:{root}", "directories", nodes, links, truncated=truncated)
+        graph.level = "directory"
+        graph.layout = {"version": 1, "algorithm": "tree", "dimensions": 3}
+        return graph
+
     @staticmethod
     def link_evidence(source: str, target: str, kind: str | None = None) -> DependencyFilter:
         """Filter of the dependency rows behind a drawn link (D34): the table and the graph open the same evidence.

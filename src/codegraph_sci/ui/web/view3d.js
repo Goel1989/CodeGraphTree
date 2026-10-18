@@ -9,7 +9,7 @@
   const LANG_COLORS = { fortran: "#a371f7", python: "#58a6ff", c: "#8b949e", cpp: "#f0883e" };
   const LINK_COLORS = { calls: "#6e7681", bridges: "#f0883e", binds: "#d2a8ff", dispatches: "#3fb950",
                         implements: "#56d364", uses: "#388bfd", defines: "#30363d", inherits: "#db61a2",
-                        includes: "#8b949e", imports: "#58a6ff" };
+                        includes: "#8b949e", imports: "#58a6ff", contains: "#5c6670" };
   const CROSS_DIR = "#39c5cf";  // links between two folders
   const BUCKET_KINDS = new Set(["group", "isolated", "more"]);
   const state = { nodes: new Map(), links: new Map(), hover: null, neighbours: new Set(), hoverLinks: new Set(),
@@ -64,6 +64,7 @@
     merge(data);
     placeNonCode();
     buildFilters();
+    applyTreeLayout();
     redraw();
     updateInfo(data.truncated);
     state.pendingFit = true;
@@ -115,12 +116,21 @@
     return { nodes, links };
   }
 
+  // Folder tree: a radial tree from the selected folder while only parent-child links are drawn; free forces when
+  // dependencies between folders are added (they would not form a tree).
+  function applyTreeLayout() {
+    if (!graph) return;
+    const links = [...state.links.values()];
+    const tree = state.meta.level === "directory" && links.length > 0 && links.every((l) => l.kind === "contains");
+    graph.dagMode(tree ? "radialout" : null).dagLevelDistance(tree ? 45 : null);
+  }
+
   // Cycles (strongly connected components, iterative Tarjan) and entry points of what is shown.
   function analyse(nodes, links) {
     const out = new Map(nodes.map((n) => [n.id, []]));
     const incoming = new Set();
     for (const l of links) {
-      if (l.kind === "defines") continue;
+      if (l.kind === "defines" || l.kind === "contains") continue;
       out.get(idOf(l.source)).push(idOf(l.target));
       incoming.add(idOf(l.target));
     }
@@ -156,7 +166,7 @@
     state.cycleLinks = new Set();
     for (const l of links) {
       const a = idOf(l.source), b = idOf(l.target);
-      if (l.kind === "defines") continue;
+      if (l.kind === "defines" || l.kind === "contains") continue;
       if (a === b || (comp.get(a) === comp.get(b) && size.get(comp.get(a)) > 1)) {
         state.cycleLinks.add(linkKey(l)); state.cycleNodes.add(a); state.cycleNodes.add(b);
       }
@@ -239,6 +249,7 @@
     if (document.getElementById("entries").checked && state.entries.has(n.id)) return "#3fb950";
     const byGroup = groupColor(n);
     if (byGroup) return byGroup;
+    if (n.kind === "directory" && n.in_scope === false) return "#4a4a4a";  // excluded folder: greyed
     if (n.in_scope === false) return "#8957e5";
     if (n.kind === "file" && state.meta.mode !== "files") return "#c9d1d9";  // files mode: colour by language
     if (n.kind === "external") return "#484f58";
@@ -252,7 +263,8 @@
   function tooltip(n) {
     const where = n.file ? `${n.file}${n.line ? ":" + n.line : ""}` : "outside the repository";
     return `<b>${escapeHtml(n.label)}</b><br><span style="color:#9e9e9e">${escapeHtml(n.kind)} · ${escapeHtml(n.lang || "-")}</span>`
-      + (BUCKET_KINDS.has(n.kind) ? `<br>${escapeHtml(n.note)}<br>click to open`
+      + (n.kind === "directory" ? `<br>${escapeHtml(n.note)}<br>right-click: the tree from this folder`
+         : BUCKET_KINDS.has(n.kind) ? `<br>${escapeHtml(n.note)}<br>click to open`
          : n.kind === "noncode" ? `<br>${escapeHtml(n.note)} · not analyzed code<br>${escapeHtml(n.file || "")}`
          : `<br>${escapeHtml(where)}<br>callers ${n.fan_in} · callees ${n.fan_out}`);
   }
@@ -269,7 +281,8 @@
       .nodeId("id")
       .nodeLabel(tooltip)
       .nodeColor(nodeColor)
-      .nodeVal((n) => (BUCKET_KINDS.has(n.kind) ? Math.max(2, n.size)  // radius grows as the cube root of the size
+      .nodeVal((n) => (n.kind === "directory" ? 1 + 2 * Math.log2(1 + (n.size || 0))  // folder: files below
+                       : BUCKET_KINDS.has(n.kind) ? Math.max(2, n.size)  // radius grows as the cube root of the size
                        : n.kind === "noncode" ? 1
                        : n.kind === "file" && state.meta.mode === "both" ? 7 : 1 + Math.log2(1 + n.fan_in)))
       .cooldownTime(6000)  // modest CPUs (C4): the layout settles within a few seconds
@@ -277,8 +290,10 @@
       .nodeOpacity(0.92)
       .linkColor((l) => (state.hoverLinks.size && !state.hoverLinks.has(linkKey(l)) ? "rgba(60,60,60,0.25)"
                                                                                        : linkColor(l)))
-      .linkWidth((l) => (l.kind === "defines" ? 0.3 : Math.min(4, 0.5 + Math.log2(1 + l.count))))
-      .linkDirectionalArrowLength((l) => (document.getElementById("arrows").checked && l.kind !== "defines" ? 3.5 : 0))
+      .linkWidth((l) => (l.kind === "defines" ? 0.3 : l.kind === "contains" ? 0.8
+                         : Math.min(4, 0.5 + Math.log2(1 + l.count))))
+      .linkDirectionalArrowLength((l) => (document.getElementById("arrows").checked && l.kind !== "defines"
+                                          && l.kind !== "contains" ? 3.5 : 0))
       .linkDirectionalArrowRelPos(1)
       .linkDirectionalParticles((l) => (document.getElementById("particles").checked
                                         && (l.kind === "bridges" || l.kind === "binds") ? 2 : 0))
@@ -303,6 +318,7 @@
       .onNodeRightClick((n) => requestExpand(n.id))
       .onLinkClick((l) => send({ event: "link", source: idOf(l.source), target: idOf(l.target), kind: l.kind }));
     graph.d3Force("group", groupForce());
+    graph.onDagError(() => graph.dagMode(null));  // never a cycle in a tree; free layout if one ever appears
   } catch (err) {
     graph = null;
     document.getElementById("graph").textContent = "";
@@ -418,6 +434,7 @@
       const data = visibleData();
       const groups = new Set(data.nodes.map(groupOf).filter((g) => g !== null));
       return { nodes: data.nodes.length, links: data.links.length, dims: state.dims, groupBy: state.groupBy,
+               layout: graph ? (graph.dagMode() || "force") : "none",
                groups: groups.size, cycleNodes: [...state.cycleNodes].sort(), entries: [...state.entries].sort(),
                level: state.meta.level, statuses: [...new Set(data.links.map((l) => l.status || "resolved"))].sort(),
                kinds: [...new Set(data.links.map((l) => l.kind))].sort() };

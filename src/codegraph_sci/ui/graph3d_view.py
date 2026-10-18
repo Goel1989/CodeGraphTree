@@ -160,6 +160,22 @@ class Graph3DView(QWidget):
         self.with_files.setToolTip("Also show the files that define the routines, and the links between them")
         self.with_files.toggled.connect(lambda _v: self.rebuild())
         self.with_files.setVisible(not self.files)
+        # Folder tree (directory level): the folder it starts from, how to move in the tree, dependencies optional.
+        self.folder_root = "."
+        self.btn_parent = QPushButton("Parent folder")
+        self.btn_parent.setToolTip("Show the tree from the folder above")
+        self.btn_parent.clicked.connect(self.folder_up)
+        self.btn_project_root = QPushButton("Project root")
+        self.btn_project_root.setToolTip("Show the tree of the whole project")
+        self.btn_project_root.clicked.connect(lambda: self.set_folder_root("."))
+        self.with_dependencies = QCheckBox("Dependencies between folders")
+        self.with_dependencies.setToolTip("Also draw the calls and uses between the folders (off: the tree alone)")
+        self.with_dependencies.toggled.connect(lambda _v: self.rebuild())
+        for w in (self.btn_parent, self.btn_project_root, self.with_dependencies):
+            w.setVisible(directories)
+        self.btn_groups.setVisible(not directories)
+        if directories:
+            self.max_nodes.setValue(2000)  # every level of the tree
         depth_label = QLabel("Depth:")
         depth_label.setBuddy(self.depth)
         limit_label = QLabel("Max nodes:")
@@ -172,8 +188,10 @@ class Graph3DView(QWidget):
         # Two short rows and a wrapping status line: the graph never widens the window (UI audit).
         top = QVBoxLayout()
         top.setSpacing(4)
-        for widgets in ((self.btn_groups, self.btn_from_main, self.btn_to_main),
-                        (depth_label, self.depth, limit_label, self.max_nodes), (self.with_files,)):
+        for widgets in ((self.btn_groups, self.btn_from_main, self.btn_to_main, self.btn_parent,
+                         self.btn_project_root),
+                        (depth_label, self.depth, limit_label, self.max_nodes),
+                        (self.with_files, self.with_dependencies)):
             row = QHBoxLayout()
             for w in widgets:
                 row.addWidget(w)
@@ -214,6 +232,7 @@ class Graph3DView(QWidget):
         self.db = None
         self.root_uid = self.main_uid = self.selected_uid = self.group_id = None
         self.overview = False
+        self.folder_root = "."
         self._show(empty_graph(self.mode))
         self.info.setText("")
 
@@ -223,13 +242,17 @@ class Graph3DView(QWidget):
         gen = self._next_gen()
         mode, limit, hide, files = self.mode, self.max_nodes.value(), self.hide_noise, self.files
         if self.directories:
+            root, deps = self.folder_root, self.with_dependencies.isChecked()
+
             def show_dirs(graph: Graph3D) -> None:
                 if gen == self._gen:
-                    self.overview, self.group_id, self.root_uid = True, None, None
+                    self.overview, self.group_id, self.root_uid = True, None, graph.root
                     self._show(graph)
+                    self.btn_parent.setEnabled(root != ".")
 
-            self.runner.submit(db, self._key("load"), lambda q: q.graph3d_directories(max_nodes=limit), show_dirs,
-                               self._error)
+            self.runner.submit(db, self._key("load"),
+                               lambda q: q.graph3d_folder_tree(root, max_nodes=limit, include_dependencies=deps),
+                               show_dirs, self._error)
             return
 
         def work(q: GraphQuery) -> tuple[str | None, Graph3D]:
@@ -308,6 +331,9 @@ class Graph3DView(QWidget):
     def rebuild(self) -> None:
         if self.db is None:
             return
+        if self.directories:
+            self.load_overview(self.db)
+            return
         if self.overview:
             self.load_overview(self.db)
             return
@@ -354,6 +380,16 @@ class Graph3DView(QWidget):
 
         self.runner.submit(self.db, self._key("load"), lambda q: q.graph3d_main_paths(target_uid, mode=mode),
                            done, self._error)
+
+    def set_folder_root(self, path: str) -> None:
+        """Show the folder tree from ``path`` (relative to the repository, ``.`` for the whole project)."""
+        self.folder_root = path.strip("/") or "."
+        if self.db is not None:
+            self.load_overview(self.db)
+
+    def folder_up(self) -> None:
+        if self.folder_root != ".":
+            self.set_folder_root(self.folder_root.rsplit("/", 1)[0] if "/" in self.folder_root else ".")
 
     def expand(self, uid: str) -> None:
         """Add the direct callers and callees of ``uid`` to the drawn graph."""
@@ -444,6 +480,10 @@ class Graph3DView(QWidget):
             self.open_group(event["uid"])
         elif kind in ("select", "expand") and isinstance(event.get("uid"), str) and event["uid"].startswith("noncode:"):
             return  # not analyzed code: nothing to select or expand
+        elif kind == "expand" and isinstance(event.get("uid"), str) and event["uid"].startswith("dir:"):
+            self.set_folder_root(event["uid"][4:])  # right-click on a folder: the tree from that folder
+        elif kind == "select" and isinstance(event.get("uid"), str) and event["uid"].startswith("dir:"):
+            self.selected_uid = event["uid"]  # a folder: its details are shown in the page
         elif kind == "select" and isinstance(event.get("uid"), str):
             self.selected_uid = event["uid"]
             self.node_selected.emit(event["uid"])
@@ -453,8 +493,8 @@ class Graph3DView(QWidget):
             self.expand(event["uid"])
         elif kind == "link" and isinstance(event.get("source"), str) and isinstance(event.get("target"), str):
             src, dst = event["source"], event["target"]
-            if src.startswith(GROUP_PREFIXES) or dst.startswith(GROUP_PREFIXES):
-                return
+            if src.startswith(GROUP_PREFIXES) or dst.startswith(GROUP_PREFIXES) or event.get("kind") == "contains":
+                return  # a parent-child link of the folder tree has no dependency rows
             kind = event.get("kind") if isinstance(event.get("kind"), str) else None
             self.evidence_requested.emit(GraphQuery.link_evidence(src, dst, kind))  # rows of the dependency table
             if not src.startswith(("file:", "dir:")) and not dst.startswith(("file:", "dir:")):

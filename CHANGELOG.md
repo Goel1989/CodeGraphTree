@@ -257,3 +257,8 @@
 - Failed or unstartable commands always unblock the window and say why; cancellations are reported as such.
 - Keyboard access and accessible names for the rail, hero card and title bar buttons; shortcuts Ctrl+F, F5, Shift+F5, Alt+1, Alt+2.
 - `docs/validation/ui_audit_fixes.md`; tests in `tests/ui/test_ui_audit_fixes.py`.
+
+## Folder tree (decision D38)
+- Folders 3D shows the folder tree under the selected folder, every level, one sphere per folder linked to its parent in a radial tree: project root by default, a folder double-clicked in the file explorer or right-clicked in the view, Parent folder and Project root buttons.
+- Folders holding only sub-folders, folders without code and excluded folders (greyed) are shown; version-control metadata never is. Sphere size: files below; colour: main language.
+- Dependencies between folders are an optional layer ("Dependencies between folders", off at opening). `GraphQuery.graph3d_folder_tree()`.

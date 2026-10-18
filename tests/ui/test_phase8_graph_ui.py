@@ -89,9 +89,9 @@ def test_link_click_opens_the_same_evidence_as_the_table(hybrid, qtbot) -> None:
 def test_directory_level_view(hybrid, qtbot) -> None:  # type: ignore[no-untyped-def]
     dirs = hybrid.graph_dirs
     hybrid.show_view(dirs)
-    qtbot.waitUntil(lambda: dirs.page_ready and dirs.node_ids == {"dir:app", "dir:csrc", "dir:ext", "dir:fsrc"},
-                    timeout=20000)
-    qtbot.waitUntil(lambda: dirs.js_nodes == 4, timeout=5000)
+    qtbot.waitUntil(lambda: dirs.page_ready and dirs.node_ids == {"dir:.", "dir:app", "dir:csrc", "dir:ext",
+                                                                   "dir:fsrc"}, timeout=20000)
+    qtbot.waitUntil(lambda: dirs.js_nodes == 5, timeout=5000)  # the folder tree, from the project root
     assert _stats(qtbot, dirs)["level"] == "directory"
 
 
