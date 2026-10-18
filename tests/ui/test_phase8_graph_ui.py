@@ -75,7 +75,7 @@ def test_link_click_opens_the_same_evidence_as_the_table(hybrid, qtbot) -> None:
     qtbot.waitUntil(lambda: view.filters.caller == src and view.page is not None and bool(view.page.rows)
                     and all(r.caller == src and r.target == dst for r in view.model.rows), timeout=5000)
     with GraphQuery(hybrid.db) as q:
-        expected = q.dependencies(q.link_evidence(src, dst), limit=100)
+        expected = q.dependencies(q.link_evidence(src, dst, kind), limit=100)
     assert [r.site_id for r in view.model.rows] == [r.site_id for r in expected.rows]
     files = hybrid.graph_files
     qtbot.waitUntil(lambda: files.page_ready and bool(files.link_keys), timeout=20000)

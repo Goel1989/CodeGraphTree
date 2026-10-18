@@ -402,7 +402,10 @@
     if (!q) return;
     const hit = [...state.nodes.values()].find((n) => n.label.toLowerCase() === q)
       || [...state.nodes.values()].find((n) => n.label.toLowerCase().includes(q) || n.id.toLowerCase().includes(q));
-    if (hit) { const live = graph.graphData().nodes.find((n) => n.id === hit.id); if (live) { focus(live); showDetails(live); } }
+    if (hit) {
+      const live = graph.graphData().nodes.find((n) => n.id === hit.id);
+      if (live) { focus(live); showDetails(live); notifySelect(live.id); }  // the inspector follows (UI audit)
+    }
   });
 
   window.cgs = {
@@ -425,6 +428,25 @@
       buildFilters(); redraw(); refreshStyle();
     },
     setDims, setGroupBy, reset,
+    // Pairs of panels that overlap (the details panel is measured as if shown); empty when the layout is sound.
+    overlaps() {
+      const details = document.getElementById("details");
+      const shown = details.style.display;
+      details.style.display = "block";
+      if (!details.textContent) details.textContent = "x".repeat(400);
+      const zones = ["side", "legend", "details", "info"].map((id) => [id, document.getElementById(id)])
+        .filter(([, e]) => e && getComputedStyle(e).display !== "none")
+        .map(([id, e]) => [id, e.getBoundingClientRect()]);
+      details.style.display = shown;
+      const out = [];
+      for (let i = 0; i < zones.length; i++) {
+        for (let j = i + 1; j < zones.length; j++) {
+          const [a, ra] = zones[i], [b, rb] = zones[j];
+          if (ra.left < rb.right && rb.left < ra.right && ra.top < rb.bottom && rb.top < ra.bottom) out.push([a, b]);
+        }
+      }
+      return out;
+    },
   };
   legend();
   load(JSON.parse(document.getElementById("graph-data").textContent));

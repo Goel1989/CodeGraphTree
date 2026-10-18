@@ -1386,13 +1386,16 @@ class GraphQuery:
         return graph
 
     @staticmethod
-    def link_evidence(source: str, target: str) -> DependencyFilter:
-        """Filter of the dependency rows behind a drawn link (D34): the table and the graph open the same evidence."""
+    def link_evidence(source: str, target: str, kind: str | None = None) -> DependencyFilter:
+        """Filter of the dependency rows behind a drawn link (D34): the table and the graph open the same evidence.
+        ``kind``: the link type, so that two relationship types between the same pair are not mixed."""
+        aggregate = source.startswith(("dir:", "file:")) and target.startswith(("dir:", "file:"))
+        relationships = (AGGREGATE_LINK_RELATIONSHIPS if aggregate else LINK_RELATIONSHIPS).get(kind or "", ())
         if source.startswith("dir:") and target.startswith("dir:"):
-            return DependencyFilter(caller_dir=source[4:], target_dir=target[4:])
+            return DependencyFilter(caller_dir=source[4:], target_dir=target[4:], relationships=relationships)
         if source.startswith("file:") and target.startswith("file:"):
-            return DependencyFilter(caller_file=source[5:], target_file=target[5:])
-        return DependencyFilter(caller=source, target=target)
+            return DependencyFilter(caller_file=source[5:], target_file=target[5:], relationships=relationships)
+        return DependencyFilter(caller=source, target=target, relationships=relationships)
 
     def graph3d_group(self, group_id: str, *, mode: str = "functions", max_nodes: int = 300,
                       hide_noise: bool = True) -> Graph3D:
@@ -1433,6 +1436,12 @@ class GraphQuery:
 
 
 RESOLUTION_NAMES = ("resolved", "ambiguous", "external", "out_of_scope", "unresolved")
+# Link types of the graphs -> relationship types of the dependency table. Entity links keep each type; file and
+# folder links aggregate them into "calls" (calls, bridges, bindings) and "uses" (imports, includes, inheritance).
+LINK_RELATIONSHIPS = {"calls": ("call", "dynamic_call"), "uses": ("import", "include"), "inherits": ("inherit",),
+                      "bridges": ("bridge",), "binds": ("binding", "binding_declaration")}
+AGGREGATE_LINK_RELATIONSHIPS = {"calls": ("call", "dynamic_call", "bridge", "binding", "binding_declaration"),
+                                "uses": ("import", "include", "inherit")}
 # Directory of a path column ("." at the root): everything before the last "/".
 _DIR = ("CASE WHEN instr({0}, '/') = 0 THEN '.' ELSE "
         "substr({0}, 1, length(rtrim({0}, replace({0}, '/', ''))) - 1) END")

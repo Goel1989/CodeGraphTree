@@ -4,13 +4,16 @@ Each task records its id, file, start time, deadline, worker process and status.
 kills only its own worker, which is replaced; the other tasks keep running. The clock of a task starts when an
 initialized worker receives it, so worker start-up (imports, grammars) is never charged to a file. A crash in
 an extractor is reported for its file; a worker that dies is replaced. Results arrive through ``on_done`` in
-completion order; callers sort what they keep (determinism).
+completion order; callers sort what they keep (determinism). A worker exits as soon as its parent process is gone
+(killed by a cancellation, crashed), even in the middle of a file: no extraction outlives the analysis.
 """
 
 from __future__ import annotations
 
 import math
 import multiprocessing as mp
+import os
+import threading
 import time
 from collections import deque
 from collections.abc import Callable, Sequence
@@ -43,7 +46,21 @@ class WorkerStartError(RuntimeError):
     """A worker process did not start within STARTUP_TIMEOUT_S."""
 
 
+def _exit_with_parent() -> None:
+    """Watch the parent process from a daemon thread and leave at once when it disappears."""
+    parent = mp.parent_process()
+    if parent is None:
+        return
+
+    def watch() -> None:
+        wait([parent.sentinel])
+        os._exit(1)  # noqa: SLF001 - the job may be stuck in C code: no clean-up is possible nor needed
+
+    threading.Thread(target=watch, name="parent-watchdog", daemon=True).start()
+
+
 def _worker_main(conn: Connection, init: Callable[..., None] | None, init_args: tuple[Any, ...], job: Job) -> None:
+    _exit_with_parent()
     if init is not None:
         init(*init_args)
     conn.send(("ready", None))

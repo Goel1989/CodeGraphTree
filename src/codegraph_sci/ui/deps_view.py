@@ -7,6 +7,7 @@ A double click on an occurrence opens its source and evidence; on an aggregated 
 from __future__ import annotations
 
 import csv
+import dataclasses
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +55,15 @@ EXPORT_COLUMNS = ("caller", "caller_file", "caller_lang", "target_text", "target
                   "target_lang", "relationship", "line", "col", "resolution", "confidence", "rule", "condition")
 
 
+def describe(f: DependencyFilter) -> str:
+    """Readable form of a scope: ``source -> target``."""
+    pairs = ((f.caller, f.target), (f.caller_file, f.target_file), (f.caller_dir, f.target_dir))
+    for source, target in pairs:
+        if source is not None or target is not None:
+            return f"{source or '*'} -> {target or '*'}"
+    return "all rows"
+
+
 def _cell(value: Any) -> str:
     if value is None:
         return ""
@@ -97,12 +107,16 @@ class DependencyView(QWidget):
     """Search, filter, sort, page, export; double click: source and evidence (or the occurrences of a group)."""
 
     source_requested = Signal(str, int)  # path, line
+    back_requested = Signal()  # return to the view the scope came from (a graph)
 
     def __init__(self, runner: QueryRunner) -> None:
         super().__init__()
         self.runner = runner
         self.db: Path | None = None
         self.filters = DependencyFilter()
+        # A scope (the rows behind a graph link or an aggregated row) is kept apart from the widget filters: the
+        # widgets refine it, they never silently replace it (UI audit).
+        self.scope = DependencyFilter()
         self.level = "site"
         self.sort, self.descending, self.offset = "path", False, 0
         self.page: DependencyPage | None = None
@@ -118,6 +132,10 @@ class DependencyView(QWidget):
         self.level_box.addItems([label for label, _k in LEVELS])
         for box in (self.relationship, self.status, self.level_box):
             box.currentIndexChanged.connect(self.apply_filters)
+            # Compact combo boxes: their longest item never sets the width of the window (UI audit).
+            box.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            box.setMinimumContentsLength(9)
+        self.text.setMinimumWidth(120)
         self.prev = QPushButton("◀")
         self.next = QPushButton("▶")
         self.prev.clicked.connect(lambda: self.turn(-1))
@@ -125,9 +143,15 @@ class DependencyView(QWidget):
         self.info = QLabel("")
         export = QPushButton("Export CSV…")
         export.clicked.connect(self.choose_export)
-        bar = QHBoxLayout()
-        for w in (self.text, self.relationship, self.status, self.level_box, self.prev, self.info, self.next, export):
-            bar.addWidget(w)
+        bar = QVBoxLayout()  # two rows: the table never widens the window (UI audit)
+        bar.setSpacing(4)
+        for widgets in ((self.text, self.relationship, self.status),
+                        (self.level_box, self.prev, self.info, self.next, export)):
+            row = QHBoxLayout()
+            for w in widgets:
+                row.addWidget(w)
+            row.addStretch()
+            bar.addLayout(row)
         self.model = DependencyModel()
         self.table = QTableView()
         self.table.setModel(self.model)
@@ -146,21 +170,52 @@ class DependencyView(QWidget):
         split.setSizes([500, 140])
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        self.scope_label = QLabel("")
+        self.scope_label.setWordWrap(True)
+        self.clear_scope = QPushButton("Clear")
+        self.clear_scope.setAccessibleName("Clear the link filter")
+        self.clear_scope.clicked.connect(self.reset_scope)
+        self.back = QPushButton("Back to the graph")
+        self.back.clicked.connect(self.back_requested.emit)
+        self.scope_bar = QWidget()
+        scope_row = QHBoxLayout(self.scope_bar)
+        scope_row.setContentsMargins(0, 0, 0, 0)
+        scope_row.addWidget(self.scope_label, 1)
+        scope_row.addWidget(self.clear_scope)
+        scope_row.addWidget(self.back)
+        self.scope_bar.hide()
+        self.prev.setAccessibleName("Previous page")
+        self.next.setAccessibleName("Next page")
+        self.text.setAccessibleName("Search the dependency table")
+        self.relationship.setAccessibleName("Relationship filter")
+        self.status.setAccessibleName("Status filter")
+        self.level_box.setAccessibleName("Level")
         layout.addLayout(bar)
+        layout.addWidget(self.scope_bar)
         layout.addWidget(split, 1)
 
     # ------------------------------------------------------------ loading
     def set_db(self, db: Path | None) -> None:
         self.db = db
         self.offset = 0
+        if db is None:  # no project: nothing shown, nothing pending
+            self.page = None
+            self.evidence = None
+            self.model.set_rows([], SITE_COLUMNS if self.level == "site" else GROUP_COLUMNS)
+            self.info.setText("")
+            self.evidence_view.clear()
+            return
         self.reload()
 
     def apply_filters(self) -> None:
+        """The scope refined by the widgets: text, relationship and status (a widget left at "All" keeps the
+        scope's own value)."""
         rel = self.relationship.currentText()
         status = self.status.currentText()
-        self.filters = DependencyFilter(text=self.text.text().strip() or None,
-                                        relationships=() if rel.startswith("All") else (rel,),
-                                        statuses=() if status.startswith("All") else (status,))
+        self.filters = dataclasses.replace(
+            self.scope, text=self.text.text().strip() or None,
+            relationships=self.scope.relationships if rel.startswith("All") else (rel,),
+            statuses=self.scope.statuses if status.startswith("All") else (status,))
         self.level = LEVELS[self.level_box.currentIndex()][1]
         self.sort = "path" if self.level == "site" else "source"
         self.offset = 0
@@ -203,23 +258,40 @@ class DependencyView(QWidget):
         self.sort, self.offset = key, 0
         self.reload()
 
-    def show_occurrences(self, filters: DependencyFilter) -> None:
+    def _reset_widgets(self) -> None:
+        for widget, value in ((self.relationship, 0), (self.status, 0), (self.level_box, 0)):
+            widget.blockSignals(True)
+            widget.setCurrentIndex(value)
+            widget.blockSignals(False)
+        self.text.blockSignals(True)
+        self.text.clear()
+        self.text.blockSignals(False)
+
+    def set_scope(self, scope: DependencyFilter, description: str, *, back: bool = False) -> None:
+        """Show the rows of ``scope`` (a graph link, an aggregated row); the widgets start from "All"."""
+        self.scope = scope
+        self._reset_widgets()
+        self.scope_label.setText(description)
+        self.back.setVisible(back)
+        self.scope_bar.show()
+        self.apply_filters()
+
+    def reset_scope(self) -> None:
+        self.scope = DependencyFilter()
+        self.scope_bar.hide()
+        self.apply_filters()
+
+    def show_occurrences(self, filters: DependencyFilter, *, back: bool = False) -> None:
         """List the rows behind a graph link (the graph and the table open the same evidence)."""
-        self.filters, self.level, self.sort, self.offset = filters, "site", "path", 0
-        self.level_box.blockSignals(True)
-        self.level_box.setCurrentIndex(0)
-        self.level_box.blockSignals(False)
-        self.reload()
+        self.set_scope(filters, f"Link: {describe(filters)}", back=back)
 
     # ------------------------------------------------------- navigation
     def activate(self, index: QModelIndex) -> None:
         row = self.model.rows[index.row()]
         if isinstance(row, DependencyGroup):  # list the occurrences under the aggregated row
-            self.filters, self.level, self.sort, self.offset = row.occurrences, "site", "path", 0
-            self.level_box.blockSignals(True)
-            self.level_box.setCurrentIndex(0)
-            self.level_box.blockSignals(False)
-            self.reload()
+            self.set_scope(row.occurrences, f"{row.level.capitalize()} occurrences: {row.source} -> "
+                                            f"{row.target or '(no resolved target)'} ({row.relationship})",
+                           back=self.back.isVisible())
             return
         self.open_row(row)
 

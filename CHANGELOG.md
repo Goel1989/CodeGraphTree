@@ -246,3 +246,14 @@
 ## Open source license (decision D37)
 - CodeGraph-Sci is relicensed under the GNU General Public License, version 3 or later (`LICENSE`: unmodified FSF text; SPDX `GPL-3.0-or-later` in `pyproject.toml`); the commercial license remains available for uses the GPL does not allow, such as distribution inside a proprietary product. Versions published before keep PolyForm Noncommercial 1.0.0.
 - `NOTICE`, `LICENSING.md`, `COMMERCIAL_LICENSE.md`, `README.md`, the About dialog, `docs/licensing_strategy.md` (version 3.0) and the architecture (§7, D9, D24) updated; the strict noncommercial draft is marked obsolete.
+
+## User-interface audit corrections
+- The window fits a small screen whatever the texts (minimum 974 px without project, 1,704 before): toolbars on several rows, shrinkable labels, compact filters; the panels of the 3D page never overlap.
+- A project change clears the previous selection, source, lists, graphs and tables, and drops late answers of the previous project.
+- Cancel stops the whole analysis: extraction workers exit with their parent, and the process tree is killed.
+- The call tree loads its pages in the background (no query on the GUI thread).
+- A link clicked in a graph shows its rows in the Dependencies view, as a scope that the filters refine (Clear, Back to the graph).
+- The callers/callees lists show the weakest confidence of a routine's sites; badges, tabs and summary count the same filtered routines.
+- Failed or unstartable commands always unblock the window and say why; cancellations are reported as such.
+- Keyboard access and accessible names for the rail, hero card and title bar buttons; shortcuts Ctrl+F, F5, Shift+F5, Alt+1, Alt+2.
+- `docs/validation/ui_audit_fixes.md`; tests in `tests/ui/test_ui_audit_fixes.py`.

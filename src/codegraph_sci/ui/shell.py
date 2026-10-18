@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -20,6 +21,14 @@ from PySide6.QtWidgets import (
 from codegraph_sci.ui.theme import icon
 
 RESIZE_MARGIN = 5
+
+
+def elastic(label: QLabel, *, wrap: bool = True) -> QLabel:
+    """A label whose text never widens the window: it wraps (or is clipped) to the space it gets."""
+    label.setWordWrap(wrap)
+    label.setMinimumWidth(0)
+    label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+    return label
 BADGE_SIZE = 48
 
 
@@ -31,7 +40,7 @@ class TitleBar(QFrame):
         self.setObjectName("TitleBar")
         self.window_ = window
         self.setFixedHeight(28)
-        self.title = QLabel("CodeGraph-Sci")
+        self.title = elastic(QLabel("CodeGraph-Sci"), wrap=False)  # a long project path never widens the window
         self.btn_min = self._button("—", "Minimize", window.showMinimized)
         self.btn_max = self._button("□", "Maximize", self.toggle_maximized)
         self.btn_close = self._button("✕", "Close", window.close)
@@ -39,8 +48,7 @@ class TitleBar(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addWidget(self.title)
-        layout.addStretch()
+        layout.addWidget(self.title, 1)
         for b in (self.btn_min, self.btn_max, self.btn_close):
             layout.addWidget(b)
 
@@ -48,6 +56,7 @@ class TitleBar(QFrame):
         b = QToolButton(self)
         b.setText(text)
         b.setToolTip(tip)
+        b.setAccessibleName(tip)
         b.setFixedHeight(28)
         b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         b.clicked.connect(slot)
@@ -154,13 +163,12 @@ class HeroCard(QFrame):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("HeroCard")
-        self.title = QLabel("CodeGraph-Sci")
+        self.title = elastic(QLabel("CodeGraph-Sci"), wrap=False)
         self.title.setObjectName("HeroTitle")
         self.title.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.subtitle = QLabel("Select a routine: search, file explorer or a click in a graph.")
+        self.subtitle = elastic(QLabel("Select a routine: search, file explorer or a click in a graph."))
         self.subtitle.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.summary = QLabel("")
-        self.summary.setWordWrap(True)
+        self.summary = elastic(QLabel(""))
         text = QVBoxLayout()
         text.setSpacing(2)
         text.addWidget(self.title)
@@ -169,7 +177,7 @@ class HeroCard(QFrame):
         self.badge_callers = self._square("—\ncallers", "Callers of the selection (show the list)")
         self.badge_callees = self._square("—\ncallees", "Callees of the selection (show the list)")
         self.btn_view = self._square("", "Show the selection in a view", "cube")
-        self.btn_filters = self._square("", "Filters", "filter")
+        self.btn_filters = self._square("", "Filters of the Callers / Callees panel (Ctrl+Shift+F)", "filter")
         self.btn_analysis = self._square("", "Analysis and analysis profile", "play")
         layout = QHBoxLayout(self)
         layout.setContentsMargins(18, 12, 14, 12)
@@ -182,7 +190,8 @@ class HeroCard(QFrame):
         b = QToolButton(self)
         b.setFixedSize(BADGE_SIZE, BADGE_SIZE)
         b.setToolTip(tip)
-        b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        b.setAccessibleName(tip)
+        b.setFocusPolicy(Qt.FocusPolicy.StrongFocus)  # reachable with Tab (UI audit)
         if icon_name:
             b.setIcon(icon(icon_name))
             b.setIconSize(QSize(22, 22))

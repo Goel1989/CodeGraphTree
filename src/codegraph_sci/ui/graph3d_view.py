@@ -29,6 +29,7 @@ from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QPushButton, QSpin
 
 from codegraph_sci.query.api import GraphQuery
 from codegraph_sci.query.types import Graph3D, MainPathReport
+from codegraph_sci.ui.shell import elastic
 from codegraph_sci.ui.view3d.html import build_html, empty_graph, graph_dict, safe_json
 from codegraph_sci.ui.workers import QueryRunner
 
@@ -159,14 +160,25 @@ class Graph3DView(QWidget):
         self.with_files.setToolTip("Also show the files that define the routines, and the links between them")
         self.with_files.toggled.connect(lambda _v: self.rebuild())
         self.with_files.setVisible(not self.files)
-        for w in (self.btn_from_main, self.btn_to_main, self.depth):
+        depth_label = QLabel("Depth:")
+        depth_label.setBuddy(self.depth)
+        limit_label = QLabel("Max nodes:")
+        limit_label.setBuddy(self.max_nodes)
+        for w in (self.btn_from_main, self.btn_to_main, self.depth, depth_label):
             w.setVisible(not directories)
-        self.info = QLabel("")
-        top = QHBoxLayout()
-        for w in (self.btn_groups, self.btn_from_main, self.btn_to_main, QLabel("Depth:"), self.depth, QLabel("Max nodes:"),
-                  self.max_nodes, self.with_files):
-            top.addWidget(w)
-        top.addStretch()
+        self.depth.setAccessibleName("Depth of callers and callees")
+        self.max_nodes.setAccessibleName("Maximum number of drawn nodes")
+        self.info = elastic(QLabel(""))
+        # Two short rows and a wrapping status line: the graph never widens the window (UI audit).
+        top = QVBoxLayout()
+        top.setSpacing(4)
+        for widgets in ((self.btn_groups, self.btn_from_main, self.btn_to_main),
+                        (depth_label, self.depth, limit_label, self.max_nodes), (self.with_files,)):
+            row = QHBoxLayout()
+            for w in widgets:
+                row.addWidget(w)
+            row.addStretch()
+            top.addLayout(row)
         top.addWidget(self.info)
 
         self.web = QWebEngineView(self)
@@ -196,6 +208,15 @@ class Graph3DView(QWidget):
         return self._gen
 
     # ------------------------------------------------------------ loading
+    def clear(self) -> None:
+        """No project: an empty graph; answers of earlier requests are ignored."""
+        self._next_gen()
+        self.db = None
+        self.root_uid = self.main_uid = self.selected_uid = self.group_id = None
+        self.overview = False
+        self._show(empty_graph(self.mode))
+        self.info.setText("")
+
     def load_overview(self, db: Path) -> None:
         """The whole project: every node and link if it fits, else one sphere per group (and ``main`` detected)."""
         self.db = db
@@ -434,7 +455,8 @@ class Graph3DView(QWidget):
             src, dst = event["source"], event["target"]
             if src.startswith(GROUP_PREFIXES) or dst.startswith(GROUP_PREFIXES):
                 return
-            self.evidence_requested.emit(GraphQuery.link_evidence(src, dst))  # the rows of the dependency table
+            kind = event.get("kind") if isinstance(event.get("kind"), str) else None
+            self.evidence_requested.emit(GraphQuery.link_evidence(src, dst, kind))  # rows of the dependency table
             if not src.startswith(("file:", "dir:")) and not dst.startswith(("file:", "dir:")):
                 self.sites_requested.emit(src, dst)
         elif kind == "error" and isinstance(event.get("message"), str):

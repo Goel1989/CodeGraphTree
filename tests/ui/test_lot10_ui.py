@@ -55,10 +55,12 @@ def test_lazy_tree_and_navigation(window, qtbot) -> None:  # type: ignore[no-unt
     model = window.tree_model
     assert model.direction is Direction.CALLEES
     root = model.index(0, 0)
-    model.fetchMore(root)
+    model.fetchMore(root)  # pages load in the background (UI audit): wait for them
+    qtbot.waitUntil(lambda: model.rowCount(root) > 0, timeout=5000)
     first = model.index(0, 0, root)
     assert model.node_uid(first) == "cpp:hybrid::solve(int)"
     model.fetchMore(first)
+    qtbot.waitUntil(lambda: model.rowCount(first) > 0, timeout=5000)
     assert model.node_uid(model.index(0, 0, first)) == "c:c_solve"
 
 

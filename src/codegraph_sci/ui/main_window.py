@@ -50,7 +50,7 @@ from codegraph_sci.ui.deps_view import DependencyView
 from codegraph_sci.ui.graph3d_view import Graph3DView
 from codegraph_sci.ui.highlighter import CodeHighlighter
 from codegraph_sci.ui.models import CallTreeModel, FileTreeModel
-from codegraph_sci.ui.shell import HeroCard, Popover, ResizeFrame, TitleBar
+from codegraph_sci.ui.shell import HeroCard, Popover, ResizeFrame, TitleBar, elastic
 from codegraph_sci.ui.workers import CgsProcess, QueryRunner
 
 ABOUT_TEXT = (
@@ -63,6 +63,12 @@ ABOUT_TEXT = (
     "a commercial license is also available.</p>"
 )
 SITE_ROLE = Qt.ItemDataRole.UserRole + 1
+CONFIDENCE_RANK = {"exact": 3, "resolved": 2, "heuristic": 1, "ambiguous": 0}  # unknown values count as the weakest
+
+
+def weakest_confidence(confidences: list[str]) -> str:
+    """The confidence of a routine is that of its least certain call site (never overestimated)."""
+    return min(confidences, key=lambda c: CONFIDENCE_RANK.get(c, -1))
 UID_ROLE = Qt.ItemDataRole.UserRole + 2
 
 
@@ -74,7 +80,7 @@ class Inspector(QWidget):
         self.window = window
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        self.title = QLabel("No file")
+        self.title = elastic(QLabel("No file"), wrap=False)
         self.banner = QWidget()
         bl = QHBoxLayout(self.banner)
         bl.setContentsMargins(6, 2, 6, 2)
@@ -98,6 +104,14 @@ class Inspector(QWidget):
         self.path: str | None = None
         self.sites: list[Any] = []
         self.highlighter: CodeHighlighter | None = None
+
+    def clear(self) -> None:
+        self.path = None
+        self.sites = []
+        self.title.setText("No file")
+        self.banner.hide()
+        self.editor.clear()
+        self.editor.setExtraSelections([])
 
     def show_source(self, excerpt: SourceExcerpt, lang: str | None, line: int | None, sites: list[Any]) -> None:
         self.path = excerpt.path
@@ -163,6 +177,8 @@ class MainWindow(QMainWindow):
         self.process.event.connect(self._on_progress)
         self.process.finished.connect(self._on_process_finished)
         self.pending_scan = False
+        self._cancelled = False
+        self._running = ""  # what the running command does (for its failure message)
         self.current: NodeSummary | None = None
         self.tree_model: CallTreeModel | None = None
         self._from_graph = False
@@ -180,11 +196,22 @@ class MainWindow(QMainWindow):
         act_open.setShortcut(QKeySequence.StandardKey.Open)
         act_open.triggered.connect(self.choose_folder)
         self.addAction(act_open)
+        for text, shortcut, slot in (("Search", "Ctrl+F", self._focus_search), ("Analyze", "F5", self.start_scan),
+                                     ("Filters", "Ctrl+Shift+F",
+                                      lambda: self.filters_popover.show_under(self.hero.btn_filters)),
+                                     ("Cancel the analysis", "Shift+F5", self.cancel_scan),
+                                     ("Explore views", "Alt+1", lambda: self.show_group("explore")),
+                                     ("Project views", "Alt+2", lambda: self.show_group("project"))):
+            action = QAction(text, self)
+            action.setShortcut(QKeySequence(shortcut))
+            action.triggered.connect(slot)
+            self.addAction(action)
 
         # Widgets shared by several places (filters and analysis live in the hero card popovers).
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search for a routine, file, module…")
         self.search.setClearButtonEnabled(True)
+        self.search.setAccessibleName("Search (Ctrl+F)")
         self.search.returnPressed.connect(self.run_search)
         self.btn_scan = QPushButton("Analyze")
         self.btn_scan.clicked.connect(self.start_scan)
@@ -207,19 +234,18 @@ class MainWindow(QMainWindow):
         self.inventory_table.setHorizontalHeaderLabels(["Language", "Files", "Lines", "Adapter", "Status"])
         self.inventory_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.inventory_table.verticalHeader().hide()
-        self.unknown_label = QLabel("")
+        self.unknown_label = elastic(QLabel(""))
         inv = QWidget()
         il = QVBoxLayout(inv)
         il.setContentsMargins(0, 0, 0, 0)
         il.addWidget(self.inventory_table)
         il.addWidget(self.unknown_label)
-        self.all_subfolders = QCheckBox("Analyze all subfolders (ignore .gitignore and default exclusions such as "
-                                        "build, .venv, node_modules)")
-        self.all_subfolders.setToolTip("Version-control folders (.git, .hg, .svn) are never analyzed")
+        self.all_subfolders = QCheckBox("Analyze all subfolders")
+        self.all_subfolders.setToolTip("Ignore .gitignore and the default exclusions such as build, .venv, "
+                                       "node_modules. Version-control folders (.git, .hg, .svn) are never analyzed.")
         self.all_subfolders.toggled.connect(self._on_all_subfolders)
         il.addWidget(self.all_subfolders)
-        self.skipped_label = QLabel("")
-        self.skipped_label.setWordWrap(True)
+        self.skipped_label = elastic(QLabel(""))
         self.skipped_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         il.addWidget(self.skipped_label)
         actions = QHBoxLayout()
@@ -258,8 +284,10 @@ class MainWindow(QMainWindow):
         self.health_view.setReadOnly(True)
         self.deps_view = DependencyView(self.runner)
         self.deps_view.source_requested.connect(lambda path, line: self.show_file(path, line))
+        self._evidence_from: QWidget | None = None
         for graph in (self.graph_functions, self.graph_files, self.graph_dirs):
-            graph.evidence_requested.connect(self.deps_view.show_occurrences)
+            graph.evidence_requested.connect(self._show_link_evidence)
+        self.deps_view.back_requested.connect(self._back_from_evidence)
         self.groups: dict[str, tuple[str, str, list[tuple[str, QWidget]]]] = {
             "explore": ("Explore", "graph", [("Functions 3D", self.graph_functions), ("Files 3D", self.graph_files),
                                              ("Folders 3D", self.graph_dirs), ("Tree list", self.tree_box),
@@ -359,7 +387,7 @@ class MainWindow(QMainWindow):
         hl = QHBoxLayout(header)
         hl.setContentsMargins(16, 0, 16, 0)
         self.header_title = QLabel("")
-        self.header_info = QLabel("No project open.")
+        self.header_info = elastic(QLabel("No project open."), wrap=False)
         self.header_info.setStyleSheet(f"color: {theme.MUTED}; font-size: 9pt; font-weight: normal;")
         hl.addWidget(self.header_title)
         hl.addStretch()
@@ -406,10 +434,14 @@ class MainWindow(QMainWindow):
         self.progress = QProgressBar()
         self.progress.setMaximumWidth(220)
         self.progress.hide()
-        self.status_label = QLabel("No project open.")
+        self.status_label = elastic(QLabel("No project open."), wrap=False)
         self.statusBar().addWidget(self.status_label, 1)
         self.statusBar().addPermanentWidget(self.progress)
         self.show_view(self.graph_functions)
+
+    def _focus_search(self) -> None:
+        self.search.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        self.search.selectAll()
 
     def _rail_button(self, icon_name: str, tip: str) -> QToolButton:
         b = QToolButton()
@@ -417,11 +449,12 @@ class MainWindow(QMainWindow):
         b.setIconSize(QSize(22, 22))
         b.setFixedSize(40, 40)
         b.setToolTip(tip)
-        b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        b.setAccessibleName(tip)
+        b.setFocusPolicy(Qt.FocusPolicy.StrongFocus)  # reachable with Tab, activated with Space
         return b
 
     def _build_popovers(self) -> None:
-        self.filters_popover = Popover(self, "Filters", columns=2)
+        self.filters_popover = Popover(self, "Filters of the Callers / Callees panel", columns=2)
         for w in (self.hide_noise, self.hide_ai, self.hide_amb, self.min_conf):
             self.filters_popover.add(w)
         self.analysis_popover = Popover(self, "Analysis", columns=2)
@@ -510,7 +543,9 @@ class MainWindow(QMainWindow):
     def open_project_folder(self, root: Path, project_folder: Path | None = None) -> None:
         if self.process.running():  # the inventory or analysis of the previous project is not wanted any more
             self.pending_scan = False
+            self._cancelled = True  # a cancellation, not a failure: no error dialog
             self.process.cancel(wait=True)
+        self._clear_project_state()
         self.project = open_project(root, project_folder)
         self.settings.setValue("last_project", str(root))
         self.setWindowTitle(f"CodeGraph-Sci — {root}")
@@ -527,14 +562,37 @@ class MainWindow(QMainWindow):
             self.pending_scan = True
             self._run_cgs(["inventory", str(root), "--project", str(self.project.folder), "--json"])
 
+    def _clear_project_state(self) -> None:
+        """Forget everything shown for the previous project; late answers of its queries are dropped."""
+        self.runner.cancel_all()
+        self.current = None
+        self.inspector.clear()
+        for tree in (self.callers_tree, self.callees_tree):
+            tree.clear()
+        self.links_tabs.setTabText(0, "Callers")
+        self.links_tabs.setTabText(1, "Callees")
+        self.hero.set_counts(None, None)
+        self.summary.setText("")
+        self.results.clear()
+        self.files_view.setModel(None)
+        self.tree_model = None
+        self.tree_view.setModel(None)
+        for graph in (self.graph_functions, self.graph_files, self.graph_dirs):
+            graph.clear()
+        self.deps_view.set_db(None)
+        self.inventory_table.setRowCount(0)
+        self.unknown_label.setText("")
+        self.skipped_label.setText("")
+        self.health_view.clear()
+
     def load_project(self) -> None:
         db = self.db
         if db is None:
             return
-        self.runner.submit(db, "inventory", lambda q: q.inventory(), self._show_inventory)
-        self.runner.submit(db, "files", lambda q: q.files(), self._show_files)
+        self.runner.submit(db, "inventory", lambda q: q.inventory(), self._show_inventory, self._error)
+        self.runner.submit(db, "files", lambda q: q.files(), self._show_files, self._error)
         self.runner.submit(db, "health", lambda q: (q.scan_health(), q.unresolved(include_ambiguous=True, limit=30)),
-                           self._show_health)
+                           self._show_health, self._error)
         self.graph_functions.hide_noise = self.hide_noise.isChecked()
         self.graph_functions.load_overview(db)
         self.graph_files.hide_noise = self.hide_noise.isChecked()
@@ -544,6 +602,9 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------ analysis
     def _run_cgs(self, args: list[str]) -> None:
+        self._cancelled = False
+        self._running = {"scan": "Analysis", "inventory": "Language inventory", "profile": "Profile update"}.get(
+            args[0], "Command")
         self.btn_scan.setEnabled(False)
         self.btn_cancel.setEnabled(True)
         self.progress.setRange(0, 0)
@@ -558,6 +619,7 @@ class MainWindow(QMainWindow):
 
     def cancel_scan(self) -> None:
         self.pending_scan = False
+        self._cancelled = True
         self.process.cancel()
         self.status_label.setText("Analysis cancelled.")
 
@@ -581,9 +643,14 @@ class MainWindow(QMainWindow):
         self.btn_cancel.setEnabled(False)
         self.progress.hide()
         if code != 0:
-            if self.pending_scan or "Traceback" in stderr:
-                QMessageBox.warning(self, "Analysis", f"Command failed (code {code}).\n\n{stderr[-1500:]}")
             self.pending_scan = False
+            if self._cancelled:
+                self.status_label.setText(f"{self._running} cancelled.")
+                return
+            lines = [line for line in stderr.strip().splitlines() if line.strip()]
+            reason = lines[-1] if lines else f"exit code {code}"
+            self.status_label.setText(f"{self._running} failed: {reason}")
+            QMessageBox.warning(self, self._running, f"{self._running} failed (code {code}).\n\n{stderr[-1500:]}")
             return
         if self.pending_scan:
             self.pending_scan = False
@@ -743,7 +810,7 @@ class MainWindow(QMainWindow):
 
     def _keep_site(self, site: Any) -> bool:
         level = self.min_conf.currentIndex()
-        rank = {"exact": 3, "resolved": 2, "heuristic": 1, "ambiguous": 0}.get(site.confidence, 0)
+        rank = CONFIDENCE_RANK.get(site.confidence, 0)
         if rank < level:
             return False
         if self.hide_ai.isChecked() and ("@r-" in site.origin or site.origin.startswith("ai")):
@@ -761,8 +828,7 @@ class MainWindow(QMainWindow):
             count += 1
             n = item.node
             top = QTreeWidgetItem([f"{n.display_name}  ({len(sites)})", f"{n.file or n.uid}:{n.line or ''}",
-                                   min((s.confidence for s in sites), key=lambda c: -["ambiguous", "heuristic",
-                                                                                       "resolved", "exact"].index(c))])
+                                   weakest_confidence([s.confidence for s in sites])])
             top.setData(0, UID_ROLE, n.uid)
             top.setToolTip(0, n.uid)
             for s in sites:
@@ -789,9 +855,14 @@ class MainWindow(QMainWindow):
         where = f"{node.file}:{node.line}" if node.file else "outside the repository"
         self.hero.title.setText(node.display_name)
         self.hero.subtitle.setText(f"{node.kind} · {node.lang or '-'} · {node.uid} · {where}")
-        self.hero.set_counts(callers.count, callees.count)
-        self.summary.setText(f"Called by <b>{callers.count}</b> routine(s) in <b>{callers.file_count}</b> "
-                             f"file(s){hidden} — calls {callees.count} routine(s) — "
+        # Badges, tabs and summary count the same thing: the routines the lists show, after the panel filters.
+        self.hero.set_counts(n_callers, n_callees)
+
+        def counted(shown: int, total: int) -> str:
+            return f"<b>{shown}</b>" + (f" (of {total} before the filters)" if shown != total else "")
+
+        self.summary.setText(f"Called by {counted(n_callers, callers.count)} routine(s) in <b>{callers.file_count}</b> "
+                             f"file(s){hidden} — calls {counted(n_callees, callees.count)} routine(s) — "
                              f"impact: {node.impact_size} transitive caller(s){not_counted}")
         if node.file:
             self.show_file(node.file, node.line, node.lang)
@@ -822,7 +893,8 @@ class MainWindow(QMainWindow):
         if self.tree_model is not None:
             self.tree_model.close()
         direction = Direction.CALLEES if self.tree_direction.currentIndex() == 0 else Direction.CALLERS
-        self.tree_model = CallTreeModel(self.db, self.current.uid, direction, hide_noise=self.hide_noise.isChecked())
+        self.tree_model = CallTreeModel(self.runner, self.db, self.current.uid, self.current.display_name, direction,
+                                        hide_noise=self.hide_noise.isChecked())
         self.tree_view.setModel(self.tree_model)
         self.tree_view.expand(self.tree_model.index(0, 0))
         self.tree_view.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
@@ -858,6 +930,17 @@ class MainWindow(QMainWindow):
         self._from_graph = True  # keep the drawn graph: only the panels follow the selection
         self.select_symbol(uid)
 
+    def _show_link_evidence(self, filters: Any) -> None:
+        """A link clicked in a graph: its rows and evidence in the Dependencies view, shown (UI audit)."""
+        current = self.views.currentWidget()
+        self._evidence_from = current if current is not self.deps_view else self._evidence_from
+        self.deps_view.show_occurrences(filters, back=self._evidence_from is not None)
+        self.show_view(self.deps_view)
+
+    def _back_from_evidence(self) -> None:
+        if self._evidence_from is not None:
+            self.show_view(self._evidence_from)
+
     def show_link_sites(self, src: str, dst: str) -> None:
         """Detailed calls behind a drawn link (double-click on an edge: ``src`` calls ``dst``)."""
         db = self.db
@@ -877,6 +960,10 @@ class MainWindow(QMainWindow):
         self.status_label.setText(message.splitlines()[0])
 
     def closeEvent(self, event: Any) -> None:  # noqa: N802 - Qt API
+        if self.process.running():  # no analysis outlives the window (UI audit, UI-03)
+            self.pending_scan = False
+            self._cancelled = True
+            self.process.cancel(wait=True)
         self.runner.cancel_all()
         super().closeEvent(event)
 

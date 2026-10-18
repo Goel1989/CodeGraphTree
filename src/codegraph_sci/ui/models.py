@@ -1,4 +1,8 @@
-"""Qt models: lazy call tree (pages of 50 children, "+N more", "↺ already shown") and file explorer."""
+"""Qt models: lazy call tree (pages of 50 children, "+N more", "↺ already shown") and file explorer.
+
+The call tree holds no database connection: each page is loaded by the query runner in a background thread and
+inserted when it arrives ("loading…" until then), so expanding a node never blocks the window (UI audit).
+"""
 
 from __future__ import annotations
 
@@ -11,7 +15,8 @@ from PySide6.QtCore import QAbstractItemModel, QModelIndex, QPersistentModelInde
 from PySide6.QtGui import QBrush, QColor, QStandardItem, QStandardItemModel
 
 from codegraph_sci.query.api import GraphQuery
-from codegraph_sci.query.types import Direction, Level, TreeItem
+from codegraph_sci.query.types import Direction, Level, Page, TreeItem
+from codegraph_sci.ui.workers import QueryRunner
 
 PAGE = 50
 LANG_COLORS = {"fortran": "#B392F0", "python": "#79B8FF", "c": "#C0C6CC", "cpp": "#F0883E", None: "#9E9E9E"}
@@ -29,6 +34,7 @@ class _Node:
     loaded: int = 0
     seen: bool = False  # already shown elsewhere in the tree: not expanded again
     more: bool = False  # the "+N more" placeholder row
+    loading: bool = False  # a page of its children is being loaded
 
     def row(self) -> int:
         return self.parent.children.index(self) if self.parent else 0
@@ -37,23 +43,23 @@ class _Node:
 class CallTreeModel(QAbstractItemModel):
     """Text version of the TreeGraph: callees or callers of a routine, expanded node by node."""
 
-    def __init__(self, db: Path, root_uid: str, direction: Direction, *, hide_noise: bool = True,
-                 level: Level = Level.ROUTINE) -> None:
+    def __init__(self, runner: QueryRunner, db: Path, root_uid: str, root_label: str, direction: Direction, *,
+                 hide_noise: bool = True, level: Level = Level.ROUTINE) -> None:
         super().__init__()
-        self.q = GraphQuery(db)
+        self.runner = runner
+        self.db = db
         self.direction = direction
         self.hide_noise = hide_noise
         self.level = level
+        self.closed = False
         self.root = _Node("", "", None)
-        label = root_uid
-        if level is Level.ROUTINE:
-            label = self.q.node(root_uid).display_name
-        top = _Node(root_uid, label, self.root)
+        top = _Node(root_uid, root_label, self.root)
         self.root.children = [top]
         self.shown: set[str] = {root_uid}
 
     def close(self) -> None:
-        self.q.close()
+        """Pages that arrive afterwards are ignored (the model was replaced)."""
+        self.closed = True
 
     # --------------------------------------------------------------- tree
     def _node(self, index: Index) -> _Node:
@@ -95,7 +101,7 @@ class CallTreeModel(QAbstractItemModel):
 
     def canFetchMore(self, parent: Index) -> bool:  # noqa: N802
         node = self._node(parent)
-        if node is self.root or node.seen or node.more:
+        if node is self.root or node.seen or node.more or node.loading:
             return False
         return node.total is None
 
@@ -104,8 +110,29 @@ class CallTreeModel(QAbstractItemModel):
         self._load(parent, node, 0)
 
     def _load(self, parent_index: Index, node: _Node, offset: int) -> None:
-        page = self.q.children(node.uid, direction=self.direction, level=self.level, offset=offset, limit=PAGE,
-                               hide_noise=self.hide_noise)
+        """Ask the runner for a page of children; they are inserted by ``_insert`` when the page arrives."""
+        if node.loading or self.closed:
+            return
+        node.loading = True
+        persistent = QPersistentModelIndex(parent_index)
+        uid, direction, level, hide = node.uid, self.direction, self.level, self.hide_noise
+
+        def work(q: GraphQuery) -> Page[TreeItem]:
+            return q.children(uid, direction=direction, level=level, offset=offset, limit=PAGE, hide_noise=hide)
+
+        def failed(_message: str) -> None:
+            node.loading = False
+
+        self.runner.submit(self.db, f"tree:{id(self)}:{uid}:{offset}", work,
+                           lambda page: self._insert(persistent, node, offset, page), failed)
+
+    def _insert(self, parent_index: QPersistentModelIndex, node: _Node, offset: int, page: Page[TreeItem]) -> None:
+        node.loading = False
+        if self.closed:
+            return
+        if not parent_index.isValid():
+            return  # the row disappeared meanwhile (its parent was collapsed into a new model)
+        index = QModelIndex(parent_index)
         new: list[_Node] = []
         for item in page.items:
             child = _Node(item.uid, item.label, node, item)
@@ -118,12 +145,15 @@ class CallTreeModel(QAbstractItemModel):
         if remaining > 0:
             new.append(_Node(f"+more:{node.uid}:{offset + PAGE}", f"+{remaining} more", node, more=True))
         start = len(node.children)
-        self.beginInsertRows(parent_index, start, start + len(new) - 1) if new else None
+        if new:
+            self.beginInsertRows(index, start, start + len(new) - 1)
         node.children.extend(new)
         node.total = page.total
         node.loaded = offset + len(page.items)
         if new:
             self.endInsertRows()
+        else:
+            self.dataChanged.emit(index, index)  # no child: the expander disappears
 
     def expand_more(self, index: QModelIndex) -> None:
         """Replace a "+N more" row by the next page."""
@@ -155,6 +185,8 @@ class CallTreeModel(QAbstractItemModel):
         if role == Qt.ItemDataRole.DisplayRole:
             if col == 0:
                 label = node.label
+                if node.loading:
+                    label += "  (loading…)"
                 if node.seen:
                     label += "  ↺ already shown"
                 if item is not None and item.possible:

@@ -40,6 +40,27 @@ def _isolated_data_dir(tmp_path_factory: pytest.TempPathFactory, monkeypatch: py
     monkeypatch.setenv("CGS_DATA_DIR", str(tmp_path_factory.mktemp("cgs-data")))
 
 
+@pytest.fixture(autouse=True)
+def message_boxes(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str]]:
+    """Modal message boxes would block an offscreen test forever: they are recorded instead of shown."""
+    shown: list[tuple[str, str]] = []
+    try:
+        from PySide6.QtWidgets import QMessageBox
+    except ImportError:  # pragma: no cover - PySide6 not installed
+        return shown
+
+    def record(kind: str) -> object:
+        def show(_parent: object, title: str, text: str, *args: object, **kwargs: object) -> object:
+            shown.append((kind, f"{title}: {text}"))
+            return QMessageBox.StandardButton.Ok
+
+        return show
+
+    for kind in ("warning", "information", "critical", "question", "about"):
+        monkeypatch.setattr(QMessageBox, kind, staticmethod(record(kind)))
+    return shown
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _delete_widgets_before_exit() -> Iterator[None]:
     """QtWebEngine pages must be destroyed while the QApplication still exists, or the process crashes at exit."""
