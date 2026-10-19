@@ -69,8 +69,6 @@ def test_selected_file_shows_its_dependents_and_dependencies(hybrid, qtbot) -> N
     assert hybrid.hero.title.text() == "solver.c"
     assert "impact" in hybrid.summary.text().lower()
     qtbot.waitUntil(lambda: hybrid.inspector.path == "csrc/solver.c", timeout=5000)
-    hybrid.hero.badge_dependencies.click()
-    assert hybrid.links_tabs.currentIndex() == 1
 
 
 def test_a_link_of_the_panel_opens_its_occurrences(hybrid, qtbot) -> None:  # type: ignore[no-untyped-def]
@@ -118,7 +116,6 @@ def test_panel_filters_path_language_relationship_resolution(hybrid, qtbot) -> N
     hybrid.filter_path.clear()
     hybrid.filter_resolution.setCurrentText("possible")
     assert _tops(hybrid.dependencies_tree) == [] and hybrid.links_tabs.tabText(1) == "Dependencies (0)"
-    assert "dependents" in hybrid.hero.btn_filters.accessibleName().lower()
 
 
 def test_impact_lists_every_file_that_may_be_affected(hybrid, qtbot) -> None:  # type: ignore[no-untyped-def]

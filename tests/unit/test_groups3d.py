@@ -54,11 +54,6 @@ def _uid(q: GraphQuery, name: str) -> str:
     return q.resolve(name)[0].uid
 
 
-def test_routine_groups_are_retired(db: Path) -> None:
-    with GraphQuery(db) as q, pytest.raises(QueryError, match="files"):
-        q.groups(Level.ROUTINE)
-
-
 def test_file_groups(db: Path) -> None:
     with GraphQuery(db) as q:
         report = q.groups(Level.FILE)

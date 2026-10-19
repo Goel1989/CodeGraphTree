@@ -79,7 +79,7 @@ type = "forbidden"
 source_modules = ["codegraph_sci.core"]
 forbidden_modules = [
     "codegraph_sci.algo", "codegraph_sci.inventory", "codegraph_sci.extract", "codegraph_sci.link",
-    "codegraph_sci.enrich", "codegraph_sci.store", "codegraph_sci.query", "codegraph_sci.layout",
+    "codegraph_sci.enrich", "codegraph_sci.store", "codegraph_sci.query",
     "codegraph_sci.audit", "codegraph_sci.scan", "codegraph_sci.cli", "codegraph_sci.ui", "codegraph_sci.ai",
     "codegraph_sci.corpus_audit",
 ]
@@ -89,7 +89,7 @@ name = "leaf packages only use core"
 type = "forbidden"
 source_modules = [
     "codegraph_sci.algo", "codegraph_sci.inventory", "codegraph_sci.extract", "codegraph_sci.link",
-    "codegraph_sci.enrich", "codegraph_sci.store", "codegraph_sci.layout",
+    "codegraph_sci.enrich", "codegraph_sci.store",
 ]
 forbidden_modules = [
     "codegraph_sci.query", "codegraph_sci.audit", "codegraph_sci.scan", "codegraph_sci.cli",
@@ -101,7 +101,7 @@ name = "leaf packages are independent"
 type = "independence"
 modules = [
     "codegraph_sci.algo", "codegraph_sci.inventory", "codegraph_sci.extract", "codegraph_sci.link",
-    "codegraph_sci.enrich", "codegraph_sci.store", "codegraph_sci.layout",
+    "codegraph_sci.enrich", "codegraph_sci.store",
 ]
 
 [[tool.importlinter.contracts]]
@@ -110,12 +110,12 @@ type = "forbidden"
 source_modules = ["codegraph_sci.query"]
 forbidden_modules = [
     "codegraph_sci.inventory", "codegraph_sci.extract", "codegraph_sci.link", "codegraph_sci.enrich",
-    "codegraph_sci.layout", "codegraph_sci.audit", "codegraph_sci.scan", "codegraph_sci.cli",
+    "codegraph_sci.audit", "codegraph_sci.scan", "codegraph_sci.cli",
     "codegraph_sci.ui", "codegraph_sci.ai",
 ]
 
 [[tool.importlinter.contracts]]
-name = "ui only uses core, query, layout"
+name = "ui only uses core, query"
 type = "forbidden"
 allow_indirect_imports = true
 source_modules = ["codegraph_sci.ui"]

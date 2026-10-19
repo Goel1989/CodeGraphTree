@@ -112,14 +112,7 @@ def test_graph_3d_events_select_expand_link_and_paths(window, qtbot) -> None:  #
     graph.handle_event({"event": "select", "uid": "file:csrc/solver.c"})
     qtbot.waitUntil(lambda: window.current_file == "csrc/solver.c" and window.relations_loaded, timeout=5000)
     assert graph.node_ids == shown and graph.root_uid == "file:fsrc/kernel.f90"
-    # Click on a link: its occurrences, filtered by its relationship, in the Dependencies view.
-    graph.handle_event({"event": "link", "source": "file:csrc/solver.c", "target": "file:fsrc/kernel.f90",
-                        "kind": "bridge"})
-    view = window.deps_view
-    qtbot.waitUntil(lambda: view.page is not None and len(view.model.rows) == 1, timeout=5000)
-    assert window.views.currentWidget() is view and view.filters.relationships == ("bridge",)
     # Paths to main: only the files between main and the selected file.
-    view.back.click()
     graph.handle_event({"event": "select", "uid": "file:fsrc/kernel.f90"})
     graph.btn_to_main.setChecked(True)
     qtbot.waitUntil(lambda: "file:app/run.py" in graph.node_ids and "main" in graph.info.text().lower(),

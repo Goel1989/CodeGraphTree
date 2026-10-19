@@ -2,7 +2,7 @@
 
 ``cgs files dependencies|dependents|impact|cycles`` answer at the file level with the same contract as the window.
 The query code that only served the removed Functions 3D view is gone; the symbol-level tools (callers, callees,
-path, impact, data) stay for checking and for the validation claims.
+path, impact, data) stay for checking and for the validation claims; ``test_lot9_query`` covers them.
 """
 
 from __future__ import annotations
@@ -81,14 +81,6 @@ def test_files_cycles(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> Non
 def test_files_unknown_file_is_an_error(hybrid: str, capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit, match="unknown file"):
         _cgs(["files", "dependents", "nowhere.c", "--db", hybrid], capsys)
-
-
-def test_symbol_level_tools_stay(hybrid: str, capsys: pytest.CaptureFixture[str]) -> None:
-    for args in (["callers", "kernel"], ["callees", "c_solve"], ["path", "run_case", "kernel"], ["impact", "kernel"]):
-        code, _out = _cgs([*args, "--db", hybrid], capsys)
-        assert code == 0, args
-    with GraphQuery(hybrid) as q:
-        assert q.callees("c:c_solve").items and q.paths("py:app.run.run_case", "f:kernel").paths
 
 
 def test_function_view_code_is_retired(hybrid: str) -> None:

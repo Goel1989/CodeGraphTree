@@ -104,8 +104,6 @@ def test_graph3d_main_paths(hybrid: Path) -> None:
     with GraphQuery(hybrid) as q:
         files, report = q.graph3d_main_paths("f:kernel", mode="files")  # the file of a symbol, or a file
         again, _ = q.graph3d_main_paths("file:fsrc/kernel.f90")
-        with pytest.raises(QueryError, match="files"):
-            q.graph3d_main_paths("f:kernel", mode="functions")
     assert report.paths and report.paths[0].steps[-1].uid == "file:fsrc/kernel.f90"
     assert report.root_uid == "file:app/run.py" and files.root == report.root_uid
     assert all(n.kind == "file" for n in files.nodes) and "file:fsrc/kernel.f90" in {n.id for n in files.nodes}

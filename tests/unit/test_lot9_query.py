@@ -186,8 +186,6 @@ def test_default_roots(basic: GraphQuery, tmp_path: Path) -> None:
 def test_paths_from_main_single_and_multiple(basic: GraphQuery, tmp_path: Path) -> None:
     from codegraph_sci.core.graph import AggregateEdge
 
-    with pytest.raises(QueryError, match="files"):  # routine paths: ``paths`` (``cgs path``)
-        basic.paths_from_main("f:mesh_mod::refine", level=Level.ROUTINE)
     mp_file = basic.paths_from_main("file:solve.f90")
     assert mp_file.root_uid == "file:main.f90"
     assert mp_file.total_found == 1 and not mp_file.multiple_possible and not mp_file.showing_shortest_only

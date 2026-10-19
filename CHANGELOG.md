@@ -281,4 +281,5 @@
 - New command `cgs files dependencies|dependents|impact|cycles` (table or `--json`; `--relationship`, `--resolution`, `--max-depth`, `--confirmed-only`): file dependencies from the command line.
 - Removed (served only the retired Functions 3D view): `GraphQuery.initial_subgraph`, `connected_neighbors`, `call_sites` and the types `SubgraphReport`, `SubgraphEdge`, `NeighborsReport`; the functions mode of the embedded 3D view.
 - Compatibility: `groups`, `graph3d_overview`, `graph3d_group`, `graph3d_main_paths` and `paths_from_main` answer for files only (defaults `Level.FILE` / `mode="files"`) and raise `QueryError` for routines. Use `paths` and `impact` (or `cgs path`, `cgs impact`) for routines.
+- Removed the unused `layout` package (tree layout of the former TreeGraph, unused since D21) and its tests; the import-linter contracts no longer name it.
 - Kept as symbol-level checking tools: `cgs callers`, `callees`, `path`, `impact`, `data`, `file-links`, `view3d` and `deps --level entity`, with their query functions; the corpus audit and pack validation claims rely on them.
